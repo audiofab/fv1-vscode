@@ -1,0 +1,675 @@
+interface FV1AssemblerOptions {
+  strict?: boolean;
+  allowUndefinedLabels?: boolean;
+}
+
+interface FV1AssemblerProblem {
+  message: string;
+  isfatal: boolean;
+  line: number;
+}
+
+interface FV1Memory {
+  size: number;
+  start?: number;
+  middle?: number;
+  end?: number;
+  name: string;
+  line: number;
+  original: string;
+}
+
+interface FV1Symbol {
+  name: string;
+  value: string;
+  line?: number;
+  original?: string;
+}
+
+interface FV1Instruction {
+  opcode: number;
+  numOperands: number;
+}
+
+interface FV1AssemblerResult {
+  machineCode: number[];
+  problems: FV1AssemblerProblem[];
+  labels: Map<string, number>;
+  symbols: FV1Symbol[];
+  memories: FV1Memory[];
+}
+
+// Possible signed fixed-point number formats for the FV-1
+// Bits  Range      Resolution        (LSB value)
+// S1.14  16    -2 to 1.99993896484  0.00006103516
+// S1.9   11    -2 to 1.998046875    0.00195312525
+// S.10   11    -1 to 0.9990234375   0.0009765625
+
+interface SignedFixedPointNumber {
+  integer_bits: number;
+  fractional_bits: number;
+  minimum?: number;
+  maximum?: number;
+}
+
+class SignedFixedPointNumber implements SignedFixedPointNumber {
+  constructor(public integer_bits: number, public fractional_bits: number, private max_value: number) {
+    const lsb = max_value / (1 << fractional_bits);
+    this.minimum = -max_value;
+    this.maximum = max_value - lsb;
+  }
+
+  public encode(value: string, onError?: (msg: string)=>void): number | null {
+    // Apparently the SpinASM assembler allows multiple signs in front of numbers
+    // so we need to deal with that here as well
+    let multiplier = 1;
+    while (value.startsWith('+') || value.startsWith('-')) {
+      if (value.startsWith('-')) {
+        multiplier *= -1;
+      }
+      value = value.substring(1);
+    }
+    let num = parseFloat(value);
+    if (isNaN(num)) {
+      if (onError) {
+        onError(`Invalid number: ${value}`);
+      }
+      return null
+    }
+    num *= multiplier;
+    if (num < this.minimum || num > this.maximum) {
+      if (onError) {
+        onError(`Value out of range: ${value} (must be between ${this.minimum} and ${this.maximum})`);
+      }
+      return null;
+    }
+
+    let encoded = Math.round(num * (1 << this.fractional_bits));
+    let total_bits = 1 + this.integer_bits + this.fractional_bits;
+    let mask = ((1 << (total_bits)) - 1);
+    // Convert to unsigned representation (two's complement)
+    if (encoded < 0) {
+      encoded = (encoded + (1 << (total_bits))) & mask;
+    } else {
+      encoded = encoded & mask;
+    }
+
+    return encoded;
+  }
+}
+
+const S1_14 = new SignedFixedPointNumber(1, 14, 2.0);
+const S_15 = new SignedFixedPointNumber(0, 15, 1.0);
+const S1_9 = new SignedFixedPointNumber(1, 9, 2.0);
+const S_10 = new SignedFixedPointNumber(0, 10, 1.0);
+
+// Hexadecimal numbers start with a $
+// Binary numbers start with % and contain underscores for readability
+// Binary numbers can also be an OR'ing of decimal values (e.g. "4|1")
+
+
+// interface Instruction {
+//   name: string;
+//   opcode: number;
+//   getMachineWord: (lineNumber: number, onError: (msg: string)=>void) => number | null;
+// }
+
+// class iSKP implements Instruction {
+//   public name = 'SKP';
+//   public opcode = 0b10001;
+
+//   public getMachineWord = (lineNumber: number, onError: (msg: string)=>void): number => {
+//     return this.opcode;
+//   }
+// }
+
+class FV1Assembler {
+  private NOP_ENCODING = 0x0000_0011;
+
+  private readonly instructions = new Map<string, FV1Instruction>([
+    ['CHO',   {opcode: 0b10100, numOperands: -1}], // Special case with variable operands
+    ['SKP',   {opcode: 0b10001, numOperands: 2}],
+    ['SOF',   {opcode: 0b01101, numOperands: 2}],
+    ['NOP',   {opcode: 0b10001, numOperands: 0}],  // NOP is SKP with no flags and 0 offset
+    ['MULX',  {opcode: 0b01010, numOperands: 1}],
+    ['RDAX',  {opcode: 0b00100, numOperands: 2}],
+    ['RDFX',  {opcode: 0b00101, numOperands: 2}],
+    ['WLDS',  {opcode: 0b10010, numOperands: 3}],
+    ['WRAX',  {opcode: 0b00110, numOperands: 2}],
+    ['WRLX',  {opcode: 0b01000, numOperands: 2}],
+    // Delay memory intructions
+    ['RDA',   {opcode: 0b00000, numOperands: 2}],
+    ['WRA',   {opcode: 0b00010, numOperands: 2}],
+    ['WRAP',  {opcode: 0b00011, numOperands: 2}],
+  ]);
+
+  private readonly predefinedSymbols = new Map<string, number>([
+    // Registers
+    ['SIN0_RATE', 0x00], ['SIN0_RANGE', 0x01], ['SIN1_RATE', 0x02], ['SIN1_RANGE', 0x03],
+    ['RMP0_RATE', 0x04], ['RMP0_RANGE', 0x05], ['RMP1_RATE', 0x06], ['RMP1_RANGE', 0x07],
+    ['POT0', 0x10], ['POT1', 0x11], ['POT2', 0x12], ['ADCL', 0x14], ['ADCR', 0x15],
+    ['DACL', 0x16], ['DACR', 0x17], ['ADDR_PTR', 0x18], ['REG0', 0x20], ['REG1', 0x21],
+    ['REG2', 0x22], ['REG3', 0x23], ['REG4', 0x24], ['REG5', 0x25], ['REG6', 0x26],
+    ['REG7', 0x27], ['REG8', 0x28], ['REG9', 0x29], ['REG10', 0x2A], ['REG11', 0x2B],
+    ['REG12', 0x2C], ['REG13', 0x2D], ['REG14', 0x2E], ['REG15', 0x2F],
+    ['REG16', 0x30], ['REG17', 0x31], ['REG18', 0x32], ['REG19', 0x33],
+    ['REG20', 0x34], ['REG21', 0x35], ['REG22', 0x36], ['REG23', 0x37],
+    ['REG24', 0x38], ['REG25', 0x39], ['REG26', 0x3A], ['REG27', 0x3B],
+    ['REG28', 0x3C], ['REG29', 0x3D], ['REG30', 0x3E], ['REG31', 0x3F],
+    // CHO-related
+    ['SIN0', 0x00], ['SIN1', 0x01], ['RMP0', 0x02], ['RMP1', 0x03],
+    ['RDA', 0x00], ['SOF', 0x02], ['RDAL', 0x03],
+    ['SIN', 0x00], ['COS', 0x01], ['REG', 0x02], ['COMPC', 0x04],
+    ['COMPA', 0x08], ['RPTR2', 0x10], ['NA', 0x20],
+    // SKP flags
+    ['RUN', 0x8000_0000], ['ZRC', 0x4000_0000], ['ZRO', 0x2000_0000],
+    ['GEZ', 0x1000_0000], ['NEG', 0x08000_0000]
+  ]);
+
+  private labels = new Map<string, number>();
+  private symbols: FV1Symbol[] = [];
+  private memories: FV1Memory[] = [];
+  private problems: FV1AssemblerProblem[] = [];
+  private options: FV1AssemblerOptions = {};
+  private MAX_DELAY_MEMORY = 32768;
+
+  constructor(options: FV1AssemblerOptions = {}) {
+    this.options = options;
+  }
+
+  public assemble(source: string): FV1AssemblerResult {
+    this.reset();
+    let machineCode: number[] = [];
+    const instructionLines = this.preprocessSource(source);
+    const totalDelayMemory = this.allocateDelayMemory();
+    console.log(`Total delay memory allocated: ${totalDelayMemory} words`);
+
+    // If there are no fatal problems continue with parsing instructions
+    if (!this.problems.some(p => p.isfatal)) {
+      machineCode = this.generateMachineCode(instructionLines);
+    }
+
+    return {
+      machineCode: machineCode,
+      problems: this.problems,
+      labels: new Map(this.labels),
+      symbols: this.symbols,
+      memories: this.memories
+    };
+  }
+
+  private reset(): void {
+    this.labels.clear();
+    this.symbols = [];
+    this.memories = [];
+    this.problems = [];
+  }
+
+  private parseUnsignedInt(value: string, maxNumBits:number = 0): number | null {
+    let parsed: number = null;
+    if (value.includes('|')) {
+      // Handle OR'ed values
+      const parts = value.split('|');
+      parsed = 0;
+      for (const part of parts) {
+        const partValue = this.parseUnsignedInt(part.trim());
+        if (partValue === null) {
+          return null;
+        }
+        parsed |= partValue;
+      }
+    } else if (value.startsWith('$')) {
+      parsed = parseInt(value.substring(1), 16);
+    } else if (value.startsWith('%')) {
+      // Handle binary with optional underscores
+      const binaryStr = value.substring(1).replace(/_/g, '');
+      parsed = parseInt(binaryStr, 2);
+    } else {
+      parsed = parseInt(value, 10);
+    }
+    if (isNaN(parsed) || parsed < 0) {
+        return null;
+    }
+    if (maxNumBits && parsed > (1 << maxNumBits) - 1) {
+      return null;
+    }
+    return parsed;
+  }
+
+  private preprocessSource(source: string): Map<number, string[]> {
+    // Add built-in registers and choModes to the list of symbols
+    this.predefinedSymbols.forEach((value, key) => {
+      this.symbols.push({name: key, value: value.toString()});
+    });
+
+    // Preprocess source: remove comments, trim lines, and filter out empty lines
+    const lines = new Map(
+      source
+      .split('\n')
+      .map((line, index) => ({ line: line.trim(), number: index + 1 }))
+      .filter(({ line }) => line && !line.startsWith(';'))
+      .map(({ line, number }) => {
+        // Remove inline comments
+        const commentIndex = line.indexOf(';');
+        return {line: commentIndex !== -1 ? line.substring(0, commentIndex).trim() : line, number: number};
+      })
+      .filter(({line}) => line.length > 0)
+      .map(({line, number}) => [number, line] as [number, string])
+    );
+
+    // Resolve labels and remove them if necessary
+    lines.forEach((line, lineNumber) => {
+      if (line.includes(':')) {
+        const [label, rest] = line.split(':', 2);
+        const labelName = label.trim().toUpperCase();
+        if (this.labels.has(labelName)) {
+          this.problems.push({message: `Duplicate label '${labelName}'`, isfatal: true, line: lineNumber});
+        } else if (labelName === '') {
+          this.problems.push({message: `Empty label is not allowed`, isfatal: true, line: lineNumber});
+        } else {
+          this.labels.set(labelName, lineNumber);
+        }
+        // If there are instructions after the label, keep them
+        if (rest && rest.trim()) {
+          lines.set(lineNumber, rest.trim());
+        } else {
+          lines.delete(lineNumber); // Remove line if only label
+        }
+      }
+    });
+
+    // Process EQU directives
+    lines.forEach((line, lineNumber) => {
+      const parts = line.toUpperCase().split(/\s+/);
+      if (parts.length == 3) {
+        // Handle both scenarios in the docs (EQU first or second)
+        if ((parts[0] === 'EQU') || (parts[1] === 'EQU')) {
+          const name = parts[0] === 'EQU' ? parts[1] : parts[0];
+          // Check that name isn't a label
+          if (this.labels.has(name)) {
+            this.problems.push({message: `EQU name '${name}' conflicts with existing label`, isfatal: true, line: lineNumber});
+          } else {
+            this.symbols.push({name: name, value: parts[2], line: lineNumber, original: line});
+            lines.delete(lineNumber); // Remove EQU line after processing
+          }
+        }
+      }
+    });
+
+    // Replace any EQU symbols that happened to be defined as internal symbolic values
+    for (const _sym of this.symbols) {
+      for (const sym of this.symbols) {
+        if (_sym.value === sym.name) {
+          _sym.value = sym.value;
+        }
+      }
+    }
+
+    // Process all lines for MEM directives
+    lines.forEach((line, lineNumber) => {
+      const parts = line.toUpperCase().split(/\s+/);
+      if (parts.length == 3) {
+        // Handle both scenarios in the docs (MEM first or second)
+        if ((parts[0] === 'MEM') || (parts[1] === 'MEM')) {
+          const name = parts[0] === 'MEM' ? parts[1] : parts[0];
+          // Check that name isn't a label or and EQU
+          if (this.labels.has(name)) {
+            this.problems.push({message: `MEM name '${name}' conflicts with existing label`, isfatal: true, line: lineNumber});
+          } else if (this.symbols.find(s => s.name === name)) {
+            this.problems.push({message: `MEM name '${name}' conflicts with existing symbol`, isfatal: true, line: lineNumber});
+          } else {
+            let sizeStr = parts[2];
+            // Replace size with symbol value (if appropriate)
+            for (const sym of this.symbols) {
+              if (sym.name === sizeStr.toString()) {
+                sizeStr = sym.value;
+                break;
+              }
+            }
+            const size = this.parseUnsignedInt(sizeStr.toString());
+            if (size === null) {
+              this.problems.push({message: `Invalid memory size '${sizeStr}' in MEM directive`, isfatal: true, line: lineNumber});
+            } else if (size > this.MAX_DELAY_MEMORY) {
+              this.problems.push({message: `MEM size exceeds maximum of ${this.MAX_DELAY_MEMORY} words`, isfatal: true, line: lineNumber});
+            } else {
+              this.memories.push({name: name.toUpperCase(), size: size, line: lineNumber, original: line});
+              lines.delete(lineNumber); // Remove MEM line after processing
+            }
+          }
+        }
+      }
+    });
+
+    let invalidLine: boolean = false
+    // The remaining lines should be instructions. First pull out the
+    // instruction mnemonic.
+    const instructionLines = new Map<number, string[]>();
+    lines.forEach((line, lineNumber) => {
+      const parts = line.toUpperCase().split(/\s+/);
+      if (parts.length === 0) {
+        // Shouldn't happen since we filtered out empty lines earlier
+        invalidLine = true;
+        this.problems.push({message: `Internal error: empty line after preprocessing`, isfatal: true, line: lineNumber});
+      } else {
+        const mnemonic = parts[0];
+        let operands = parts.slice(1).join('');
+        // Expand operands separated by commas into separate tokens
+        const expandedLines: string[] = [];
+        expandedLines.push(mnemonic); // The instruction mnemonic
+        // Replace all occurrences of symbols in each subpart
+        this.symbols.forEach(equ => {
+          const regex = new RegExp(`(^|\\s|[^\\w])(${equ.name})($|\\s|[^\\w])`, 'g');
+          if (regex.test(operands)) {
+            operands = operands.replace(regex, `$1${equ.value}$3`);
+          }
+        });
+        // Split on commas and trim whitespace
+        const subParts = operands.split(',');
+        subParts.forEach((subPart, index) => {
+          expandedLines.push(subPart.trim());
+        });
+
+        instructionLines.set(lineNumber, expandedLines);
+      }
+    });
+
+    if (invalidLine) {
+      return null;
+    }
+
+    return instructionLines;
+  }
+
+  private allocateDelayMemory(): number {
+    // Iterate over all memories and allocate the delay memory chunks
+    let nextAvailableAddress = 0;
+    this.memories.forEach(mem => {
+      mem.start = nextAvailableAddress;
+      nextAvailableAddress += mem.size;
+      if (nextAvailableAddress >= this.MAX_DELAY_MEMORY) {
+        this.problems.push({message: `Total delay memory exceeds ${this.MAX_DELAY_MEMORY} words`, isfatal: true, line: mem.line});
+      }
+      mem.end = nextAvailableAddress - 1;
+      mem.middle = mem.start + Math.floor(mem.end / 2);
+    });
+    return nextAvailableAddress;
+  }
+
+  private generateMachineCode(lines: Map<number, string[]>): number[] {
+    const machineCode: number[] = [];
+    let errorLine = -1;
+
+    try {
+      lines.forEach((lineParts, lineNumber) => {
+        const mnemonic = lineParts[0];
+        const encoding = this.encodeInstruction(mnemonic, lineParts.slice(1), lineNumber);
+        if (encoding === null) {
+          errorLine = lineNumber;
+          throw new Error('Encoding error');
+        }
+        machineCode.push(encoding);
+      });
+    } catch (e) {
+        this.problems.push({message: `Error encoding instruction on line ${errorLine}`, isfatal: true, line: errorLine});
+        return [];
+    }
+
+    if (machineCode.length > 512) {
+      this.problems.push({message: `Program exceeds 512 instruction limit`, isfatal: true, line: 512});
+    }
+
+    // Pad to 512 instructions if needed
+    while (machineCode.length < 512) {
+      machineCode.push(this.NOP_ENCODING);
+    }
+
+    return machineCode;
+  }
+
+  private encodeInstruction(mnemonic: string, operands: string[], lineNumber: number): number | null {
+    const instruction = this.getInstruction(mnemonic, lineNumber, operands);
+    let addr: number = null;
+    let coeff: number = null;
+    let d: number = null;
+    let n: number = null;
+    let mode: number = null;
+    let flags: number = null;
+
+    if (instruction === null) {
+      return null;
+    }
+
+    switch (mnemonic) {
+      case 'CHO':
+        // This instruction has a variable number of operands depending on
+        // what the mode is
+        mode = this.parseUnsignedInt(operands[0], 2);
+        n = this.parseUnsignedInt(operands[1], 2);
+        if (mode === null || n === null) {
+          this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+          return null;
+        }
+
+        const numOperands = (mode === this.predefinedSymbols.get('RDAL')) ? 2 : 4;
+        if (operands.length !== numOperands) {
+          this.problems.push({message: `Line ${lineNumber}: ${mnemonic} instruction requires ${numOperands} operands`, isfatal: true, line: lineNumber});
+          return null;
+        }
+
+        switch (mode) {
+          case this.predefinedSymbols.get('RDA'):   // 00CCCCCC0NNAAAAAAAAAAAAAAAA10100
+            flags = this.parseUnsignedInt(operands[2], 6);
+            addr = this.parseDelayMemoryAddress(operands[3], lineNumber, mnemonic);
+            if (flags === null || addr === null) {
+              this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+              return null;
+            }
+            return (mode << 30 | flags << 24| n << 21 | addr << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+
+          case this.predefinedSymbols.get('SOF'):   // 10CCCCCC0NNDDDDDDDDDDDDDDDD10100
+            flags = this.parseUnsignedInt(operands[2], 6);
+            d = this.parseFixedPointNumber(operands[3], S_15, lineNumber, mnemonic, 16);
+            if (flags === null || d === null) {
+              this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+              return null;
+            }
+            return (mode << 30 | flags << 24| n << 21 | d << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+
+          case this.predefinedSymbols.get('RDAL'):  // 110000100NN000000000000000010100
+            return (mode << 30 | 0b0000100 << 23 | n << 21 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+
+          default:
+            this.problems.push({message: `Line ${lineNumber}: Unknown mode for ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+            return null;
+          }
+
+      case 'SOF': // CCCCCCCCCCCCCCCCDDDDDDDDDDD01101
+        coeff = this.parseFixedPointNumber(operands[0], S1_14, lineNumber, mnemonic, 16);
+        // d can only be a fixed-point number
+        d = this.parseFixedPointNumber(operands[1], S_10, lineNumber, mnemonic);
+
+        if (coeff === null || d === null) {
+          this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+          return null;
+        }
+        return (coeff << 16 | d << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+
+      case 'SKP': // CCCCCNNNNNN000000000000000010001
+        // We don't range check flags as they are already left-shifted values
+        // And we'll explicitly range check n to print a better error message
+        flags = this.parseUnsignedInt(operands[0]);
+        n = this.parseUnsignedInt(operands[1]);
+        if (n === null) {
+          // Must be a label, so try to resolve it
+          if (this.labels.has(operands[1])) {
+            n = this.labels.get(operands[1]) - lineNumber - 1; // Relative to next instruction
+            if (n > 0b111111) {
+              this.problems.push({message: `Line ${lineNumber}: ${mnemonic} target out of range for label '${operands[1]}'`, isfatal: true, line: lineNumber});
+              return null;
+            }
+            return (flags | n << 21 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+          } else {
+            this.problems.push({message: `Line ${lineNumber}: Undefined label '${operands[1]}'`, isfatal: true, line: lineNumber});
+          }
+        }
+        return null;
+
+      case 'MULX': // 000000000000000000000AAAAAA01010
+        addr = this.parseUnsignedInt(operands[0], 6);
+        if (addr === null) {
+          this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+          return null;
+        }
+        return (addr << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+
+      case 'RDAX': // CCCCCCCCCCCCCCCC00000AAAAAA00100
+      case 'RDFX': // CCCCCCCCCCCCCCCC00000AAAAAA00101
+      case 'WRAX': // CCCCCCCCCCCCCCCC00000AAAAAA00110
+      case 'WRLX': // CCCCCCCCCCCCCCCC00000AAAAAA01000
+        addr = this.parseUnsignedInt(operands[0], 6);
+        coeff = this.parseFixedPointNumber(operands[1], S1_14, lineNumber, mnemonic, 16);
+        if (coeff === null || addr === null) {
+          this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+          return null;
+        }
+        return (coeff << 16 | addr << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+
+      case 'RDA':  // CCCCCCCCCCCAAAAAAAAAAAAAAAA00000
+      case 'WRA':  // CCCCCCCCCCCAAAAAAAAAAAAAAAA00010
+      case 'WRAP': // CCCCCCCCCCCAAAAAAAAAAAAAAAA00011
+        addr = this.parseDelayMemoryAddress(operands[0], lineNumber, mnemonic);
+        coeff = this.parseFixedPointNumber(operands[1], S1_9, lineNumber, mnemonic, 11);
+        if (coeff === null || addr === null) {
+          this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+          return null;
+        }
+        return (coeff << 21 | addr << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+
+      case 'WLDS': // 00NFFFFFFFFFAAAAAAAAAAAAAAA10010
+        const sinLfo = this.parseUnsignedInt(operands[0], 1);
+        const freq = this.parseUnsignedInt(operands[1], 9);
+        const ampl = this.parseUnsignedInt(operands[2], 15);
+        if (sinLfo === null || freq === null || ampl === null) {
+          this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+          return null;
+        }
+        return (sinLfo << 29 | freq << 20 | ampl << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+
+      case 'NOP':
+        // No Operation - equivalent to SKP 0,0
+        return instruction.opcode;
+
+      default:
+        this.problems.push({message: `Line ${lineNumber}: Unsupported instruction '${mnemonic}'`, isfatal: true, line: lineNumber});
+        break;
+    }
+    return null;
+  }
+
+  private parseFixedPointNumber(value: string, format: SignedFixedPointNumber, lineNumber: number,
+                                mnemonic: string, tryHexIntOfWidth: number = 0): number | null {
+    if (tryHexIntOfWidth > 0 && value.startsWith('$')) {
+      const parsed = this.parseUnsignedInt(value, tryHexIntOfWidth);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+    const encoded = format.encode(value, (msg) => {
+      this.problems.push({message: `Line ${lineNumber}: ${msg} in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+    });
+    if (encoded === null) {
+      this.problems.push({message: `Line ${lineNumber}: Invalid fixed-point number '${value}' in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+    }
+    return encoded;
+  }
+
+  private parseDelayMemoryAddress(value: string, lineNumber: number, mnemonic: string): number | null {
+    // Try to parse as an unsigned int first
+    let addr = this.parseUnsignedInt(value);
+    if (addr === null) {
+      let name = value.toUpperCase();
+      let base = -1;
+      let offset = 0;
+      // If that fails, try to split the string on '+' or '-' to handle offsets
+      if (value.includes('+') || value.includes('-')) {
+        const operation = value.includes('+') ? '+' : '-';
+        const parts = value.split(operation);
+        if (parts.length === 2) {
+          name = parts[0].trim().toUpperCase();
+          const potentialBase = this.parseUnsignedInt(parts[0].trim());
+          const potentialOffset = this.parseUnsignedInt(parts[1].trim());
+          if (potentialBase !== null) {
+            base = potentialBase;
+          }
+          if (potentialOffset !== null) {
+            offset = potentialOffset * (operation === '+' ? 1 : -1);
+          }
+        }
+      }
+      if (base === -1) {
+        // If we couldn't parse a base, it must be a MEM label
+        for (const mem of this.memories) {
+          if ( mem.name === name || (mem.name + '#') === name || (mem.name + '^') === name) {
+            base = mem.start;
+            if (name.endsWith('#')) {
+              base = mem.end;
+            } else if (name.endsWith('^')) {
+              base = mem.middle;
+            }
+            break;
+          }
+        }
+        if (base === -1) {
+          this.problems.push({message: `Line ${lineNumber}: Undefined memory label '${name}' in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+          return null;
+        }
+      }
+      addr = base + offset;
+    }
+
+    if (addr !== null) {
+      if (addr > this.MAX_DELAY_MEMORY) {
+        this.problems.push({message: `Line ${lineNumber}: Delay memory address out of range in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+        return null;
+      }
+    }
+    return addr;
+  }
+
+  private getInstruction(mnemonic: string, lineNumber: number, operands: string[]): FV1Instruction | null {
+    if (this.instructions.has(mnemonic)) {
+      const instruction = this.instructions.get(mnemonic);
+      if (instruction.numOperands >= 0 && operands.length !== instruction.numOperands) {
+        this.problems.push({message: `Instruction '${mnemonic}' expects ${instruction.numOperands} operands`, isfatal: true, line: lineNumber});
+        return null;
+      }
+      return instruction;
+    } else {
+      this.problems.push({message: `Line ${lineNumber}: Unknown instruction '${mnemonic}'`, isfatal: true, line: lineNumber});
+    }
+    return null;
+  }
+
+  public static formatMachineCode(machineCode: number[]): string {
+    return machineCode
+      .map((word, index) => {
+        const hex = word.toString(16).toUpperCase().padStart(8, '0');
+        return `${index.toString().padStart(3, '0')}: 0x${hex}`;
+      })
+      .join('\n');
+  }
+
+  public static saveBinary(machineCode: number[]): Uint8Array {
+    const buffer = new ArrayBuffer(machineCode.length * 4);
+    const view = new DataView(buffer);
+    
+    for (let i = 0; i < machineCode.length; i++) {
+      view.setUint32(i * 4, machineCode[i], false); // Big-endian
+    }
+    
+    return new Uint8Array(buffer);
+  }
+}
+
+// Export for use
+export { FV1Assembler, FV1AssemblerOptions, FV1AssemblerResult };

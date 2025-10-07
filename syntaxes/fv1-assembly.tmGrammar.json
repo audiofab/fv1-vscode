@@ -1,0 +1,132 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "FV-1 Assembly",
+    "scopeName": "source.fv1-assembly",
+    "patterns": [
+        {"include": "#comments"},
+        {"include": "#strings"},
+        {"include": "#labels"},
+        {"include": "#instructions"},
+        {"include": "#registers"},
+        {"include": "#numbers"},
+        {"include": "#operators"},
+        {"include": "#directives"}
+    ],
+    "repository": {
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.line.semicolon.fv1",
+                    "match": ";.*$"
+                },
+                {
+                    "name": "comment.block.fv1",
+                    "begin": "\\{",
+                    "end": "\\}"
+                }
+            ]
+        },
+        "strings": {
+            "patterns": [
+                {
+                    "name": "string.quoted.double.fv1",
+                    "begin": "\"",
+                    "end": "\"",
+                    "patterns": [
+                        {
+                            "name": "constant.character.escape.fv1",
+                            "match": "\\\\."
+                        }
+                    ]
+                },
+                {
+                    "name": "string.quoted.single.fv1",
+                    "begin": "'",
+                    "end": "'",
+                    "patterns": [
+                        {
+                            "name": "constant.character.escape.fv1",
+                            "match": "\\\\."
+                        }
+                    ]
+                }
+            ]
+        },
+        "labels": {
+            "name": "strong.label.fv1",
+            "match": "^[a-zA-Z_][a-zA-Z0-9_]*:"
+        },
+        "instructions": {
+            "patterns": [
+                {
+                    "name": "keyword.accumulator.fv1",
+                    "match": "\\b(?i)(sof|and|or|xor|log|exp|skp)\\b"
+                },
+                {
+                    "name": "keyword.register.fv1",
+                    "match": "\\b(?i)(rdax|wrax|maxx|mulx|rdfx|wrlx|wrhx)\\b"
+                },
+                {
+                    "name": "keyword.delay.fv1",
+                    "match": "\\b(?i)(rda|rmpa|wra|wrap)\\b"
+                },
+                {
+                    "name": "keyword.lfo.fv1",
+                    "match": "\\b(?i)(wlds|wldr|jam|cho rda|cho sof|cho rdal)\\b"
+                },
+                {
+                    "name": "keyword.other.opcodes.fv1",
+                    "match": "\\b(?i)(clr|not|absa|ldax|nop)\\b"
+                }
+            ]
+        },
+        "registers": {
+            "patterns": [
+                {
+                    "name": "emphasis.register.fv1",
+                    "match": "\\b(?i)(sin[0-1]_rate|sin[0-1]_range|rmp[0-1]_rate|rmp[0-1]_range|pot[0-2]|adcl|adcr|dacl|dacr|addr_ptr|reg[0-31])\\b"
+                },
+                {
+                    "name": "emphasis.symbols.fv1",
+                    "match": "\\b(?i)(sin[0-1]|rmp[0-1]|sin|cos|reg|compc|compa|rptr2|na|run|zrc|zro|gez|neg)\\b"
+                }
+            ]
+        },
+        "numbers": {
+            "patterns": [
+                {
+                    "name": "constant.numeric.hex.fv1",
+                    "match": "\\$[0-9a-fA-F]+"
+                },
+                {
+                    "name": "constant.numeric.binary.fv1",
+                    "match": "%[01_]+"
+                },
+                {
+                    "name": "constant.numeric.float.fv1",
+                    "match": "-?\\d*\\.\\d+([eE][+-]?\\d+)?"
+                },
+                {
+                    "name": "constant.numeric.integer.fv1",
+                    "match": "-?\\d+"
+                }
+            ]
+        },
+        "operators": {
+            "name": "keyword.operator.fv1",
+            "match": "[+\\-*/&|^~<>=!]+"
+        },
+        "directives": {
+            "patterns": [
+                {
+                    "name": "keyword.control.directive.fv1",
+                    "match": "\\b(?i)(equ|mem)\\b"
+                },
+                {
+                    "name": "meta.preprocessor.fv1",
+                    "match": "^#\\w+"
+                }
+            ]
+        }
+    }
+}

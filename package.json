@@ -1,0 +1,144 @@
+{
+  "name": "fv1-vscode",
+  "displayName": "Audiofab FV-1 Programming",
+  "description": "An extension providing development support for Spin Semiconductor's FV-1 chip",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "FV-1",
+    "assembly",
+    "spin-semiconductor",
+    "dsp",
+    "audio"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "fv1-assembly",
+        "aliases": [
+          "FV-1 Assembly",
+          "fv1"
+        ],
+        "extensions": [
+          ".spn",
+          ".fv1"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "fv1-assembly",
+        "scopeName": "source.fv1-assembly",
+        "path": "./syntaxes/fv1-assembly.tmGrammar.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "fv1.assemble",
+        "title": "Assemble FV-1 Code",
+        "category": "FV-1"
+      },
+      {
+        "command": "fv1.assembleAndProgram",
+        "title": "Assemble and Program EEPROM",
+        "category": "FV-1"
+      },
+      {
+        "command": "fv1.programEeprom",
+        "title": "Program EEPROM from HEX",
+        "category": "FV-1"
+      },
+      {
+        "command": "fv1.detectMcp2221",
+        "title": "Detect MCP2221 Device",
+        "category": "FV-1"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "fv1.assemble",
+        "key": "ctrl+f5",
+        "when": "editorTextFocus && resourceExtname == .spn"
+      },
+      {
+        "command": "fv1.assembleAndProgram",
+        "key": "ctrl+shift+f5",
+        "when": "editorTextFocus && resourceExtname == .spn"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "when": "resourceExtname == .spn || resourceExtname == .fv1",
+          "command": "fv1.assemble",
+          "group": "fv1@1"
+        },
+        {
+          "when": "resourceExtname == .spn || resourceExtname == .fv1",
+          "command": "fv1.assembleAndProgram",
+          "group": "fv1@2"
+        }
+      ],
+      "explorer/context": [
+        {
+          "when": "resourceExtname == .hex",
+          "command": "fv1.programEeprom",
+          "group": "fv1@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "FV-1 Assembly",
+      "properties": {
+        "fv1.assemblerPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the FV-1 assembler executable"
+        },
+        "fv1.eepromSize": {
+          "type": "number",
+          "default": 512,
+          "description": "EEPROM size in bytes (typically 512 or 1024)"
+        },
+        "fv1.i2cAddress": {
+          "type": "string",
+          "default": "0x50",
+          "description": "I2C address of the EEPROM (default 0x50)"
+        },
+        "fv1.mcp2221VendorId": {
+          "type": "string",
+          "default": "04D8",
+          "description": "MCP2221 USB Vendor ID"
+        },
+        "fv1.mcp2221ProductId": {
+          "type": "string",
+          "default": "00DD",
+          "description": "MCP2221 USB Product ID"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "16.x",
+    "@types/node-hid": "^1.3.4",
+    "@types/vscode": "^1.74.0",
+    "typescript": "^4.9.4"
+  },
+  "dependencies": {
+    "node-hid": "^3.2.0"
+  }
+}
