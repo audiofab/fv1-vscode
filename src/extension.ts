@@ -9,7 +9,7 @@ import { I2CBusMCP2221 } from '@johntalton/i2c-bus-mcp2221'
 import { I2CAddressedBus } from '@johntalton/and-other-delights'
 import { EEPROM, DEFAULT_EEPROM_ADDRESS } from '@johntalton/eeprom'
 import { NodeHIDStreamSource } from './node-hid-stream.js';
-import {FV1Assembler} from './FV1Assembler.js';
+import {FV1Assembler, FV1AssemblerResult} from './FV1Assembler.js';
 import {IntelHexParser} from './hexParser.js';
 
 const execAsync = promisify(exec);
@@ -23,9 +23,9 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const assembleAndProgramCommand = vscode.commands.registerCommand('fv1.assembleAndProgram', async () => {
-        const hexPath = await assembleFV1();
-        if (hexPath) {
-            await programEeprom(hexPath);
+        const result = await assembleFV1();
+        if (result.machineCode.length > 0) {
+            await programEeprom(result.machineCode);
         }
     });
 
@@ -48,7 +48,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
             hexPath = fileUri[0].fsPath;
         }
-        await programEeprom(hexPath);
+        // await programEeprom(hexPath);
     });
 
     const detectMcp2221Command = vscode.commands.registerCommand('fv1.detectMcp2221', async () => {
@@ -63,7 +63,7 @@ export function activate(context: vscode.ExtensionContext) {
     );
 }
 
-async function assembleFV1(): Promise<string | undefined> {
+async function assembleFV1(): Promise<FV1AssemblerResult | undefined> {
     const activeEditor = vscode.window.activeTextEditor;
     if (!activeEditor) {
         vscode.window.showErrorMessage('No active editor');
@@ -84,76 +84,41 @@ async function assembleFV1(): Promise<string | undefined> {
     const assembler = new FV1Assembler();
 
     try {
-        vscode.window.showInformationMessage('Assembling FV-1 code...');
         const fileContent = fs.readFileSync(sourceFile, 'utf8');
         const result = assembler.assemble(fileContent);
-        if (result.problems.length === 0) {
-            console.log("Assembly successful!");
-            const hexFileString = IntelHexParser.generate(Buffer.from(FV1Assembler.saveBinary(result.machineCode)));
-            fs.writeFileSync(outputFile, hexFileString, 'utf8');
-            vscode.window.showErrorMessage(`Assembled to: ${hexFileString}`);
-        } else {
+        if (result.problems.length !== 0) {
             vscode.window.showErrorMessage(`Assembly failed: ${result.problems.map(p => p.message).join(', ')}`);
-            return;
-        }
-
-        if (fs.existsSync(outputFile)) {
-            vscode.window.showInformationMessage(`Assembly successful: ${path.basename(outputFile)}`);
-            return outputFile;
         } else {
-            vscode.window.showErrorMessage('Assembly failed: Output file not created');
-            return;
+            vscode.window.showInformationMessage('Assembly successful');
         }
+        return result;
+
+        // if (fs.existsSync(outputFile)) {
+        //     vscode.window.showInformationMessage(`Assembly successful: ${path.basename(outputFile)}`);
+        //     return outputFile;
+        // } else {
+        //     vscode.window.showErrorMessage('Assembly failed: Output file not created');
+        //     return;
+        // }
     } catch (error) {
-        vscode.window.showErrorMessage(`Assembly error: ${error}`);
+        vscode.window.showErrorMessage(`Unhandled assembly error: ${error}`);
         return;
     }
 }
 
-async function programEeprom(hexPath: string): Promise<void> {
-    if (!fs.existsSync(hexPath)) {
-        vscode.window.showErrorMessage(`HEX file not found: ${hexPath}`);
-        return;
-    }
-
+async function programEeprom(machineCode: number[], slot: number = 0): Promise<void> {
     const config = vscode.workspace.getConfiguration('fv1');
-    const vendorId = parseInt(config.get<string>('mcp2221VendorId') || '04D8', 16);
-    const productId = parseInt(config.get<string>('mcp2221ProductId') || '00DD', 16);
+    const vendorId = parseInt(config.get<string>('mcp2221VendorId') || '0x04D8', 16);
+    const productId = parseInt(config.get<string>('mcp2221ProductId') || '0x00DD', 16);
     const eepromAddress = parseInt(config.get<string>('i2cAddress') || '0x50', 16);
 
-    try {
-        // Find MCP2221 device
-        const devices = HID.devices();
-        const mcp2221 = devices.find(d => d.vendorId === vendorId && d.productId === productId);
-        
-        if (!mcp2221) {
-            vscode.window.showErrorMessage('MCP2221 device not found. Please check connection.');
-            return;
-        }
-
-        vscode.window.showInformationMessage('Programming EEPROM...');
-
-        // Read HEX file
-        const hexData = fs.readFileSync(hexPath, 'utf8');
-        const binaryData = parseIntelHex(hexData);
-
-        // Program EEPROM via MCP2221
-        // await programEepromViaMCP2221(mcp2221.path!, binaryData, eepromAddress);
-
-        vscode.window.showInformationMessage('EEPROM programming completed successfully!');
-    } catch (error) {
-        vscode.window.showErrorMessage(`Programming error: ${error}`);
+    const selectedDevice = await detectMCP2221();
+    if (!selectedDevice) {
+        vscode.window.showErrorMessage('No MCP2221 device selected');
+        return;
     }
-}
 
-async function detectMCP2221(): Promise<void> {
-    const config = vscode.workspace.getConfiguration('fv1');
-    const vendorId = parseInt(config.get<string>('mcp2221VendorId') || '04D8', 16);
-    const productId = parseInt(config.get<string>('mcp2221ProductId') || '00DD', 16);
-
-    const VENDOR_ID = 1240
-    const PRODUCT_ID = 221
-    const hidDevice = await HID.HIDAsync.open(VENDOR_ID, PRODUCT_ID)
+    const hidDevice = await HID.HIDAsync.open(selectedDevice.path!);
     const source = new NodeHIDStreamSource(hidDevice)
 
     // setup MCP2221 and I2CBus interface
@@ -164,123 +129,142 @@ async function detectMCP2221(): Promise<void> {
     // note: this is not required for the mcp2221 bus to function 
     //   as the default configuration works out of the box in most cases
     await device.common.status({
-    opaque: 'Speed-Setup-400',
-    i2cClock: 400
+        opaque: 'Speed-Setup-400',
+        i2cClock: 400
     })
 
     // use bus with some device (just using eeprom as example here)
     const abus = new I2CAddressedBus(bus, DEFAULT_EEPROM_ADDRESS)
     const eeprom = new EEPROM(abus, { writePageSize: 32 })
 
-    // read first 24 bytes from eeprom
-    const startAddress = 0
-    const byteLength = 24
-    const buffer = await eeprom.read(startAddress, byteLength)
-    const u8 = ArrayBuffer.isView(buffer) ?
-    new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength) :
-    new Uint8Array(buffer, 0, buffer.byteLength)
+    // write machine code to eeprom at slot offset
+    const slotSize = 512;   // FV-1 slot size in bytes
+    const startAddress = slot * slotSize;
+    await eeprom.write(startAddress, expand32ToBytesWithDataView(machineCode));
 
-    // log the first 24 bytes as unsigned 8-bit values
-    console.log(u8)
-    // try {
-    //     const devices = HID.devices();
-    //     const mcp2221Devices = devices.filter(d => d.vendorId === vendorId && d.productId === productId);
+    // Read back and verify
+    // const verifyBuffer = await eeprom.read(startAddress, machineCode.length);
+    // const verifyArray = ArrayBuffer.isView(verifyBuffer) ?
+    //     new Uint8Array(verifyBuffer.buffer, verifyBuffer.byteOffset, verifyBuffer.byteLength) :
+    //     new Uint8Array(verifyBuffer, 0, verifyBuffer.byteLength);
 
-    //     if (mcp2221Devices.length === 0) {
-    //         vscode.window.showWarningMessage('No MCP2221 devices found');
-    //     } else {
-    //         const deviceList = mcp2221Devices.map(d => 
-    //             `Product: ${d.product}, Serial: ${d.serialNumber}, Path: ${d.path}`
-    //         ).join('\n');
-    //         vscode.window.showInformationMessage(`Found ${mcp2221Devices.length} MCP2221 device(s):\n${deviceList}`);
+    vscode.window.showInformationMessage(`Programmed EEPROM at slot ${slot} (address 0x${startAddress.toString(16)})`);
+}
+
+function expand32ToBytesWithDataView(nums: number[], littleEndian = false): Uint8Array {
+  const buffer = new ArrayBuffer(nums.length * 4);
+  const view = new DataView(buffer);
+  for (let i = 0; i < nums.length; i++) {
+    view.setUint32(i * 4, nums[i] >>> 0, littleEndian);
+  }
+  return new Uint8Array(buffer);
+}
+    // async function detectMCP2221(): Promise<void> {
+    //     const config = vscode.workspace.getConfiguration('fv1');
+    //     const vendorId = parseInt(config.get<string>('mcp2221VendorId') || '04D8', 16);
+    //     const productId = parseInt(config.get<string>('mcp2221ProductId') || '00DD', 16);
+
+    //     try {
+    //         const devices = HID.devices();
+    //         const mcp2221Devices = devices.filter(d => d.vendorId === vendorId && d.productId === productId);
+
+    //         if (mcp2221Devices.length === 0) {
+    //             vscode.window.showWarningMessage('No MCP2221 devices found');
+    //         } else {
+    //             const deviceList = mcp2221Devices.map(d => 
+    //                 `Product: ${d.product}, Serial: ${d.serialNumber}, Path: ${d.path}`
+    //             ).join('\n');
+    //             vscode.window.showInformationMessage(`Found ${mcp2221Devices.length} MCP2221 device(s):\n${deviceList}`);
+    //         }
+    //     } catch (error) {
+    //         vscode.window.showErrorMessage(`Error detecting MCP2221: ${error}`);
     //     }
-    // } catch (error) {
-    //     vscode.window.showErrorMessage(`Error detecting MCP2221: ${error}`);
-    // }
-}
 
-function parseIntelHex(hexData: string): Buffer {
-    const lines = hexData.split('\n').filter(line => line.trim().length > 0);
-    const data: number[] = [];
-    
-    for (const line of lines) {
-        if (!line.startsWith(':')) {
-            continue;
-        }
-        
-        const byteCount = parseInt(line.substr(1, 2), 16);
-        const address = parseInt(line.substr(3, 4), 16);
-        const recordType = parseInt(line.substr(7, 2), 16);
-        
-        if (recordType === 0) { // Data record
-            for (let i = 0; i < byteCount; i++) {
-                const byte = parseInt(line.substr(9 + i * 2, 2), 16);
-                data[address + i] = byte;
+// async function testMCP2221() {
+//     const VENDOR_ID = 1240
+//     const PRODUCT_ID = 221
+//     const hidDevice = await HID.HIDAsync.open(VENDOR_ID, PRODUCT_ID)
+//     const source = new NodeHIDStreamSource(hidDevice)
+
+//     // setup MCP2221 and I2CBus interface
+//     const device = new MCP2221(source)
+//     const bus = new I2CBusMCP2221(device)
+
+//     // set the bus speed to 100 / 400
+//     // note: this is not required for the mcp2221 bus to function 
+//     //   as the default configuration works out of the box in most cases
+//     await device.common.status({
+//     opaque: 'Speed-Setup-400',
+//     i2cClock: 400
+//     })
+
+//     // use bus with some device (just using eeprom as example here)
+//     const abus = new I2CAddressedBus(bus, DEFAULT_EEPROM_ADDRESS)
+//     const eeprom = new EEPROM(abus, { writePageSize: 32 })
+
+//     // read first 24 bytes from eeprom
+//     const startAddress = 0
+//     const byteLength = 24
+//     const buffer = await eeprom.read(startAddress, byteLength)
+//     const u8 = ArrayBuffer.isView(buffer) ?
+//     new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength) :
+//     new Uint8Array(buffer, 0, buffer.byteLength)
+
+//     // log the first 24 bytes as unsigned 8-bit values
+//     console.log(u8)
+// }
+
+/**
+ * Present a QuickPick to the user and return the selected device info.
+ * This is a non-async (no `async` keyword) function that returns a Promise
+ * resolving to the chosen HID.DeviceInfo or undefined if cancelled / none found.
+ */
+function detectMCP2221(): Promise<HID.Device | undefined> {
+    const config = vscode.workspace.getConfiguration('fv1');
+    const vendorId = parseInt(config.get<string>('mcp2221VendorId') || '04D8', 16);
+    const productId = parseInt(config.get<string>('mcp2221ProductId') || '00DD', 16);
+
+    return new Promise((resolve) => {
+        try {
+            const devices = HID.devices();
+            const mcp2221Devices = devices.filter(d => d.vendorId === vendorId && d.productId === productId);
+
+            if (mcp2221Devices.length === 0) {
+                vscode.window.showWarningMessage('No MCP2221 devices found');
+                resolve(undefined);
+                return;
+            } else if (mcp2221Devices.length === 1) {
+                // vscode.window.showInformationMessage(`Found MCP2221 device: ${mcp2221Devices[0].path}`);
+                resolve(mcp2221Devices[0]);
+                return;
             }
-        } else if (recordType === 1) { // End of file
-            break;
+
+            const items: Array<vscode.QuickPickItem & { device?: HID.Device }> = mcp2221Devices.map(d => ({
+                label: d.product || 'MCP2221',
+                description: d.serialNumber ? `SN: ${d.serialNumber}` : undefined,
+                detail: d.path,
+                device: d
+            }));
+
+            vscode.window.showQuickPick(items, {
+                placeHolder: 'Select MCP2221 device to use',
+                canPickMany: false
+            }).then(picked => {
+                if (!picked) {
+                    resolve(undefined);
+                } else {
+                    resolve(picked.device);
+                }
+            }, err => {
+                vscode.window.showErrorMessage(`Error showing device picker: ${err}`);
+                resolve(undefined);
+            });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Error detecting MCP2221: ${error}`);
+            resolve(undefined);
         }
-    }
-    
-    return Buffer.from(data);
+    });
 }
-
-// async function programEepromViaMCP2221(devicePath: string, data: Buffer, eepromAddress: number): Promise<void> {
-//     const device = new HID.HIDAsync(devicePath);
-    
-//     try {
-//         // Initialize I2C
-//         await initializeI2C(device);
-        
-//         // Program EEPROM in pages (typically 16 bytes per page for 24LC04)
-//         const pageSize = 16;
-//         const totalPages = Math.ceil(data.length / pageSize);
-        
-//         for (let page = 0; page < totalPages; page++) {
-//             const pageAddress = page * pageSize;
-//             const pageData = data.slice(pageAddress, pageAddress + pageSize);
-            
-//             await writeEepromPage(device, eepromAddress, pageAddress, pageData);
-            
-//             // Small delay between page writes
-//             await new Promise(resolve => setTimeout(resolve, 10));
-//         }
-//     } finally {
-//         device.close();
-//     }
-// }
-
-// async function initializeI2C(device: HID.HIDAsync): Promise<void> {
-//     // MCP2221 I2C initialization commands
-//     const setI2CSpeed = Buffer.from([0x10, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-//     await device.write(setI2CSpeed);
-    
-//     const response = await device.read();
-//     if (response[1] !== 0x00) {
-//         throw new Error('Failed to initialize I2C');
-//     }
-// }
-
-// async function writeEepromPage(device: HID.HIDAsync, eepromAddr: number, memoryAddr: number, data: Buffer): Promise<void> {
-//     // Construct I2C write command for EEPROM
-//     const cmd = Buffer.alloc(64);
-//     cmd[0] = 0x90; // I2C Write Data command
-//     cmd[1] = data.length + 2; // Length (address bytes + data)
-//     cmd[2] = eepromAddr << 1; // I2C address (shifted for write)
-//     cmd[3] = (memoryAddr >> 8) & 0xFF; // Memory address high byte
-//     cmd[4] = memoryAddr & 0xFF; // Memory address low byte
-    
-//     // Copy data
-//     data.copy(cmd, 5);
-    
-//     await device.write(cmd);
-    
-//     // Check response
-//     const response = await device.read();
-//     if (response[1] !== 0x00) {
-//         throw new Error(`EEPROM write failed at address ${memoryAddr.toString(16)}`);
-//     }
-// }
 
 export function deactivate() {
     console.log('FV-1 Assembly Editor extension deactivated');

@@ -236,12 +236,12 @@ class FV1Assembler {
     }
 
     if (maxNumBits <= 0) {
-      maxNumBits = 32 - 5; // Default to max number of bits minus encoding bits if not specified
+      maxNumBits = 32;
     }
-    const maxUnsigned = (1 << maxNumBits) - 1;
+    const maxUnsigned = 2**maxNumBits - 1;
     if (isSigned) {
-      const minSigned = -(1 << (maxNumBits - 1));
-      const maxSigned = (1 << (maxNumBits - 1)) - 1;
+      const minSigned = -(2**(maxNumBits - 1));
+      const maxSigned = (2**(maxNumBits - 1)) - 1;
       if (parsed < minSigned || parsed > maxSigned) return null;
       // Convert negative numbers to two's complement representation
       if (parsed < 0) {
@@ -384,7 +384,9 @@ class FV1Assembler {
         // Split on commas and trim whitespace
         const subParts = operands.split(',');
         subParts.forEach((subPart, index) => {
-          expandedLines.push(subPart.trim());
+          if (subPart && subPart.trim()) {
+            expandedLines.push(subPart.trim());
+          }
         });
 
         instructionLines.set(lineNumber, expandedLines);
@@ -432,12 +434,12 @@ class FV1Assembler {
         return [];
     }
 
-    if (machineCode.length > 512) {
-      this.problems.push({message: `Program exceeds 512 instruction limit`, isfatal: true, line: 512});
+    if (machineCode.length > 128) {
+      this.problems.push({message: `Program exceeds 128 instruction limit`, isfatal: true, line: 128});
     }
 
-    // Pad to 512 instructions if needed
-    while (machineCode.length < 512) {
+    // Pad to 128 instructions if needed
+    while (machineCode.length < 128) {
       machineCode.push(this.NOP_ENCODING);
     }
 
@@ -547,16 +549,17 @@ class FV1Assembler {
           // Must be a label, so try to resolve it
           if (this.labels.has(operands[1])) {
             n = this.labels.get(operands[1]) - lineNumber - 1; // Relative to next instruction
-            if (n > 0b111111) {
-              this.problems.push({message: `Line ${lineNumber}: ${mnemonic} target out of range for label '${operands[1]}'`, isfatal: true, line: lineNumber});
-              return null;
-            }
-            return (flags | n << 21 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
-          } else {
-            this.problems.push({message: `Line ${lineNumber}: Undefined label '${operands[1]}'`, isfatal: true, line: lineNumber});
           }
         }
-        return null;
+        if (flags === null || n === null) {
+          this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+          return null;
+        }
+        if (n > 0b111111) {
+          this.problems.push({message: `Line ${lineNumber}: ${mnemonic} target out of range for label '${operands[1]}'`, isfatal: true, line: lineNumber});
+          return null;
+        }
+        return (flags | n << 21 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
 
       case 'MULX': // 000000000000000000000AAAAAA01010
         addr = this.parseInteger(operands[0], 6);
