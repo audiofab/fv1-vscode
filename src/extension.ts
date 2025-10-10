@@ -3,9 +3,14 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import * as HID from 'node-hid';
-import {FV1Assembler} from './FV1Assembler';
-import {IntelHexParser} from './hexParser';
+import HID from 'node-hid';
+import { MCP2221 } from '@johntalton/mcp2221'
+import { I2CBusMCP2221 } from '@johntalton/i2c-bus-mcp2221'
+import { I2CAddressedBus } from '@johntalton/and-other-delights'
+import { EEPROM, DEFAULT_EEPROM_ADDRESS } from '@johntalton/eeprom'
+import { NodeHIDStreamSource } from './node-hid-stream.js';
+import {FV1Assembler} from './FV1Assembler.js';
+import {IntelHexParser} from './hexParser.js';
 
 const execAsync = promisify(exec);
 
@@ -146,21 +151,52 @@ async function detectMCP2221(): Promise<void> {
     const vendorId = parseInt(config.get<string>('mcp2221VendorId') || '04D8', 16);
     const productId = parseInt(config.get<string>('mcp2221ProductId') || '00DD', 16);
 
-    try {
-        const devices = HID.devices();
-        const mcp2221Devices = devices.filter(d => d.vendorId === vendorId && d.productId === productId);
+    const VENDOR_ID = 1240
+    const PRODUCT_ID = 221
+    const hidDevice = await HID.HIDAsync.open(VENDOR_ID, PRODUCT_ID)
+    const source = new NodeHIDStreamSource(hidDevice)
 
-        if (mcp2221Devices.length === 0) {
-            vscode.window.showWarningMessage('No MCP2221 devices found');
-        } else {
-            const deviceList = mcp2221Devices.map(d => 
-                `Product: ${d.product}, Serial: ${d.serialNumber}, Path: ${d.path}`
-            ).join('\n');
-            vscode.window.showInformationMessage(`Found ${mcp2221Devices.length} MCP2221 device(s):\n${deviceList}`);
-        }
-    } catch (error) {
-        vscode.window.showErrorMessage(`Error detecting MCP2221: ${error}`);
-    }
+    // setup MCP2221 and I2CBus interface
+    const device = new MCP2221(source)
+    const bus = new I2CBusMCP2221(device)
+
+    // set the bus speed to 100 / 400
+    // note: this is not required for the mcp2221 bus to function 
+    //   as the default configuration works out of the box in most cases
+    await device.common.status({
+    opaque: 'Speed-Setup-400',
+    i2cClock: 400
+    })
+
+    // use bus with some device (just using eeprom as example here)
+    const abus = new I2CAddressedBus(bus, DEFAULT_EEPROM_ADDRESS)
+    const eeprom = new EEPROM(abus, { writePageSize: 32 })
+
+    // read first 24 bytes from eeprom
+    const startAddress = 0
+    const byteLength = 24
+    const buffer = await eeprom.read(startAddress, byteLength)
+    const u8 = ArrayBuffer.isView(buffer) ?
+    new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength) :
+    new Uint8Array(buffer, 0, buffer.byteLength)
+
+    // log the first 24 bytes as unsigned 8-bit values
+    console.log(u8)
+    // try {
+    //     const devices = HID.devices();
+    //     const mcp2221Devices = devices.filter(d => d.vendorId === vendorId && d.productId === productId);
+
+    //     if (mcp2221Devices.length === 0) {
+    //         vscode.window.showWarningMessage('No MCP2221 devices found');
+    //     } else {
+    //         const deviceList = mcp2221Devices.map(d => 
+    //             `Product: ${d.product}, Serial: ${d.serialNumber}, Path: ${d.path}`
+    //         ).join('\n');
+    //         vscode.window.showInformationMessage(`Found ${mcp2221Devices.length} MCP2221 device(s):\n${deviceList}`);
+    //     }
+    // } catch (error) {
+    //     vscode.window.showErrorMessage(`Error detecting MCP2221: ${error}`);
+    // }
 }
 
 function parseIntelHex(hexData: string): Buffer {
