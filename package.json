@@ -1,8 +1,8 @@
 {
   "name": "fv1-vscode",
   "displayName": "Audiofab FV-1 Programming",
-  "description": "An extension providing development support for Spin Semiconductor's FV-1 chip",
-  "version": "0.0.1",
+  "description": "An extension providing development support for Spin Semiconductor's FV-1 chip and programming support for the Audiofab Easy Spin guitar pedal.",
+  "version": "1.0.0",
   "type": "module",
   "engines": {
     "vscode": "^1.75.0"
@@ -29,8 +29,7 @@
           "fv1"
         ],
         "extensions": [
-          ".spn",
-          ".fv1"
+          ".spn"
         ],
         "configuration": "./language-configuration.json"
       }
@@ -45,22 +44,12 @@
     "commands": [
       {
         "command": "fv1.assemble",
-        "title": "Assemble FV-1 Code",
+        "title": "Assemble current file",
         "category": "FV-1"
       },
       {
         "command": "fv1.assembleAndProgram",
-        "title": "Assemble and Program EEPROM",
-        "category": "FV-1"
-      },
-      {
-        "command": "fv1.programEeprom",
-        "title": "Program EEPROM from HEX",
-        "category": "FV-1"
-      },
-      {
-        "command": "fv1.detectMcp2221",
-        "title": "Detect MCP2221 Device",
+        "title": "Assemble current file and program EEPROM",
         "category": "FV-1"
       }
     ],
@@ -79,41 +68,39 @@
     "menus": {
       "editor/context": [
         {
-          "when": "resourceExtname == .spn || resourceExtname == .fv1",
+          "when": "resourceExtname == .spn",
           "command": "fv1.assemble",
           "group": "fv1@1"
         },
         {
-          "when": "resourceExtname == .spn || resourceExtname == .fv1",
+          "when": "resourceExtname == .spn",
           "command": "fv1.assembleAndProgram",
           "group": "fv1@2"
-        }
-      ],
-      "explorer/context": [
-        {
-          "when": "resourceExtname == .hex",
-          "command": "fv1.programEeprom",
-          "group": "fv1@1"
         }
       ]
     },
     "configuration": {
-      "title": "FV-1 Assembly",
+      "title": "Audiofab FV-1",
       "properties": {
-        "fv1.assemblerPath": {
-          "type": "string",
-          "default": "",
-          "description": "Path to the FV-1 assembler executable"
-        },
-        "fv1.eepromSize": {
-          "type": "number",
-          "default": 512,
-          "description": "EEPROM size in bytes (typically 512 or 1024)"
-        },
         "fv1.i2cAddress": {
-          "type": "string",
-          "default": "0x50",
+          "type": "number",
+          "default": 80,
           "description": "I2C address of the EEPROM (default 0x50)"
+        },
+        "fv1.writePageSize": {
+          "type": "number",
+          "default": 32,
+          "description": "EEPROM page write size in bytes (default 32)"
+        },
+        "fv1.verifyWrites": {
+          "type": "boolean",
+          "default": true,
+          "description": "Read back EEPROM contents after writing to verify"
+        },
+        "fv1.spinAsmMemBug": {
+          "type": "boolean",
+          "default": false,
+          "description": "Emulate SpinASM IDE memory bug (wastes one word per MEM block)"
         },
         "fv1.mcp2221VendorId": {
           "type": "string",
