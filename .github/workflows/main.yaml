@@ -90,12 +90,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ubuntu-latest
-      - name: Upload release artifacts
-        uses: Roang-zero1/github-upload-release-artifacts-action@v2
-        with:
-          args: ${{ needs.build.outputs.vsixPath }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish to Visual Studio Marketplace
         uses: HaaLeo/publish-vscode-extension@v2
         with:
