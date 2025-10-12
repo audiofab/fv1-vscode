@@ -2,6 +2,28 @@ on:
   release:
     types:
       - published
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for the release (e.g. v1.2.3)'
+        required: false
+        default: ''
+      release_name:
+        description: 'Release title/name'
+        required: false
+        default: ''
+      release_body:
+        description: 'Release notes / body (markdown)'
+        required: false
+        default: ''
+      publish:
+        description: 'When true the workflow will publish the release and marketplace package'
+        required: false
+        default: 'false'
+      dryRun:
+        description: 'When true the packaging step runs in dry-run mode'
+        required: false
+        default: 'true'
 
 name: Deploy Extension
 jobs:
@@ -52,7 +74,7 @@ jobs:
     name: Publish Github Action
     needs:
       - build
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || github.event.inputs.publish == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
