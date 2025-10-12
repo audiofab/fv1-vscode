@@ -114,7 +114,7 @@ async function programEeprom(machineCode: number[]): Promise<void> {
             try {
                 const items: Array<vscode.QuickPickItem & { index?: number }> = Array.from({ length: 8 }, (_, i) => i + 1).map(i => ({
                     label: `Program ${i}`,
-                    description: `Slot ${i} (address 0x${((i - 1) * FV1_EEPROM_SLOT_SIZE_BYTES).toString(16)})`,
+                    description: `Program into EEPROM program slot ${i}`,
                     index: i - 1
                 }));
 
