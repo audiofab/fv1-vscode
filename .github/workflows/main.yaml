@@ -90,16 +90,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ubuntu-latest
-      - name: GitHub Release
-        uses: softprops/action-gh-release@v1
+      - name: Upload release artifacts
+        uses: Roang-zero1/github-upload-release-artifacts-action@v2
         with:
-          generate_release_notes: true
-          body: |
-            # Summary
-            See [changelog](https://github.com/audiofab/fv1-vscode/blob/main/CHANGELOG.md#change-log) for details.
-          name: ${{ github.ref_name }}
-          fail_on_unmatched_files: true
-          files: ${{ needs.build.outputs.vsixPath }}
+          args: ${{ needs.build.outputs.vsixPath }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish to Visual Studio Marketplace
         uses: HaaLeo/publish-vscode-extension@v2
         with:
