@@ -33,11 +33,13 @@ There are some settings provided in the VS Code settings as well (look under Ext
 
 We plan to implement the following features in the near future so stay tuned and look for updates to the extension in the coming days and weeks!
 
-- Reporting assembly problems in the editor and Problems View
 - Support for outputting to an Intel HEX file
+- Reporting assembly problems in the editor and Problems View
 - Support for constructing an entire bank of programs
 - Backing up a pedal's programs
 - A disassembler
+- Support programming in a higher-level language like Python or a block diagram language?
+- Integrate a simulator?
 
 ## Reporting Issues
 

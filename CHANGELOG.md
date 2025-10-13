@@ -4,6 +4,8 @@
 
 - Added a logo to the Marketplace entry
 - Added a Known Issues file
+- Fix "CHO RDAL" and "RDAX" implementations due to errors in the datasheet
+- Fix a rounding error when converting fixed point values
 
 ## [1.0.1]
 
