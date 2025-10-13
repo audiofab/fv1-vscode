@@ -59,7 +59,7 @@ async function assembleFV1(): Promise<FV1AssemblerResult | undefined> {
         } else {
             vscode.window.showInformationMessage('Assembly successful');
         }
-        // const hexLines = result.machineCode.map(code => code.toString(16).padStart(8, '0').toUpperCase());
+        // const hexLines = result.machineCode.map(code => code.toString(16).padStart(8, '0').toUpperCase()).join('\n');
         // vscode.window.showInformationMessage(`${hexLines}`);
         return result;
     } catch (error) {

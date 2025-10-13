@@ -86,7 +86,7 @@ class SignedFixedPointNumber implements SignedFixedPointNumber {
       return null;
     }
 
-    let encoded = Math.floor(num * (1 << this.fractional_bits));
+    let encoded = Math.trunc(num * (1 << this.fractional_bits));
     let total_bits = 1 + this.integer_bits + this.fractional_bits;
     let mask = ((1 << (total_bits)) - 1);
     // Convert to unsigned representation (two's complement)
@@ -163,6 +163,7 @@ class FV1Assembler {
     ['REG28', 0x3C], ['REG29', 0x3D], ['REG30', 0x3E], ['REG31', 0x3F],
     // CHO-related
     ['SIN0', 0x00], ['SIN1', 0x01], ['RMP0', 0x02], ['RMP1', 0x03],
+    ['COS0', 0x08], ['COS1', 0x09],
     ['RDA', 0x00], ['SOF', 0x02], ['RDAL', 0x03],
     ['SIN', 0x00], ['COS', 0x01], ['REG', 0x02], ['COMPC', 0x04],
     ['COMPA', 0x08], ['RPTR2', 0x10], ['NA', 0x20],
@@ -498,7 +499,7 @@ class FV1Assembler {
         // This instruction has a variable number of operands depending on
         // what the mode is
         mode = this.parseInteger(operands[0], 2);
-        n = this.parseInteger(operands[1], 2);
+        n = this.parseInteger(operands[1], 4);  // Need to treat n as 4 bits for RDAL. Range checking done later.
         if (mode === null || n === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
@@ -514,7 +515,7 @@ class FV1Assembler {
           case this.predefinedSymbols.get('RDA'):   // 00CCCCCC0NNAAAAAAAAAAAAAAAA10100
             flags = this.parseInteger(operands[2], 6);
             addr = this.parseDelayMemoryAddress(operands[3], lineNumber, mnemonic);
-            if (flags === null || addr === null) {
+            if (flags === null || addr === null || n < 0 || n > 3) {
               this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
               return null;
             }
@@ -523,13 +524,28 @@ class FV1Assembler {
           case this.predefinedSymbols.get('SOF'):   // 10CCCCCC0NNDDDDDDDDDDDDDDDD10100
             flags = this.parseInteger(operands[2], 6);
             d = this.parseFixedPointNumber(operands[3], S_15, lineNumber, mnemonic, 16);
-            if (flags === null || d === null) {
+            if (flags === null || d === null || n < 0 || n > 3) {
               this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
               return null;
             }
             return (mode << 30 | flags << 24 | n << 21 | d << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
 
-          case this.predefinedSymbols.get('RDAL'):  // 110000100NN000000000000000010100
+          case this.predefinedSymbols.get('RDAL'):  // 1100001X0YZ000000000000000010100
+            // According to this forum topic, there is a typo in the FV-1 datasheet!
+            // http://www.spinsemi.com/forum/viewtopic.php?t=399&hilit=COS0
+            // Where:
+            // X0YZ
+            // 0000 sin0
+            // 0001 sin1
+            // 0010 rmp0
+            // 0011 rmp1
+            // 1000 cos0
+            // 1001 cos1
+            // All others not used
+            if (n < 0 || (n >= 4 && n <= 7) || n > 9) {
+              this.problems.push({message: `Line ${lineNumber}: Invalid LFO type in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+              return null;
+            }
             return (mode << 30 | 1 << 25 | n << 21 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
 
           default:
@@ -609,13 +625,16 @@ class FV1Assembler {
         }
         return (coeff << 21 | addr << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
 
-      case 'RMPA': // CCCCCCCCCCC000000000001100000001
+      case 'RMPA': // CCCCCCCCCCC000000000001100000001 (but not really....)
         coeff = this.parseFixedPointNumber(operands[0], S1_9, lineNumber, mnemonic, 11);
         if (coeff === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
         }
-        return (coeff << 21 | 0b11 << 8 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+        // NOTE: Another typo in the FV-1 datasheet - the opcode is actually 00001 not 1100000001!!
+        //       Verified by comparing to the SpinASM output
+        // return (coeff << 21 | 0b11 << 8 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+        return (coeff << 21 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
 
       case 'WLDS': // 00NFFFFFFFFFAAAAAAAAAAAAAAA10010
         sinLfo = this.parseInteger(operands[0], 1);
