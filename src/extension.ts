@@ -59,6 +59,8 @@ async function assembleFV1(): Promise<FV1AssemblerResult | undefined> {
         } else {
             vscode.window.showInformationMessage('Assembly successful');
         }
+        // const hexLines = result.machineCode.map(code => code.toString(16).padStart(8, '0').toUpperCase());
+        vscode.window.showInformationMessage(`${hexLines}`);
         return result;
     } catch (error) {
         vscode.window.showErrorMessage(`Unhandled assembly error: ${error}`);
@@ -164,9 +166,9 @@ async function programEeprom(machineCode: number[]): Promise<void> {
                     throw new Error(`Verification failed at byte ${i}: wrote 0x${writeData[i].toString(16)}, read back 0x${verifyArray[i].toString(16)}`);
                 }
             }
-            vscode.window.showInformationMessage(`Successfully wrote and verified program ${selectedSlot}`);
+            vscode.window.showInformationMessage(`Successfully wrote and verified program ${selectedSlot + 1}`);
         } else {
-            vscode.window.showInformationMessage(`Successfully wrote to program ${selectedSlot}`);
+            vscode.window.showInformationMessage(`Successfully wrote to program ${selectedSlot + 1}`);
         }
 
     } catch (error) {

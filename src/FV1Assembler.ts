@@ -86,7 +86,7 @@ class SignedFixedPointNumber implements SignedFixedPointNumber {
       return null;
     }
 
-    let encoded = Math.round(num * (1 << this.fractional_bits));
+    let encoded = Math.floor(num * (1 << this.fractional_bits));
     let total_bits = 1 + this.integer_bits + this.fractional_bits;
     let mask = ((1 << (total_bits)) - 1);
     // Convert to unsigned representation (two's complement)
@@ -245,10 +245,6 @@ class FV1Assembler {
       const minSigned = -(2**(maxNumBits - 1));
       const maxSigned = (2**(maxNumBits - 1)) - 1;
       if (parsed < minSigned || parsed > maxSigned) return null;
-      // Convert negative numbers to two's complement representation
-      if (parsed < 0) {
-        parsed = (parsed + (1 << maxNumBits)) & maxUnsigned;
-      }
     } else {
       if (parsed < 0 || parsed > maxUnsigned) return null;
     }
@@ -645,6 +641,7 @@ class FV1Assembler {
           this.problems.push({message: `Line ${lineNumber}: Frequency out of range in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
         }
+
         if (![512, 1024, 2048, 4096].includes(ampl)) {
           this.problems.push({message: `Line ${lineNumber}: Invalid amplitude in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
@@ -657,7 +654,7 @@ class FV1Assembler {
             case 4096: ampl = 0; break;
           }
         }
-        return (1 << 30 | sinLfo << 29 | freq << 20 | ampl << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+        return (1 << 30 | sinLfo << 29 | (freq & 0xFFFF) << 13 | ampl << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
 
       case 'JAM': // 0000000000000000000000001N010011
         n = this.parseInteger(operands[0], 1);
