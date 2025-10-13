@@ -60,6 +60,11 @@
         "command": "fv1.assembleAndProgram",
         "title": "Assemble current file and program EEPROM",
         "category": "FV-1"
+      },
+      {
+        "command": "fv1.assembleToHex",
+        "title": "Assemble current file to an Intel HEX file",
+        "category": "FV-1"
       }
     ],
     "keybindings": [
@@ -71,6 +76,11 @@
       {
         "command": "fv1.assembleAndProgram",
         "key": "ctrl+shift+f5",
+        "when": "editorTextFocus && resourceExtname == .spn"
+      },
+      {
+        "command": "fv1.assembleToHex",
+        "key": "ctrl+alt+f5",
         "when": "editorTextFocus && resourceExtname == .spn"
       }
     ],

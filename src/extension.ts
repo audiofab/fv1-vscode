@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as path from 'path';
 import HID from 'node-hid';
 import { MCP2221 } from '@johntalton/mcp2221'
 import { I2CBusMCP2221 } from '@johntalton/i2c-bus-mcp2221'
@@ -7,6 +8,8 @@ import { I2CAddressedBus } from '@johntalton/and-other-delights'
 import { EEPROM, DEFAULT_EEPROM_ADDRESS, DEFAULT_WRITE_PAGE_SIZE } from '@johntalton/eeprom'
 import { NodeHIDStreamSource } from './node-hid-stream.js';
 import {FV1Assembler, FV1AssemblerResult} from './FV1Assembler.js';
+import {IntelHexParser} from './hexParser.js';
+
 
 const FV1_EEPROM_SLOT_SIZE_BYTES = 512; // Each FV-1 slot is 512 bytes
 
@@ -25,6 +28,13 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    const assembleToHexCommand = vscode.commands.registerCommand('fv1.assembleToHex', async () => {
+        const result = await assembleFV1();
+        if (result.machineCode.length > 0) {
+            await outputIntelHexFile(result.machineCode);
+        }
+    });
+
     context.subscriptions.push(
         assembleCommand,
         assembleAndProgramCommand,
@@ -39,8 +49,8 @@ async function assembleFV1(): Promise<FV1AssemblerResult | undefined> {
     }
 
     const document = activeEditor.document;
-    if (!document.fileName.endsWith('.spn') && !document.fileName.endsWith('.fv1')) {
-        vscode.window.showErrorMessage('Active file is not an FV-1 assembly file (.spn or .fv1)');
+    if (!document.fileName.endsWith('.spn')) {
+        vscode.window.showErrorMessage('Active file is not an FV-1 assembly file (.spn)');
         return;
     }
 
@@ -48,7 +58,6 @@ async function assembleFV1(): Promise<FV1AssemblerResult | undefined> {
     await document.save();
 
     const sourceFile = document.fileName;
-    const outputFile = sourceFile.replace(/\.(spn|fv1)$/, '.hex');
     const assembler = new FV1Assembler();
 
     try {
@@ -59,8 +68,7 @@ async function assembleFV1(): Promise<FV1AssemblerResult | undefined> {
         } else {
             vscode.window.showInformationMessage('Assembly successful');
         }
-        // const hexLines = result.machineCode.map(code => code.toString(16).padStart(8, '0').toUpperCase()).join('\n');
-        // vscode.window.showInformationMessage(`${hexLines}`);
+        // vscode.window.showInformationMessage(FV1Assembler.formatMachineCode(result.machineCode));
         return result;
     } catch (error) {
         vscode.window.showErrorMessage(`Unhandled assembly error: ${error}`);
@@ -112,42 +120,18 @@ async function programEeprom(machineCode: number[]): Promise<void> {
         const eeprom = new EEPROM(abus, { writePageSize: pageSize });
 
         // Prompt user for which slot to program (Program 1 to 8)
-        const selectedSlot = await new Promise<number | undefined>((resolve) => {
-            try {
-                const items: Array<vscode.QuickPickItem & { index?: number }> = Array.from({ length: 8 }, (_, i) => i + 1).map(i => ({
-                    label: `Program ${i}`,
-                    description: `Program into EEPROM program slot ${i}`,
-                    index: i - 1
-                }));
-
-                vscode.window.showQuickPick(items, {
-                    placeHolder: 'Select program to write to EEPROM (1-8)',
-                    canPickMany: false
-                }).then(picked => {
-                    if (!picked) {
-                        resolve(undefined);
-                    } else {
-                        resolve(picked.index);
-                    }
-                }, err => {
-                    vscode.window.showErrorMessage(`Error showing device picker: ${err}`);
-                    resolve(undefined);
-                });
-            } catch (error) {
-                vscode.window.showErrorMessage(`Error selecting a program: ${error}`);
-                resolve(undefined);
-            }
-        });
+        // Function returns the slot index (0-7) or undefined if cancelled
+        const selectedSlot = await selectProgramSlot();
 
         if (selectedSlot === undefined) {
-            vscode.window.showWarningMessage('No program slot selected, aborting');
+            vscode.window.showWarningMessage('No program slot was selected, aborting');
             return;
         }
 
         // write machine code to eeprom at slot offset
         const slotSize = FV1_EEPROM_SLOT_SIZE_BYTES;   // FV-1 slot size in bytes
         const startAddress = selectedSlot * slotSize;
-        const writeData: Uint8Array = expand32ToBytesWithDataView(machineCode);
+        const writeData: Uint8Array = FV1Assembler.toUint8Array(machineCode);
         if (writeData.length != slotSize) {
             vscode.window.showErrorMessage(`Unexpected machine code size (${writeData.length} bytes) expected (${slotSize} bytes)`);
             return;
@@ -175,15 +159,6 @@ async function programEeprom(machineCode: number[]): Promise<void> {
         vscode.window.showErrorMessage(`Error programming EEPROM: ${error}`);
         return;
     }
-}
-
-function expand32ToBytesWithDataView(nums: number[], littleEndian = false): Uint8Array {
-  const buffer = new ArrayBuffer(nums.length * 4);
-  const view = new DataView(buffer);
-  for (let i = 0; i < nums.length; i++) {
-    view.setUint32(i * 4, nums[i] >>> 0, littleEndian);
-  }
-  return new Uint8Array(buffer);
 }
 
 /**
@@ -232,6 +207,83 @@ function detectMCP2221(): Promise<HID.Device | undefined> {
             });
         } catch (error) {
             vscode.window.showErrorMessage(`Error detecting MCP2221: ${error}`);
+            resolve(undefined);
+        }
+    });
+}
+
+async function outputIntelHexFile(machineCode: number[]): Promise<void> {
+    const activeEditor = vscode.window.activeTextEditor;
+    if (!activeEditor) {
+        vscode.window.showErrorMessage('No active editor');
+        return;
+    }
+
+    const document = activeEditor.document;
+    if (!document.fileName.endsWith('.spn')) {
+        vscode.window.showErrorMessage('Active file is not an FV-1 assembly file (.spn)');
+        return;
+    }
+
+    const sourceFile = document.fileName;
+    const outputFile = sourceFile.replace(/\.(spn|fv1)$/, '.hex');
+
+    try {
+        // Prompt user for which slot to program (Program 1 to 8)
+        // Function returns the slot index (0-7) or undefined if cancelled
+        const selectedSlot = await selectProgramSlot();
+
+        if (selectedSlot === undefined) {
+            vscode.window.showWarningMessage('No program slot was selected, aborting');
+            return;
+        }
+
+        const hexFileString = IntelHexParser.generate(Buffer.from(FV1Assembler.toUint8Array(machineCode)),
+                                                      selectedSlot * FV1_EEPROM_SLOT_SIZE_BYTES,
+                                                      4);   // Use a record size of 4 bytes for backwards compatibility with SpinASM IDE
+        fs.writeFileSync(outputFile, hexFileString, 'utf8');
+
+        if (fs.existsSync(outputFile)) {
+            vscode.window.showInformationMessage(`Saved to file: ${path.basename(outputFile)}`);
+            return;
+        } else {
+            vscode.window.showErrorMessage('Failed to save HEX file');
+            return;
+        }
+    } catch (error) {
+        vscode.window.showErrorMessage(`Error creating .hex file: ${error}`);
+        return;
+    }
+}
+
+/**
+ * Present a QuickPick to the user and return the selected program slot (0-7).
+ */
+function selectProgramSlot(): Promise<number | undefined> {
+    // Prompt user for which slot to program (Program 1 to 8)
+    return new Promise<number | undefined>((resolve) => {
+        try {
+            const items: Array<vscode.QuickPickItem & { index?: number }> = Array.from({ length: 8 }, (_, i) => i + 1).map(i => ({
+                label: `Program ${i}`,
+                description: `Program into EEPROM program slot ${i}`,
+                index: i - 1
+            }));
+
+            vscode.window.showQuickPick(items, {
+                placeHolder: 'Select program to write to EEPROM (1-8)',
+                canPickMany: false
+            }).then(picked => {
+                if (!picked) {
+                    resolve(undefined);
+                } else {
+                    resolve(picked.index);
+                }
+            }, err => {
+                vscode.window.showErrorMessage(`Error showing device picker: ${err}`);
+                resolve(undefined);
+            });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Error selecting a program: ${error}`);
             resolve(undefined);
         }
     });

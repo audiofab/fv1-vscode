@@ -16,12 +16,13 @@ Apart from syntax highlighting in the editor, there are currently two commands p
 
 - FV-1: Assemble current file
 - FV-1: Assemble current file and program to EEPROM
+- FV-1: Assemble current file to an Intel HEX file
 
 Use the VS Code command palette (press `Ctrl+Shift+P` and start typing `Assemble`) to find and launch these actions.
 
 ![alt text](doc/commands.png)
 
-When you choose to program the EEPROM you will be prompted for a program number, so you can easily program any program slot of your Easy Spin pedal with one simple command!
+When you choose to program the EEPROM or Intel HEX you will be prompted for a program number, so you can easily program any program slot of your Easy Spin pedal with one simple command!
 
 ![alt text](doc/program_select.png)
 
@@ -33,7 +34,6 @@ There are some settings provided in the VS Code settings as well (look under Ext
 
 We plan to implement the following features in the near future so stay tuned and look for updates to the extension in the coming days and weeks!
 
-- Support for outputting to an Intel HEX file
 - Reporting assembly problems in the editor and Problems View
 - Support for constructing an entire bank of programs
 - Backing up a pedal's programs

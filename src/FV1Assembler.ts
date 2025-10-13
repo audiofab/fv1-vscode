@@ -786,12 +786,12 @@ class FV1Assembler {
     return machineCode
       .map((word, index) => {
         const hex = word.toString(16).toUpperCase().padStart(8, '0');
-        return `${index.toString().padStart(3, '0')}: 0x${hex}`;
+        return `${index.toString().padStart(4, '0')}:\t0x${hex}`;
       })
       .join('\n');
   }
 
-  public static saveBinary(machineCode: number[]): Uint8Array {
+  public static toUint8Array(machineCode: number[]): Uint8Array {
     const buffer = new ArrayBuffer(machineCode.length * 4);
     const view = new DataView(buffer);
     

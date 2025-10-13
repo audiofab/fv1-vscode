@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.0.3]
+
+- Added a command to output to Intel HEX format
+
 ## [1.0.2]
 
 - Added a logo to the Marketplace entry

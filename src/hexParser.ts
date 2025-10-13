@@ -96,10 +96,8 @@ export class IntelHexParser {
         };
     }
 
-    static generate(data: Buffer, baseAddress: number = 0): string {
+    static generate(data: Buffer, baseAddress: number = 0, recordSize: number = 4): string {
         const lines: string[] = [];
-        const recordSize = 16; // 16 bytes per record
-        
         for (let i = 0; i < data.length; i += recordSize) {
             const recordLength = Math.min(recordSize, data.length - i);
             const address = baseAddress + i;
