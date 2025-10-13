@@ -60,7 +60,7 @@ async function assembleFV1(): Promise<FV1AssemblerResult | undefined> {
             vscode.window.showInformationMessage('Assembly successful');
         }
         // const hexLines = result.machineCode.map(code => code.toString(16).padStart(8, '0').toUpperCase());
-        vscode.window.showInformationMessage(`${hexLines}`);
+        // vscode.window.showInformationMessage(`${hexLines}`);
         return result;
     } catch (error) {
         vscode.window.showErrorMessage(`Unhandled assembly error: ${error}`);
