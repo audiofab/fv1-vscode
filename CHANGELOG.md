@@ -1,5 +1,12 @@
 # Change Log
 
+## [1.0.4]
+
+- Fixed some major delay memory allocation bugs
+- Defaulted delay memory allocation to behave the same as SpinASM IDE in case I am missing something
+- Fixed resolution of EQU symbols to mimic SpinASM IDE
+- Added support to resolve arbitrary numeric expressions (massive Plat Reverb program now properly assembles)
+
 ## [1.0.3]
 
 - Added a command to output to Intel HEX format

@@ -54,6 +54,54 @@ interface SignedFixedPointNumber {
   maximum?: number;
 }
 
+// Helper function to reduce expressions of numbers in a string to a final value
+// Based on:
+//    https://code.tutsplus.com/what-they-didnt-tell-you-about-es5s-array-extras--net-28263t
+//    https://stackoverflow.com/questions/2276021/evaluating-a-string-as-a-mathematical-expression-in-javascript
+function resolveExpression(expression: string) {
+  const _parts = expression.match(
+      // digits |operators|whitespace 
+      /(?:\-?[\d\.]+)|[-\+\*\/]|\s+/g
+  );
+
+  if (expression !== _parts.join("")) {
+    throw new Error(`Failed to parse expression ${expression}`)
+  }
+
+  // Trim each part and remove any whitespace
+  const parts =  _parts.map((part) => (part.trim())).filter((part) => part !== "");
+  const nums =  parts.map((part) => (parseFloat(part)));
+
+  // Build an array with all operations reduced to additions
+  const processed = new Array<number>();
+
+  for(let i = 0; i < parts.length; i++){
+    if(!Number.isNaN(nums[i])) {
+        processed.push(nums[i]);
+    } else {
+        switch( parts[i] ) {
+            case "+":
+                continue; //ignore 
+            case "-":
+                processed.push(nums[++i] * -1);
+                break;
+            case "*":
+                processed.push(processed.pop() * nums[++i]);
+                break;
+            case "/":
+                processed.push(processed.pop() / nums[++i]);
+                break;
+            default:
+                throw new Error(`Unknown operation: ${parts[i]}`);
+        }
+      }
+    }
+
+    //add all numbers and return the result 
+    return processed.reduce((result, elem) => (result + elem));
+}
+
+
 class SignedFixedPointNumber implements SignedFixedPointNumber {
   constructor(public integer_bits: number, public fractional_bits: number, private max_value: number) {
     const lsb = max_value / (1 << fractional_bits);
@@ -71,7 +119,7 @@ class SignedFixedPointNumber implements SignedFixedPointNumber {
       }
       value = value.substring(1);
     }
-    let num = parseFloat(value);
+    let num = resolveExpression(value);
     if (isNaN(num)) {
       if (onError) {
         onError(`Invalid number: ${value}`);
@@ -169,7 +217,7 @@ class FV1Assembler {
     ['COMPA', 0x08], ['RPTR2', 0x10], ['NA', 0x20],
     // SKP flags
     ['RUN', 0x8000_0000], ['ZRC', 0x4000_0000], ['ZRO', 0x2000_0000],
-    ['GEZ', 0x1000_0000], ['NEG', 0x08000_0000]
+    ['GEZ', 0x1000_0000], ['NEG', 0x0800_0000]
   ]);
 
   private labels = new Map<string, number>();
@@ -231,7 +279,11 @@ class FV1Assembler {
       const binaryStr = value.substring(1).replace(/_/g, '');
       parsed = parseInt(binaryStr, 2);
     } else {
-      parsed = parseInt(value, 10);
+      try {
+        parsed = resolveExpression(value);
+      } catch {
+        parsed = parseInt(value, 10);
+      }
     }
 
     if (isNaN(parsed)) {
@@ -317,7 +369,27 @@ class FV1Assembler {
     for (const _sym of this.symbols) {
       for (const sym of this.symbols) {
         if (_sym.value === sym.name) {
+          // SpinASM seems to resolve any symbolic value as it is replaced
+          // So, attempt to resolve the symbolic expression now, if possible
           _sym.value = sym.value;
+        }
+      }
+    }
+    // If an EQU happened to be made up of other EQU in an expression, resolve
+    // any EQUs in the expression
+    for (const _sym of this.symbols) {
+      for (const sym of this.symbols) {
+        const regex = new RegExp(`(^|\\s|[^\\w])(${sym.name})($|\\s|[^\\w])`, 'g');
+        if (regex.test(_sym.value)) {
+          _sym.value = _sym.value.replace(regex, `$1${sym.value}$3`);
+          // SpinASM seems to resolve any symbolic value as it is replaced
+          // So, attempt to resolve the symbolic expression now, if possible
+          // otherwise we get into order of operations issues later!
+          try {
+            _sym.value = `${resolveExpression(_sym.value)}`;
+          } catch (error) {
+            // Ignore
+          }
         }
       }
     }
@@ -336,13 +408,14 @@ class FV1Assembler {
             this.problems.push({message: `MEM name '${name}' conflicts with existing symbol`, isfatal: true, line: lineNumber});
           } else {
             let sizeStr = parts[2];
-            // Replace size with symbol value (if appropriate)
+            // Replace any symbols in the MEM size
             for (const sym of this.symbols) {
-              if (sym.name === sizeStr.toString()) {
-                sizeStr = sym.value;
-                break;
+              const regex = new RegExp(`(^|\\s|[^\\w])(${sym.name})($|\\s|[^\\w])`, 'g');
+              if (regex.test(sizeStr)) {
+                sizeStr = sizeStr.replace(regex, `$1${sym.value}$3`);
               }
             }
+            // parseInteger should evaluate any expressions
             const size = this.parseInteger(sizeStr.toString());
             if (size === null) {
               this.problems.push({message: `Invalid memory size '${sizeStr}' in MEM directive`, isfatal: true, line: lineNumber});
@@ -414,13 +487,19 @@ class FV1Assembler {
       if (nextAvailableAddress >= this.MAX_DELAY_MEMORY) {
         this.problems.push({message: `Total delay memory exceeds ${this.MAX_DELAY_MEMORY} words`, isfatal: true, line: mem.line});
       }
-      mem.end = nextAvailableAddress - 1;
       if (spinAsmMemBug) {
         // Simulate SpinASM bug where the next available address is
         // actually one more than it should be, wasting a word of memory per block
+        // And also mis-calculating the end address by one
         nextAvailableAddress += 1;
       }
-      mem.middle = mem.start + Math.floor(mem.end / 2);
+      mem.end = nextAvailableAddress - 1;
+      if (mem.size % 2) {
+        // Odd size, so the middle sample is (size - 1) / 2 - 1
+        mem.middle = mem.start + (mem.size - 1) / 2 - 1;
+      } else {
+        mem.middle = mem.start + mem.size / 2;
+      }
     });
     return nextAvailableAddress;
   }
@@ -466,6 +545,7 @@ class FV1Assembler {
     let mode: number = null;
     let flags: number = null;
     let sinLfo: number = null;
+    let rmpLfo: number = null;
     let freq: number = null;
     let ampl: number = null;
 
@@ -647,10 +727,10 @@ class FV1Assembler {
         return (sinLfo << 29 | freq << 20 | ampl << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
 
       case 'WLDR': // 01NFFFFFFFFFFFFFFFF000000AA10010
-        sinLfo = this.parseInteger(operands[0], 1);
+        rmpLfo = this.parseInteger(operands[0], 2);       // Translated to 1-bit value below
         freq = this.parseInteger(operands[1], 16, true);  // Signed 16-bit
         ampl = this.parseInteger(operands[2]);            // Translated to 2-bit value below
-        if (sinLfo === null || freq === null || ampl === null) {
+        if (rmpLfo === null || freq === null || ampl === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
         }
@@ -661,6 +741,20 @@ class FV1Assembler {
           return null;
         }
 
+        // Convert rmpLfo to 1-bit value
+        if (![0, 1, 2, 3].includes(rmpLfo)) {
+          this.problems.push({message: `Line ${lineNumber}: Invalid LFO selection in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+          return null;
+        } else {
+          // Convert LFO selection to a 1-bit value (this is another error in the FV-1 datasheet!)
+          switch (rmpLfo) {
+            case 0: rmpLfo = 0; break;
+            case 1: rmpLfo = 1; break;
+            case 2: rmpLfo = 0; break;  // RMP0 constant
+            case 3: rmpLfo = 1; break;  // RMP1 constant
+          }
+        }
+        // Convert amplitude to one of the allowed values
         if (![512, 1024, 2048, 4096].includes(ampl)) {
           this.problems.push({message: `Line ${lineNumber}: Invalid amplitude in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
@@ -673,7 +767,7 @@ class FV1Assembler {
             case 4096: ampl = 0; break;
           }
         }
-        return (1 << 30 | sinLfo << 29 | (freq & 0xFFFF) << 13 | ampl << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+        return (1 << 30 | rmpLfo << 29 | (freq & 0xFFFF) << 13 | ampl << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
 
       case 'JAM': // 0000000000000000000000001N010011
         n = this.parseInteger(operands[0], 1);
@@ -722,22 +816,24 @@ class FV1Assembler {
       let name = value.toUpperCase();
       let base = -1;
       let offset = 0;
-      // If that fails, try to split the string on '+' or '-' to handle offsets
-      if (value.includes('+') || value.includes('-')) {
-        const operation = value.includes('+') ? '+' : '-';
-        const parts = value.split(operation);
-        if (parts.length === 2) {
-          name = parts[0].trim().toUpperCase();
-          const potentialBase = this.parseInteger(parts[0].trim());
-          const potentialOffset = this.parseInteger(parts[1].trim());
-          if (potentialBase !== null) {
-            base = potentialBase;
-          }
-          if (potentialOffset !== null) {
-            offset = potentialOffset * (operation === '+' ? 1 : -1);
-          }
+      // If that fails, look for any '+' or '-' offsets specified
+      const firstSignMatch = value.match(/[+-](?=\d)/);
+      if (firstSignMatch) {
+        const idx = firstSignMatch.index!;
+        name = value.slice(0, idx).toUpperCase().trim();
+        const potentialBase = this.parseInteger(name);
+        if (potentialBase !== null) {
+          base = potentialBase;
+        }
+
+        // Get any plus/minus offset tokens
+        const offsetsStr = value.slice(idx);
+        const potentialOffset = this.parseInteger(offsetsStr, 0, true);
+        if (potentialOffset !== null) {
+          offset = potentialOffset;
         }
       }
+
       if (base === -1) {
         // If we couldn't parse a base, it must be a MEM label
         for (const mem of this.memories) {
@@ -786,7 +882,7 @@ class FV1Assembler {
     return machineCode
       .map((word, index) => {
         const hex = word.toString(16).toUpperCase().padStart(8, '0');
-        return `${index.toString().padStart(4, '0')}:\t0x${hex}`;
+        return `${index.toString().padStart(4, '0')}\t${hex}`;
       })
       .join('\n');
   }
