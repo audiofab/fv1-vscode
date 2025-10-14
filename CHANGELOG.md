@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.0.5]
+### The Thanksgiving Release
+
+- Minor internal assembler cleanup
+
 ## [1.0.4]
 
 - Fixed some major delay memory allocation bugs
