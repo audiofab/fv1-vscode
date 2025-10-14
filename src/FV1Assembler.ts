@@ -537,17 +537,6 @@ class FV1Assembler {
 
   private encodeInstruction(mnemonic: string, operands: string[], lineNumber: number): number | null {
     const instruction = this.getInstruction(mnemonic, lineNumber, operands);
-    let addr: number = null;
-    let coeff: number = null;
-    let d: number = null;
-    let n: number = null;
-    let m: number = null;
-    let mode: number = null;
-    let flags: number = null;
-    let sinLfo: number = null;
-    let rmpLfo: number = null;
-    let freq: number = null;
-    let ampl: number = null;
 
     if (instruction === null) {
       return null;
@@ -557,29 +546,33 @@ class FV1Assembler {
       case 'AND': // MMMMMMMMMMMMMMMMMMMMMMMM00001110
       case 'OR':  // MMMMMMMMMMMMMMMMMMMMMMMM00001111
       case 'XOR': // MMMMMMMMMMMMMMMMMMMMMMMM00010000
-        m = this.parseInteger(operands[0], 24);
+      {
+        const m = this.parseInteger(operands[0], 24);
 
         if (m === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
         }
         return (m << 8 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
-
+      }
       case 'LOG': // CCCCCCCCCCCCCCCCDDDDDDDDDDD01011
-        coeff = this.parseFixedPointNumber(operands[0], S1_14, lineNumber, mnemonic, 16);
-        d = this.parseFixedPointNumber(operands[1], S4_6, lineNumber, mnemonic, 11);
+      {
+        const coeff = this.parseFixedPointNumber(operands[0], S1_14, lineNumber, mnemonic, 16);
+        const d = this.parseFixedPointNumber(operands[1], S4_6, lineNumber, mnemonic, 11);
 
         if (coeff === null || d === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
         }
         return (coeff << 16 | d << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+      }
 
       case 'CHO':
+      {
         // This instruction has a variable number of operands depending on
         // what the mode is
-        mode = this.parseInteger(operands[0], 2);
-        n = this.parseInteger(operands[1], 4);  // Need to treat n as 4 bits for RDAL. Range checking done later.
+        const mode = this.parseInteger(operands[0], 2);
+        const n = this.parseInteger(operands[1], 4);  // Need to treat n as 4 bits for RDAL. Range checking done later.
         if (mode === null || n === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
@@ -593,24 +586,27 @@ class FV1Assembler {
 
         switch (mode) {
           case this.predefinedSymbols.get('RDA'):   // 00CCCCCC0NNAAAAAAAAAAAAAAAA10100
-            flags = this.parseInteger(operands[2], 6);
-            addr = this.parseDelayMemoryAddress(operands[3], lineNumber, mnemonic);
+          {
+            const flags = this.parseInteger(operands[2], 6);
+            const addr = this.parseDelayMemoryAddress(operands[3], lineNumber, mnemonic);
             if (flags === null || addr === null || n < 0 || n > 3) {
               this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
               return null;
             }
             return (mode << 30 | flags << 24 | n << 21 | addr << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
-
+          }
           case this.predefinedSymbols.get('SOF'):   // 10CCCCCC0NNDDDDDDDDDDDDDDDD10100
-            flags = this.parseInteger(operands[2], 6);
-            d = this.parseFixedPointNumber(operands[3], S_15, lineNumber, mnemonic, 16);
+          {
+            const flags = this.parseInteger(operands[2], 6);
+            const d = this.parseFixedPointNumber(operands[3], S_15, lineNumber, mnemonic, 16);
             if (flags === null || d === null || n < 0 || n > 3) {
               this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
               return null;
             }
             return (mode << 30 | flags << 24 | n << 21 | d << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
-
+          }
           case this.predefinedSymbols.get('RDAL'):  // 1100001X0YZ000000000000000010100
+          {
             // According to this forum topic, there is a typo in the FV-1 datasheet!
             // http://www.spinsemi.com/forum/viewtopic.php?t=399&hilit=COS0
             // Where:
@@ -627,29 +623,32 @@ class FV1Assembler {
               return null;
             }
             return (mode << 30 | 1 << 25 | n << 21 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
-
+          }
           default:
             this.problems.push({message: `Line ${lineNumber}: Unknown mode for ${mnemonic} instruction`, isfatal: true, line: lineNumber});
             return null;
-          }
-
+        }
+      }
       case 'SOF': // CCCCCCCCCCCCCCCCDDDDDDDDDDD01101
       case 'EXP': // CCCCCCCCCCCCCCCCDDDDDDDDDDD01100
-        coeff = this.parseFixedPointNumber(operands[0], S1_14, lineNumber, mnemonic, 16);
+      {
+        const coeff = this.parseFixedPointNumber(operands[0], S1_14, lineNumber, mnemonic, 16);
         // d can only be a fixed-point number
-        d = this.parseFixedPointNumber(operands[1], S_10, lineNumber, mnemonic, 11);
+        const d = this.parseFixedPointNumber(operands[1], S_10, lineNumber, mnemonic, 11);
 
         if (coeff === null || d === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
         }
         return (coeff << 16 | d << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+      }
 
       case 'SKP': // CCCCCNNNNNN000000000000000010001
+      {
         // We don't range check flags as they are already left-shifted values
         // And we'll explicitly range check n to print a better error message
-        flags = this.parseInteger(operands[0]);
-        n = this.parseInteger(operands[1]);
+        const flags = this.parseInteger(operands[0]);
+        let n = this.parseInteger(operands[1]);
         if (n === null) {
           // Must be a label, so try to resolve it
           if (this.labels.has(operands[1])) {
@@ -665,14 +664,17 @@ class FV1Assembler {
           return null;
         }
         return (flags | n << 21 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+      }
 
       case 'MULX': // 000000000000000000000AAAAAA01010
-        addr = this.parseInteger(operands[0], 6);
+      {
+        const addr = this.parseInteger(operands[0], 6);
         if (addr === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
         }
         return (addr << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+      }
 
       case 'RDAX': // CCCCCCCCCCCCCCCC00000AAAAAA00100
       case 'WRAX': // CCCCCCCCCCCCCCCC00000AAAAAA00110
@@ -681,11 +683,11 @@ class FV1Assembler {
       case 'WRLX': // CCCCCCCCCCCCCCCC00000AAAAAA01000
       case 'WRHX': // CCCCCCCCCCCCCCCC00000AAAAAA00111
       case 'LDAX': // 000000000000000000000AAAAAA00101 (special case of RDAX)
-        addr = this.parseInteger(operands[0], 6);
-        if (mnemonic === 'LDAX') {
-          // LDAX only has one operand, coeff is zero
-          coeff = 0;
-        } else {
+      {
+        const addr = this.parseInteger(operands[0], 6);
+        // LDAX only has one operand, coeff is zero
+        let coeff = 0;
+        if (mnemonic !== 'LDAX') {
           coeff = this.parseFixedPointNumber(operands[1], S1_14, lineNumber, mnemonic, 16);
         }
         if (coeff === null || addr === null) {
@@ -693,20 +695,24 @@ class FV1Assembler {
           return null;
         }
         return (coeff << 16 | addr << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+      }
 
       case 'RDA':  // CCCCCCCCCCCAAAAAAAAAAAAAAAA00000
       case 'WRA':  // CCCCCCCCCCCAAAAAAAAAAAAAAAA00010
       case 'WRAP': // CCCCCCCCCCCAAAAAAAAAAAAAAAA00011
-        addr = this.parseDelayMemoryAddress(operands[0], lineNumber, mnemonic);
-        coeff = this.parseFixedPointNumber(operands[1], S1_9, lineNumber, mnemonic, 11);
+      {
+        const addr = this.parseDelayMemoryAddress(operands[0], lineNumber, mnemonic);
+        const coeff = this.parseFixedPointNumber(operands[1], S1_9, lineNumber, mnemonic, 11);
         if (coeff === null || addr === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
         }
         return (coeff << 21 | addr << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+      }
 
       case 'RMPA': // CCCCCCCCCCC000000000001100000001 (but not really....)
-        coeff = this.parseFixedPointNumber(operands[0], S1_9, lineNumber, mnemonic, 11);
+      {
+        const coeff = this.parseFixedPointNumber(operands[0], S1_9, lineNumber, mnemonic, 11);
         if (coeff === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
@@ -715,21 +721,25 @@ class FV1Assembler {
         //       Verified by comparing to the SpinASM output
         // return (coeff << 21 | 0b11 << 8 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
         return (coeff << 21 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+      }
 
       case 'WLDS': // 00NFFFFFFFFFAAAAAAAAAAAAAAA10010
-        sinLfo = this.parseInteger(operands[0], 1);
-        freq = this.parseInteger(operands[1], 9);
-        ampl = this.parseInteger(operands[2], 15);
+      {
+        const sinLfo = this.parseInteger(operands[0], 1);
+        const freq = this.parseInteger(operands[1], 9);
+        const ampl = this.parseInteger(operands[2], 15);
         if (sinLfo === null || freq === null || ampl === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
         }
         return (sinLfo << 29 | freq << 20 | ampl << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+      }
 
       case 'WLDR': // 01NFFFFFFFFFFFFFFFF000000AA10010
-        rmpLfo = this.parseInteger(operands[0], 2);       // Translated to 1-bit value below
-        freq = this.parseInteger(operands[1], 16, true);  // Signed 16-bit
-        ampl = this.parseInteger(operands[2]);            // Translated to 2-bit value below
+      {
+        let rmpLfo = this.parseInteger(operands[0], 2);       // Translated to 1-bit value below
+        const freq = this.parseInteger(operands[1], 16, true);  // Signed 16-bit
+        let ampl = this.parseInteger(operands[2]);            // Translated to 2-bit value below
         if (rmpLfo === null || freq === null || ampl === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
@@ -768,15 +778,18 @@ class FV1Assembler {
           }
         }
         return (1 << 30 | rmpLfo << 29 | (freq & 0xFFFF) << 13 | ampl << 5 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+      }
 
       case 'JAM': // 0000000000000000000000001N010011
-        n = this.parseInteger(operands[0], 1);
+      {
+        const n = this.parseInteger(operands[0], 1);
 
         if (n === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
         }
         return (1 >> 7 | n << 6 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+      }
 
       // Instructions with no operands (aliases for other instructions with zeroed operands)
       case 'CLR':
