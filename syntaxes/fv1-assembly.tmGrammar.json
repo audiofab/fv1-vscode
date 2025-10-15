@@ -10,7 +10,8 @@
         {"include": "#registers"},
         {"include": "#numbers"},
         {"include": "#operators"},
-        {"include": "#directives"}
+        {"include": "#directives"},
+        {"include": "#symbols"}
     ],
     "repository": {
         "comments": {
@@ -18,11 +19,6 @@
                 {
                     "name": "comment.line.semicolon.fv1",
                     "match": ";.*$"
-                },
-                {
-                    "name": "comment.block.fv1",
-                    "begin": "\\{",
-                    "end": "\\}"
                 }
             ]
         },
@@ -52,9 +48,13 @@
                 }
             ]
         },
+        "symbols" : {
+            "name": "string.other.fv1",
+            "match": "[a-zA-Z_][a-zA-Z0-9_^#]*(?=[\\s+|,|+|\\-])"
+        },
         "labels": {
             "name": "strong.label.fv1",
-            "match": "^[a-zA-Z_][a-zA-Z0-9_]*:"
+            "match": "^\\s*[a-zA-Z_][a-zA-Z0-9_]*:"
         },
         "instructions": {
             "patterns": [
@@ -72,7 +72,7 @@
                 },
                 {
                     "name": "keyword.lfo.fv1",
-                    "match": "\\b(?i)(wlds|wldr|jam|cho rda|cho sof|cho rdal)\\b"
+                    "match": "\\b(?i)(wlds|wldr|jam|cho\\s+rda|cho\\s+sof|cho\\s+rdal)\\b"
                 },
                 {
                     "name": "keyword.other.opcodes.fv1",
@@ -84,11 +84,11 @@
             "patterns": [
                 {
                     "name": "emphasis.register.fv1",
-                    "match": "\\b(?i)(sin[0-1]_rate|sin[0-1]_range|rmp[0-1]_rate|rmp[0-1]_range|pot[0-2]|adcl|adcr|dacl|dacr|addr_ptr|reg[0-31])\\b"
+                    "match": "\\b(?i)(sin[0-1]_rate|sin[0-1]_range|rmp[0-1]_rate|rmp[0-1]_range|pot[0-2]|adcl|adcr|dacl|dacr|addr_ptr|reg[0-9]|reg1[0-9]|reg2[0-9]|reg3[0-1])\\b"
                 },
                 {
                     "name": "emphasis.symbols.fv1",
-                    "match": "\\b(?i)(sin[0-1]|rmp[0-1]|sin|cos|reg|compc|compa|rptr2|na|run|zrc|zro|gez|neg)\\b"
+                    "match": "\\b(?i)(sin[0-1]|cos[0-1]|rmp[0-1]|sin|cos|reg|compc|compa|rptr2|na|run|zrc|zro|gez|neg)\\b"
                 }
             ]
         },

@@ -1,6 +1,6 @@
 # fv1-vscode
 
-This repository builds a Visual Studio Code extension for developing code for the [FV-1 DSP from Spin Semiconductor](http://www.spinsemi.com/products.html).
+fv1-vscode is a Visual Studio Code extension for developing code for the [FV-1 DSP from Spin Semiconductor](http://www.spinsemi.com/products.html).
 
 The extension offers syntax highlighting for FV-1 assembly, as well as a built-in assembler that mimics the assembler found in the SpinASM IDE.
 
@@ -12,7 +12,7 @@ To install the extension, first download and install [Visual Studio Code](https:
 
 ## Usage
 
-Apart from syntax highlighting in the editor, there are currently two commands provided by the extension:
+Apart from syntax highlighting in the editor, there are currently the following commands provided by the extension:
 
 - FV-1: Assemble current file
 - FV-1: Assemble current file and program to EEPROM

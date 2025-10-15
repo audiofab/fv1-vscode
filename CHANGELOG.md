@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.0.6]
+
+- Clean up syntax highlighting (resolve issue #1)
+
 ## [1.0.5]
 ### The Thanksgiving Release
 
