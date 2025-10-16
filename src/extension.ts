@@ -13,35 +13,63 @@ import {IntelHexParser} from './hexParser.js';
 
 const FV1_EEPROM_SLOT_SIZE_BYTES = 512; // Each FV-1 slot is 512 bytes
 
+// Print message to Output Window
+async function outputWindow(outputChannel: vscode.OutputChannel, message: string, isLine: boolean = true): Promise<void> {
+    const config = vscode.workspace.getConfiguration('fv1');
+    const showOutputWindow: boolean = config.get<boolean>('autoShowOutputWindow');
+    if (showOutputWindow || showOutputWindow === undefined) {
+        outputChannel.show(true);
+    }
+
+    isLine ? outputChannel.appendLine(message) : outputChannel.append(message);
+}
+
 export function activate(context: vscode.ExtensionContext) {
-    console.log('FV-1 Assembly Editor extension is now active');
+    // Diagnnostics are used for reporting problems
+    const fv1Diagnostics = vscode.languages.createDiagnosticCollection('fv1-assembler');
+
+    // Create an output channel for this extension
+    const outputChannel = vscode.window.createOutputChannel("Audiofab FV-1");
 
     // Register commands
     const assembleCommand = vscode.commands.registerCommand('fv1.assemble', async () => {
-        await assembleFV1();
+        await assembleFV1(outputChannel, fv1Diagnostics);
     });
 
     const assembleAndProgramCommand = vscode.commands.registerCommand('fv1.assembleAndProgram', async () => {
-        const result = await assembleFV1();
+        const result = await assembleFV1(outputChannel, fv1Diagnostics);
         if (result.machineCode.length > 0) {
-            await programEeprom(result.machineCode);
+            await programEeprom(result.machineCode, outputChannel);
         }
     });
 
     const assembleToHexCommand = vscode.commands.registerCommand('fv1.assembleToHex', async () => {
-        const result = await assembleFV1();
+        const result = await assembleFV1(outputChannel, fv1Diagnostics);
         if (result.machineCode.length > 0) {
-            await outputIntelHexFile(result.machineCode);
+            await outputIntelHexFile(result.machineCode, outputChannel);
         }
     });
 
     context.subscriptions.push(
         assembleCommand,
+        assembleToHexCommand,
         assembleAndProgramCommand,
+        outputChannel,
+        fv1Diagnostics,
     );
 }
 
-async function assembleFV1(): Promise<FV1AssemblerResult | undefined> {
+async function assembleFV1(outputChannel: vscode.OutputChannel, diagnostics: vscode.DiagnosticCollection): Promise<FV1AssemblerResult | undefined> {
+    const config = vscode.workspace.getConfiguration('fv1');
+    let verbose: boolean = config.get<boolean>('verbose');
+    let spinAsmMemBug: boolean = config.get<boolean>('spinAsmMemBug');
+    if (spinAsmMemBug === undefined) {
+        spinAsmMemBug = true;
+    }
+    if (verbose === undefined) {
+        verbose = false;
+    }
+
     const activeEditor = vscode.window.activeTextEditor;
     if (!activeEditor) {
         vscode.window.showErrorMessage('No active editor');
@@ -53,30 +81,45 @@ async function assembleFV1(): Promise<FV1AssemblerResult | undefined> {
         vscode.window.showErrorMessage('Active file is not an FV-1 assembly file (.spn)');
         return;
     }
-
+    
     // Save the file first
     await document.save();
 
+    const fileUri = activeEditor.document.uri;
+    // Clear any Problem markers for this file
+    diagnostics.delete(fileUri);
+    let newDiagnostics: Array<vscode.Diagnostic> = [];
     const sourceFile = document.fileName;
-    const assembler = new FV1Assembler();
+    const assembler = new FV1Assembler({fv1AsmMemBug: spinAsmMemBug});
 
     try {
         const fileContent = fs.readFileSync(sourceFile, 'utf8');
         const result = assembler.assemble(fileContent);
+        outputWindow(outputChannel, `Assembling ${sourceFile}...`);
         if (result.problems.length !== 0) {
-            vscode.window.showErrorMessage(`Assembly failed: ${result.problems.map(p => p.message).join(', ')}`);
-        } else {
-            vscode.window.showInformationMessage('Assembly successful');
+            result.problems.forEach(p => {
+                outputWindow(outputChannel, `${p.isfatal ? "Error" : "Warning"}: ${p.message}`);
+
+                const range = new vscode.Range(p.line -1 , 0, p.line - 1, Number.MAX_SAFE_INTEGER);
+                const severity = p.isfatal ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Error;
+                const diagnostic = new vscode.Diagnostic(range, p.message, severity);
+                diagnostic.source = 'fv1-assembler';
+                newDiagnostics.push(diagnostic);
+            });
+            diagnostics.set(fileUri, newDiagnostics);
         }
-        // vscode.window.showInformationMessage(FV1Assembler.formatMachineCode(result.machineCode));
+        outputWindow(outputChannel, `Assemble completed with ${result.problems.length} warnings or errors.`);
+        if (verbose) {
+            outputWindow(outputChannel, FV1Assembler.formatMachineCode(result.machineCode));
+        }
         return result;
     } catch (error) {
-        vscode.window.showErrorMessage(`Unhandled assembly error: ${error}`);
+        outputWindow(outputChannel, `Unhandled assembly error: ${error}`);
         return;
     }
 }
 
-async function programEeprom(machineCode: number[]): Promise<void> {
+async function programEeprom(machineCode: number[], outputChannel: vscode.OutputChannel): Promise<void> {
     const config = vscode.workspace.getConfiguration('fv1');
     let verifyWrites: boolean = config.get<boolean>('verifyWrites');
     let eepromAddress: number = config.get<number>('i2cAddress');
@@ -150,9 +193,9 @@ async function programEeprom(machineCode: number[]): Promise<void> {
                     throw new Error(`Verification failed at byte ${i}: wrote 0x${writeData[i].toString(16)}, read back 0x${verifyArray[i].toString(16)}`);
                 }
             }
-            vscode.window.showInformationMessage(`Successfully wrote and verified program ${selectedSlot + 1}`);
+            outputWindow(outputChannel, `Successfully wrote and verified program ${selectedSlot + 1}`);
         } else {
-            vscode.window.showInformationMessage(`Successfully wrote to program ${selectedSlot + 1}`);
+            outputWindow(outputChannel, `Successfully wrote to program ${selectedSlot + 1}`);
         }
 
     } catch (error) {
@@ -212,7 +255,7 @@ function detectMCP2221(): Promise<HID.Device | undefined> {
     });
 }
 
-async function outputIntelHexFile(machineCode: number[]): Promise<void> {
+async function outputIntelHexFile(machineCode: number[], outputChannel: vscode.OutputChannel): Promise<void> {
     const activeEditor = vscode.window.activeTextEditor;
     if (!activeEditor) {
         vscode.window.showErrorMessage('No active editor');
@@ -244,7 +287,7 @@ async function outputIntelHexFile(machineCode: number[]): Promise<void> {
         fs.writeFileSync(outputFile, hexFileString, 'utf8');
 
         if (fs.existsSync(outputFile)) {
-            vscode.window.showInformationMessage(`Saved to file: ${path.basename(outputFile)}`);
+            outputWindow(outputChannel, `Saved to file: ${path.basename(outputFile)}`);
             return;
         } else {
             vscode.window.showErrorMessage('Failed to save HEX file');

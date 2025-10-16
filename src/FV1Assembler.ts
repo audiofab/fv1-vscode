@@ -1,8 +1,5 @@
-import * as vscode from 'vscode';
-
 interface FV1AssemblerOptions {
-  strict?: boolean;
-  allowUndefinedLabels?: boolean;
+  fv1AsmMemBug?: boolean;
 }
 
 interface FV1AssemblerProblem {
@@ -473,12 +470,6 @@ class FV1Assembler {
   }
 
   private allocateDelayMemory(): number {
-    const config = vscode.workspace.getConfiguration('fv1');
-    let spinAsmMemBug: boolean = config.get<boolean>('spinAsmMemBug');
-    if (spinAsmMemBug === undefined) {
-        spinAsmMemBug = false;
-    }
-
     // Iterate over all memories and allocate the delay memory chunks
     let nextAvailableAddress = 0;
     this.memories.forEach(mem => {
@@ -487,7 +478,7 @@ class FV1Assembler {
       if (nextAvailableAddress >= this.MAX_DELAY_MEMORY) {
         this.problems.push({message: `Total delay memory exceeds ${this.MAX_DELAY_MEMORY} words`, isfatal: true, line: mem.line});
       }
-      if (spinAsmMemBug) {
+      if (this.options.fv1AsmMemBug) {
         // Simulate SpinASM bug where the next available address is
         // actually one more than it should be, wasting a word of memory per block
         // And also mis-calculating the end address by one

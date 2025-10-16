@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.0.7]
+
+- Move assembler output to the Output window
+- Create problems in the Problems view and editor for assembly errors and warnings
+
 ## [1.0.6]
 
 - Clean up syntax highlighting (resolve issue #1)

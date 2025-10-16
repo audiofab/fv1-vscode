@@ -2,7 +2,7 @@
   "name": "fv1-vscode",
   "displayName": "Audiofab FV-1 Programming",
   "description": "An extension providing development support for Spin Semiconductor's FV-1 chip and programming support for the Audiofab Easy Spin guitar pedal.",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "publisher": "ms-audiofab",
   "publisherDisplayName": "Audiofab Inc.",
   "icon": "doc/logo_600x493.png",
@@ -101,6 +101,16 @@
     "configuration": {
       "title": "Audiofab FV-1",
       "properties": {
+        "fv1.autoShowOutputWindow": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically show Output Window on output"
+        },
+        "fv1.verbose": {
+          "type": "boolean",
+          "default": false,
+          "description": "Operate in verbose mode"
+        },
         "fv1.i2cAddress": {
           "type": "number",
           "default": 80,
