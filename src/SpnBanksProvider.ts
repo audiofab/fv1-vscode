@@ -8,8 +8,23 @@ export class SpnBankProvider implements vscode.TreeDataProvider<vscode.TreeItem>
   public dragMimeTypes = ['text/uri-list'];
   private _onDidChangeTreeData: vscode.EventEmitter<vscode.TreeItem | undefined | void> = new vscode.EventEmitter();
   readonly onDidChangeTreeData: vscode.Event<vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
+  private watcher?: vscode.FileSystemWatcher;
+  private disposables: vscode.Disposable[] = [];
+  private treeView?: vscode.TreeView<vscode.TreeItem>;
 
-  constructor(private workspaceRoot: vscode.Uri | undefined) {}
+  constructor(private workspaceRoot: vscode.Uri | undefined) {
+    // Watch for changes to .spnbank files and refresh automatically
+    try {
+      this.watcher = vscode.workspace.createFileSystemWatcher('**/*.spnbank');
+      this.disposables.push(this.watcher);
+      this.disposables.push(this.watcher.onDidCreate((uri) => this.onFileCreated(uri)));
+      this.disposables.push(this.watcher.onDidChange((uri) => this.onFileChanged(uri)));
+      this.disposables.push(this.watcher.onDidDelete((uri) => this.onFileDeleted(uri)));
+    } catch (e) {
+      // createFileSystemWatcher may throw in edge cases; ignore and continue without watcher
+      console.error('Failed to create .spnbank watcher', e);
+    }
+  }
 
   refresh(): void { this._onDidChangeTreeData.fire(); }
 
@@ -102,10 +117,63 @@ export class SpnBankProvider implements vscode.TreeDataProvider<vscode.TreeItem>
       await vscode.workspace.fs.writeFile(bankUri, newContent);
       // Refresh the provider so the tree shows the updated assignment
       this.refresh();
+      // Try to reveal the bank and expand it; if slot info present, reveal the slot child too
+      try {
+        if (this.treeView) {
+            const bankItem = new vscode.TreeItem(vscode.workspace.asRelativePath(bankUri), vscode.TreeItemCollapsibleState.Collapsed);
+            bankItem.resourceUri = bankUri;
+            await Promise.resolve(this.treeView.reveal(bankItem, { expand: true, focus: false, select: false }));
+            // reveal the slot child if possible
+            const slotItem = new vscode.TreeItem(`Program ${itemSlot}`, vscode.TreeItemCollapsibleState.None);
+            (slotItem as any).bankUri = bankUri;
+            (slotItem as any).slot = itemSlot;
+            await Promise.resolve(this.treeView.reveal(slotItem, { expand: false, focus: false, select: true }));
+          }
+      } catch (e) {
+        // reveal is best-effort; ignore errors
+      }
     } catch (e) {
       vscode.window.showErrorMessage(`Failed to assign slot: ${e}`);
     }
   }
 
-  dispose(): void {}
+  /**
+   * Set the TreeView instance so provider can reveal items on change.
+   */
+  setTreeView(view: vscode.TreeView<vscode.TreeItem>) {
+    this.treeView = view;
+  }
+
+  private onFileCreated(uri: vscode.Uri) {
+    this.refresh();
+    // reveal the new bank if possible
+    if (this.treeView) {
+      const bankItem = new vscode.TreeItem(vscode.workspace.asRelativePath(uri), vscode.TreeItemCollapsibleState.Collapsed);
+      bankItem.resourceUri = uri;
+      // best-effort reveal
+      Promise.resolve(this.treeView.reveal(bankItem, { expand: true, focus: false, select: true })).catch(() => {});
+    }
+  }
+
+  private onFileChanged(uri: vscode.Uri) {
+    this.refresh();
+    // reveal the changed bank
+    if (this.treeView) {
+      const bankItem = new vscode.TreeItem(vscode.workspace.asRelativePath(uri), vscode.TreeItemCollapsibleState.Collapsed);
+      bankItem.resourceUri = uri;
+      Promise.resolve(this.treeView.reveal(bankItem, { expand: true, focus: false, select: false })).catch(() => {});
+    }
+  }
+
+  private onFileDeleted(uri: vscode.Uri) {
+    // refresh to remove deleted banks
+    this.refresh();
+  }
+
+  dispose(): void {
+    for (const d of this.disposables) {
+      try { d.dispose(); } catch (e) { /* ignore */ }
+    }
+    this.disposables = [];
+  }
 }

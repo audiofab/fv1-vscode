@@ -111,12 +111,18 @@
       "explorer": [
         {
           "id": "audiofab.spnBanks",
-          "name": "SPN Banks",
+          "name": "Easy Spin Banks",
           "icon": "doc/logo_600x493.png"
         }
       ]
     },
     "menus": {
+      "commandPalette": [
+        {
+          "command": "fv1.programSpnBank",
+          "when": "false"
+        }
+      ],
       "editor/context": [
         {
           "when": "resourceExtname == .spn",
@@ -146,8 +152,7 @@
           "command": "fv1.programSpnBank",
           "group": "navigation"
         }
-      ]
-    },
+      ],
       "view/item/toolbar": [
         {
           "when": "view == audiofab.spnBanks && viewItem == spnSlotAssigned",
@@ -165,7 +170,8 @@
           "when": "view == audiofab.spnBanks",
           "group": "navigation"
         }
-      ],
+      ]
+    },
     "configuration": {
       "title": "Audiofab FV-1",
       "properties": {

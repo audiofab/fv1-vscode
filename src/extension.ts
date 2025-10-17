@@ -184,6 +184,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     const provider = new SpnBankProvider(vscode.workspace.workspaceFolders?.[0]?.uri);
     const spnBanksView = vscode.window.createTreeView('audiofab.spnBanks', { treeDataProvider: provider, dragAndDropController: provider });
+    // give provider access to the TreeView so it can reveal items on change
+    if ((provider as any).setTreeView) (provider as any).setTreeView(spnBanksView as vscode.TreeView<vscode.TreeItem>);
 
     const createCmd = vscode.commands.registerCommand('fv1.createSpnBank', async () => {
         const uris = await vscode.window.showSaveDialog({ filters: { 'SPN Bank': ['spnbank'] }, defaultUri: vscode.Uri.file(path.join(vscode.workspace.workspaceFolders?.[0].uri.fsPath || '.', 'new.spnbank')) });
@@ -242,15 +244,13 @@ export function activate(context: vscode.ExtensionContext) {
             let slotNum: number | undefined;
             if (item && (item as any).bankUri) { bankUri = (item as any).bankUri; slotNum = (item as any).slot; }
             if (!bankUri || !slotNum) { vscode.window.showErrorMessage('No slot selected to unassign'); return; }
+            // Read current manifest, update the slot and write directly to disk to avoid dirtying an open editor
             const doc = await vscode.workspace.openTextDocument(bankUri);
             const json = doc.getText() ? JSON.parse(doc.getText()) : {};
             json.slots = json.slots || new Array(8).fill(null).map((_, i) => ({ slot: i+1, path: '' }));
             json.slots[slotNum - 1] = { slot: slotNum, path: '' };
-            const edit = new vscode.WorkspaceEdit();
-            const fullRange = new vscode.Range(0, 0, doc.lineCount, 0);
-            edit.replace(bankUri, fullRange, JSON.stringify(json, null, 2));
-            await vscode.workspace.applyEdit(edit);
-            await vscode.workspace.saveAll(false);
+            const newContent = Buffer.from(JSON.stringify(json, null, 2), 'utf8');
+            await vscode.workspace.fs.writeFile(bankUri, newContent);
             provider.refresh();
         } catch (e) { vscode.window.showErrorMessage(`Failed to unassign slot: ${e}`); }
     });
