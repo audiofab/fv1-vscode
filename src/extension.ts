@@ -271,7 +271,8 @@ export function activate(context: vscode.ExtensionContext) {
                     const fsPath = path.isAbsolute(s.path) ? s.path : path.resolve(bankDir, s.path);
                     
                     if (!fs.existsSync(fsPath)) { 
-                        outputWindow(outputChannel, `[WARNING] ⚠ Skipping slot ${s.slot}: file not found ${path.basename(fsPath)}`); 
+                        outputWindow(outputChannel, `[ERROR] ❌ Skipping slot ${s.slot}: file not found ${path.basename(fsPath)}`); 
+                        hasAssemblyErrors = true;
                         continue; 
                     }
                     
