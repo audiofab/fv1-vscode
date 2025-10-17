@@ -188,7 +188,7 @@ export function activate(context: vscode.ExtensionContext) {
     if ((provider as any).setTreeView) (provider as any).setTreeView(spnBanksView as vscode.TreeView<vscode.TreeItem>);
 
     const createCmd = vscode.commands.registerCommand('fv1.createSpnBank', async () => {
-        const uris = await vscode.window.showSaveDialog({ filters: { 'SPN Bank': ['spnbank'] }, defaultUri: vscode.Uri.file(path.join(vscode.workspace.workspaceFolders?.[0].uri.fsPath || '.', 'new.spnbank')) });
+        const uris = await vscode.window.showSaveDialog({ filters: { 'Easy Spin Bank': ['spnbank'] }, defaultUri: vscode.Uri.file(path.join(vscode.workspace.workspaceFolders?.[0].uri.fsPath || '.', 'new.spnbank')) });
         if (!uris) return;
         const content = JSON.stringify({ slots: Array.from({ length: 8 }, (_, i) => ({ slot: i + 1, path: '' })) }, null, 2);
         await vscode.workspace.fs.writeFile(uris, Buffer.from(content, 'utf8'));

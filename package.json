@@ -74,13 +74,13 @@
       },
       {
         "command": "fv1.programSpnBank",
-        "title": "Program All (SPN Bank)",
+        "title": "Program Bank",
         "category": "FV-1"
       }
       ,
       {
         "command": "fv1.programThisSlot",
-        "title": "Program this slot (SPN Bank)",
+        "title": "Program this slot",
         "category": "FV-1"
       }
       ,
@@ -117,12 +117,7 @@
       ]
     },
     "menus": {
-      "commandPalette": [
-        {
-          "command": "fv1.programSpnBank",
-          "when": "false"
-        }
-      ],
+      
       "editor/context": [
         {
           "when": "resourceExtname == .spn",
