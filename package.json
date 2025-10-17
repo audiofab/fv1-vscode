@@ -129,13 +129,7 @@
           "group": "fv1@2"
         }
       ],
-      "explorer/context": [
-        {
-          "when": "resourceExtname == .spnbank",
-          "command": "fv1.programSpnBank",
-          "group": "navigation"
-        }
-      ],
+      "explorer/context": [],
       "view/item/context": [
         {
           "when": "view == audiofab.spnBanks && viewItem == spnSlotAssigned",

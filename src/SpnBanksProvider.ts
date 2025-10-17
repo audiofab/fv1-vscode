@@ -93,15 +93,14 @@ export class SpnBankProvider implements vscode.TreeDataProvider<vscode.TreeItem>
     let rel = path.relative(bankDir, fileUri.fsPath);
     if (!rel || rel === '') rel = path.basename(fileUri.fsPath);
     try {
+      // Load existing JSON (if any), update slots then write file directly to disk.
       const doc = await vscode.workspace.openTextDocument(bankUri);
       const json = doc.getText() ? JSON.parse(doc.getText()) : {};
       json.slots = json.slots || new Array(8).fill(null).map((_, i) => ({ slot: i+1, path: '' }));
       json.slots[itemSlot - 1] = { slot: itemSlot, path: rel };
-      const edit = new vscode.WorkspaceEdit();
-      const fullRange = new vscode.Range(0, 0, doc.lineCount, 0);
-      edit.replace(bankUri, fullRange, JSON.stringify(json, null, 2));
-      await vscode.workspace.applyEdit(edit);
-      await vscode.workspace.saveAll(false);
+      const newContent = Buffer.from(JSON.stringify(json, null, 2), 'utf8');
+      await vscode.workspace.fs.writeFile(bankUri, newContent);
+      // Refresh the provider so the tree shows the updated assignment
       this.refresh();
     } catch (e) {
       vscode.window.showErrorMessage(`Failed to assign slot: ${e}`);
