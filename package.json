@@ -40,7 +40,24 @@
         "extensions": [
           ".spn"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./resources/light/spn-file.svg",
+          "dark": "./resources/dark/spn-file.svg"
+        }
+      },
+      {
+        "id": "spnbank",
+        "aliases": [
+          "Easy Spin Bank"
+        ],
+        "extensions": [
+          ".spnbank"
+        ],
+        "icon": {
+          "light": "./resources/light/spnbank-file.svg",
+          "dark": "./resources/dark/spnbank-file.svg"
+        }
       }
     ],
     "grammars": [
@@ -89,6 +106,12 @@
         "title": "Unassign slot",
         "category": "FV-1"
       }
+      ,
+      {
+        "command": "fv1.revealSpnBank",
+        "title": "Reveal Easy Spin Bank",
+        "category": "FV-1"
+      }
     ],
     "keybindings": [
       {
@@ -117,7 +140,36 @@
       ]
     },
     "menus": {
-      
+      "commandPalette": [
+        {
+          "command": "fv1.programSpnBank",
+          "when": "false"
+        },
+        {
+          "command": "fv1.programThisSlot",
+          "when": "false"
+        },
+        {
+          "command": "fv1.unassignSlot",
+          "when": "false"
+        },
+        {
+          "command": "fv1.revealSpnBank",
+          "when": "false"
+        },
+        {
+          "command": "fv1.assemble",
+          "when": "resourceExtname == .spn"
+        },
+        {
+          "command": "fv1.assembleAndProgram",
+          "when": "resourceExtname == .spn"
+        },
+        {
+          "command": "fv1.assembleToHex",
+          "when": "resourceExtname == .spn"
+        }
+      ],
       "editor/context": [
         {
           "when": "resourceExtname == .spn",

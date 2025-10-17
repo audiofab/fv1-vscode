@@ -72,6 +72,20 @@ export class SpnBankProvider implements vscode.TreeDataProvider<vscode.TreeItem>
 
   getTreeItem(element: vscode.TreeItem): vscode.TreeItem | Thenable<vscode.TreeItem> { return element; }
 
+  getParent(element: vscode.TreeItem): vscode.ProviderResult<vscode.TreeItem> {
+    // If the element has a bankUri property, it's a slot and its parent is the bank
+    const bankUri = (element as any).bankUri as vscode.Uri | undefined;
+    if (bankUri) {
+      // This is a slot, return the bank as parent
+      const bankItem = new vscode.TreeItem(vscode.workspace.asRelativePath(bankUri), vscode.TreeItemCollapsibleState.Collapsed);
+      bankItem.resourceUri = bankUri;
+      bankItem.contextValue = 'spnBank';
+      return bankItem;
+    }
+    // This is a bank (top-level item), so no parent
+    return undefined;
+  }
+
   async handleDrop(target: vscode.TreeItem | undefined, dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
     if (!target) return;
     const itemSlot = (target as any).slot as number | undefined;
@@ -142,6 +156,42 @@ export class SpnBankProvider implements vscode.TreeDataProvider<vscode.TreeItem>
    */
   setTreeView(view: vscode.TreeView<vscode.TreeItem>) {
     this.treeView = view;
+  }
+
+  /**
+   * Reveal and expand a specific .spnbank file in the tree view.
+   */
+  async revealBank(uri: vscode.Uri): Promise<void> {
+    if (!this.treeView) {
+      console.log('No tree view available for reveal');
+      return;
+    }
+    
+    console.log('Refreshing tree view for reveal');
+    this.refresh();
+    
+    // Wait longer for the refresh to complete and find the actual tree item
+    setTimeout(async () => {
+      if (!this.treeView) return;
+      
+      try {
+        // Get all the bank items from the tree
+        const children = await this.getChildren();
+        const targetBank = children.find(item => 
+          item.resourceUri && item.resourceUri.toString() === uri.toString()
+        );
+        
+        if (targetBank) {
+          console.log('Found target bank, revealing:', targetBank.label);
+          await this.treeView.reveal(targetBank, { expand: true, focus: true, select: true });
+          console.log('Reveal completed');
+        } else {
+          console.log('Target bank not found in tree');
+        }
+      } catch (error) {
+        console.error('Error during reveal:', error);
+      }
+    }, 200);
   }
 
   private onFileCreated(uri: vscode.Uri) {

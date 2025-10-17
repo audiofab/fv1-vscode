@@ -150,7 +150,7 @@ async function outputIntelHexFile(machineCode: number[], outputChannel: vscode.O
     const document = activeEditor.document;
     if (!document.fileName.endsWith('.spn')) { vscode.window.showErrorMessage('Active file is not an FV-1 assembly file (.spn)'); return; }
     const sourceFile = document.fileName;
-    const outputFile = sourceFile.replace(/\.(spn|fv1)$/, '.hex');
+    const outputFile = sourceFile.replace(/\.(spn)$/, '.hex');
 
     const selectedSlot = await selectProgramSlot();
     if (selectedSlot === undefined) { vscode.window.showWarningMessage('No program slot was selected, aborting'); return; }
@@ -186,6 +186,37 @@ export function activate(context: vscode.ExtensionContext) {
     const spnBanksView = vscode.window.createTreeView('audiofab.spnBanks', { treeDataProvider: provider, dragAndDropController: provider });
     // give provider access to the TreeView so it can reveal items on change
     if ((provider as any).setTreeView) (provider as any).setTreeView(spnBanksView as vscode.TreeView<vscode.TreeItem>);
+
+    // Handle opening .spnbank files by showing the Easy Spin Banks view and revealing the file
+    const onDidChangeActiveTextEditor = vscode.window.onDidChangeActiveTextEditor(async (editor) => {
+        if (editor && editor.document.fileName.endsWith('.spnbank')) {
+            console.log('Detected .spnbank file opened:', editor.document.fileName);
+            
+            // Focus the Explorer panel to show the Easy Spin Banks view
+            try {
+                await vscode.commands.executeCommand('workbench.view.explorer');
+                console.log('Explorer view focused');
+                
+                // Reveal the opened file in the Easy Spin Banks view
+                setTimeout(async () => {
+                    try {
+                        console.log('Attempting to reveal bank:', editor.document.uri.toString());
+                        await provider.revealBank(editor.document.uri);
+                        console.log('Bank revealed successfully');
+                    } catch (error) {
+                        console.error('Failed to reveal Easy Spin bank:', error);
+                    }
+                }, 1000); // Increased delay to 1 second
+            } catch (error) {
+                console.error('Failed to focus explorer:', error);
+            }
+        }
+    });
+
+    // Register command to reveal a specific .spnbank file
+    const revealSpnBankCmd = vscode.commands.registerCommand('fv1.revealSpnBank', async (uri: vscode.Uri) => {
+        await provider.revealBank(uri);
+    });
 
     const createCmd = vscode.commands.registerCommand('fv1.createSpnBank', async () => {
         const uris = await vscode.window.showSaveDialog({ filters: { 'Easy Spin Bank': ['spnbank'] }, defaultUri: vscode.Uri.file(path.join(vscode.workspace.workspaceFolders?.[0].uri.fsPath || '.', 'new.spnbank')) });
@@ -323,5 +354,7 @@ export function activate(context: vscode.ExtensionContext) {
         provider,
         outputChannel,
         fv1Diagnostics,
+        onDidChangeActiveTextEditor,
+        revealSpnBankCmd,
     );
 }
