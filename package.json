@@ -66,6 +66,29 @@
         "title": "Assemble current file to an Intel HEX file",
         "category": "FV-1"
       }
+      ,
+      {
+        "command": "fv1.createSpnBank",
+        "title": "Create new .spnbank",
+        "category": "FV-1"
+      },
+      {
+        "command": "fv1.programSpnBank",
+        "title": "Program All (SPN Bank)",
+        "category": "FV-1"
+      }
+      ,
+      {
+        "command": "fv1.programThisSlot",
+        "title": "Program this slot (SPN Bank)",
+        "category": "FV-1"
+      }
+      ,
+      {
+        "command": "fv1.unassignSlot",
+        "title": "Unassign slot",
+        "category": "FV-1"
+      }
     ],
     "keybindings": [
       {
@@ -84,6 +107,15 @@
         "when": "editorTextFocus && resourceExtname == .spn"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "audiofab.spnBanks",
+          "name": "SPN Banks",
+          "icon": "doc/logo_600x493.png"
+        }
+      ]
+    },
     "menus": {
       "editor/context": [
         {
@@ -96,8 +128,39 @@
           "command": "fv1.assembleAndProgram",
           "group": "fv1@2"
         }
+      ],
+      "explorer/context": [
+        {
+          "when": "resourceExtname == .spnbank",
+          "command": "fv1.programSpnBank",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "when": "view == audiofab.spnBanks && viewItem == spnSlot",
+          "command": "fv1.programThisSlot",
+          "group": "inline"
+        },
+        {
+          "when": "view == audiofab.spnBanks && viewItem == spnSlot",
+          "command": "fv1.unassignSlot",
+          "group": "inline"
+        },
+        {
+          "when": "view == audiofab.spnBanks && viewItem == spnBank",
+          "command": "fv1.programSpnBank",
+          "group": "navigation"
+        }
       ]
     },
+      "view/title": [
+        {
+          "command": "fv1.programSpnBank",
+          "when": "view == audiofab.spnBanks",
+          "group": "navigation"
+        }
+      ],
     "configuration": {
       "title": "Audiofab FV-1",
       "properties": {
