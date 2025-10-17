@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.0.8]
+
+- Added support for assigning programs to all 8 program slots and saving as a .spnbank file
+- Added Easy Spin Banks view for assigning programs to banks and programming the entire bank
+
 ## [1.0.7]
 
 - Move assembler output to the Output window
