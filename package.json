@@ -138,12 +138,12 @@
       ],
       "view/item/context": [
         {
-          "when": "view == audiofab.spnBanks && viewItem == spnSlot",
+          "when": "view == audiofab.spnBanks && viewItem == spnSlotAssigned",
           "command": "fv1.programThisSlot",
           "group": "inline"
         },
         {
-          "when": "view == audiofab.spnBanks && viewItem == spnSlot",
+          "when": "view == audiofab.spnBanks && viewItem == spnSlotAssigned",
           "command": "fv1.unassignSlot",
           "group": "inline"
         },
@@ -154,6 +154,17 @@
         }
       ]
     },
+      "view/item/toolbar": [
+        {
+          "when": "view == audiofab.spnBanks && viewItem == spnSlotAssigned",
+          "command": "fv1.unassignSlot",
+          "group": "inline",
+          "icon": {
+            "light": "resources/light/unassign.svg",
+            "dark": "resources/dark/unassign.svg"
+          }
+        }
+      ],
       "view/title": [
         {
           "command": "fv1.programSpnBank",

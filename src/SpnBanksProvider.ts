@@ -16,7 +16,9 @@ export class SpnBankProvider implements vscode.TreeDataProvider<vscode.TreeItem>
   async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
     if (!this.workspaceRoot) return [];
     if (!element) {
-      const files = await vscode.workspace.findFiles('**/*.spnbank', '**/node_modules/**');
+      let files = await vscode.workspace.findFiles('**/*.spnbank', '**/node_modules/**');
+      // Stable deterministic ordering: sort by fsPath
+      files = files.sort((a,b) => a.fsPath.localeCompare(b.fsPath));
       return files.map(f => {
         const item = new vscode.TreeItem(vscode.workspace.asRelativePath(f), vscode.TreeItemCollapsibleState.Collapsed);
         item.resourceUri = f;
@@ -28,18 +30,22 @@ export class SpnBankProvider implements vscode.TreeDataProvider<vscode.TreeItem>
       try {
         const doc = await vscode.workspace.openTextDocument(element.resourceUri);
         const json = doc.getText() ? JSON.parse(doc.getText()) : {};
-        const slots = Array.isArray(json.slots) ? json.slots : new Array(8).fill(null).map((_, i) => ({ slot: i+1, path: '' }));
+        let slots = Array.isArray(json.slots) ? json.slots : new Array(8).fill(null).map((_, i) => ({ slot: i+1, path: '' }));
+        // Sort slots by slot number to ensure stable ordering
+        slots = slots.slice().sort((a:any,b:any) => (a.slot - b.slot));
         return slots.map((s: any) => {
           const label = `Program ${s.slot}`;
           const it = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
           const assigned = s.path ? s.path : '';
           it.iconPath = assigned ? new vscode.ThemeIcon('cloud-upload') : new vscode.ThemeIcon('file');
-          it.description = assigned ? `${assigned}   ×` : 'Unassigned';
+          it.description = assigned ? `${assigned}` : 'Unassigned';
+          // provide an 'open' command when assigned
           it.command = assigned ? { command: 'vscode.open', title: 'Open', arguments: [vscode.Uri.file(path.resolve(path.dirname(element.resourceUri!.fsPath), s.path))] } : undefined;
           (it as any).bankUri = element.resourceUri;
           (it as any).slot = s.slot;
           (it as any).assignedPath = s.path;
-          it.contextValue = 'spnSlot';
+          // set specific context value so menu can show unassign action for assigned slots
+          it.contextValue = assigned ? 'spnSlotAssigned' : 'spnSlotUnassigned';
           return it;
         });
       } catch (e) {
