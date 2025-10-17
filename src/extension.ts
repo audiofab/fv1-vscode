@@ -34,13 +34,15 @@ async function assembleFV1(outputChannel: vscode.OutputChannel, diagnostics: vsc
 
     const content = document.getText();
     const assembler = new FV1Assembler({ fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true });
-    outputWindow(outputChannel, `Assembling ${document.fileName}...`);
+    outputWindow(outputChannel, `[INFO] 🔧 Assembling ${path.basename(document.fileName)}...`);
     const result = assembler.assemble(content);
 
     // publish diagnostics
     const fileUri = document.uri;
     diagnostics.delete(fileUri);
     const newDiagnostics: Array<vscode.Diagnostic> = [];
+    let hasErrors = false;
+    
     if (result.problems.length > 0) {
         result.problems.forEach((p: any) => {
             const range = new vscode.Range(p.line - 1, 0, p.line - 1, Number.MAX_SAFE_INTEGER);
@@ -48,9 +50,23 @@ async function assembleFV1(outputChannel: vscode.OutputChannel, diagnostics: vsc
             const diagnostic = new vscode.Diagnostic(range, p.message, severity);
             diagnostic.source = 'fv1-assembler';
             newDiagnostics.push(diagnostic);
-            outputWindow(outputChannel, `${p.isfatal ? 'Error' : 'Warning'}: ${p.message}`);
+            const prefix = p.isfatal ? '[ERROR]' : '[WARNING]';
+            const icon = p.isfatal ? '❌' : '⚠';
+            outputWindow(outputChannel, `${prefix} ${icon} ${p.message}`);
+            if (p.isfatal) {
+                hasErrors = true;
+            }
         });
         diagnostics.set(fileUri, newDiagnostics);
+    }
+
+    // Add success message if no errors
+    if (!hasErrors && result.machineCode && result.machineCode.length > 0) {
+        outputWindow(outputChannel, `[SUCCESS] ✅ Assembly completed successfully - ${path.basename(document.fileName)}`);
+    } else if (hasErrors) {
+        outputWindow(outputChannel, `[ERROR] ❌ Assembly failed with errors - ${path.basename(document.fileName)}`);
+    } else if (!result.machineCode || result.machineCode.length === 0) {
+        outputWindow(outputChannel, `[ERROR] ❌ Assembly produced no machine code - ${path.basename(document.fileName)}`);
     }
 
     return result;
@@ -113,12 +129,13 @@ async function programEeprom(machineCode: number[], outputChannel: vscode.Output
             for (let i = 0; i < writeData.length; i++) {
                 if (writeData[i] !== verifyArray[i]) throw new Error(`Verification failed at byte ${i}`);
             }
-            outputWindow(outputChannel, `Successfully wrote and verified program ${selectedSlot + 1}`);
+            outputWindow(outputChannel, `[SUCCESS] ✅ Successfully wrote and verified program slot ${selectedSlot + 1}`);
         } else {
-            outputWindow(outputChannel, `Successfully wrote to program ${selectedSlot + 1}`);
+            outputWindow(outputChannel, `[SUCCESS] ✅ Successfully wrote to program slot ${selectedSlot + 1}`);
         }
 
     } catch (error) {
+        outputWindow(outputChannel, `[ERROR] ❌ Error programming EEPROM: ${error}`);
         vscode.window.showErrorMessage(`Error programming EEPROM: ${error}`);
         return;
     }
@@ -156,11 +173,17 @@ async function outputIntelHexFile(machineCode: number[], outputChannel: vscode.O
     if (selectedSlot === undefined) { vscode.window.showWarningMessage('No program slot was selected, aborting'); return; }
 
     try {
+        outputWindow(outputChannel, `[INFO] 📄 Generating Intel HEX file for slot ${selectedSlot + 1}...`);
         const hexFileString = IntelHexParser.generate(Buffer.from(FV1Assembler.toUint8Array(machineCode)), selectedSlot * FV1_EEPROM_SLOT_SIZE_BYTES, 4);
         fs.writeFileSync(outputFile, hexFileString, 'utf8');
-        if (fs.existsSync(outputFile)) { outputWindow(outputChannel, `Saved to file: ${path.basename(outputFile)}`); return; }
+        if (fs.existsSync(outputFile)) { 
+            outputWindow(outputChannel, `[SUCCESS] ✅ Intel HEX file saved: ${path.basename(outputFile)}`); 
+            return; 
+        }
+        outputWindow(outputChannel, `[ERROR] ❌ Failed to save HEX file: ${path.basename(outputFile)}`);
         vscode.window.showErrorMessage('Failed to save HEX file');
     } catch (error) {
+        outputWindow(outputChannel, `[ERROR] ❌ Error creating Intel HEX file: ${error}`);
         vscode.window.showErrorMessage(`Error creating .hex file: ${error}`);
     }
 }
@@ -229,23 +252,38 @@ export function activate(context: vscode.ExtensionContext) {
     const programAllCmd = vscode.commands.registerCommand('fv1.programSpnBank', async (item?: any) => {
         const files = item && item.resourceUri ? [item.resourceUri] : await vscode.workspace.findFiles('**/*.spnbank', '**/node_modules/**');
         if (!files || files.length === 0) { vscode.window.showErrorMessage('No .spnbank files found'); return; }
+        
+        // First phase: Assemble all programs and collect results
+        const programsToDownload: Array<{ machineCode: number[], slotIndex: number, filePath: string }> = [];
+        let hasAssemblyErrors = false;
+        
+        outputWindow(outputChannel, `Starting assembly phase for ${files.length} bank file(s)...`);
+        
         for (const file of files) {
             try {
                 const doc = await vscode.workspace.openTextDocument(file);
                 const json = doc.getText() ? JSON.parse(doc.getText()) : {};
                 const slots = Array.isArray(json.slots) ? json.slots : [];
+                
                 for (const s of slots) {
                     if (!s || !s.path) { continue; }
                     const bankDir = path.dirname(file.fsPath);
                     const fsPath = path.isAbsolute(s.path) ? s.path : path.resolve(bankDir, s.path);
-                    if (!fs.existsSync(fsPath)) { outputWindow(outputChannel, `Skipping ${s.slot}: file not found ${fsPath}`); continue; }
+                    
+                    if (!fs.existsSync(fsPath)) { 
+                        outputWindow(outputChannel, `[WARNING] ⚠ Skipping slot ${s.slot}: file not found ${path.basename(fsPath)}`); 
+                        continue; 
+                    }
+                    
                     const content = fs.readFileSync(fsPath, 'utf8');
                     const assembler = new FV1Assembler({ fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true });
-                    outputWindow(outputChannel, `Assembling ${fsPath}...`);
+                    outputWindow(outputChannel, `[INFO] 🔧 Assembling slot ${s.slot}: ${path.basename(fsPath)}...`);
                     const result = assembler.assemble(content);
                     const fileUri = vscode.Uri.file(fsPath);
                     fv1Diagnostics.delete(fileUri);
                     const newDiagnostics: Array<vscode.Diagnostic> = [];
+                    
+                    // Process diagnostics
                     if (result.problems.length !== 0) {
                         result.problems.forEach((p: any) => {
                             const range = new vscode.Range(p.line - 1, 0, p.line - 1, Number.MAX_SAFE_INTEGER);
@@ -253,20 +291,64 @@ export function activate(context: vscode.ExtensionContext) {
                             const diagnostic = new vscode.Diagnostic(range, p.message, severity);
                             diagnostic.source = 'fv1-assembler';
                             newDiagnostics.push(diagnostic);
-                            outputWindow(outputChannel, `${p.isfatal ? 'Error' : 'Warning'}: ${p.message}`);
+                            const prefix = p.isfatal ? '[ERROR]' : '[WARNING]';
+                            const icon = p.isfatal ? '❌' : '⚠';
+                            outputWindow(outputChannel, `${prefix} ${icon} ${p.message}`);
+                            if (p.isfatal) {
+                                hasAssemblyErrors = true;
+                            }
                         });
                         fv1Diagnostics.set(fileUri, newDiagnostics);
                     }
-                    if (result.machineCode && result.machineCode.length > 0) {
-                        await programEeprom(result.machineCode, outputChannel, s.slot - 1);
+                    
+                    // Store successfully assembled programs
+                    if (result.machineCode && result.machineCode.length > 0 && !result.problems.some((p: any) => p.isfatal)) {
+                        programsToDownload.push({
+                            machineCode: result.machineCode,
+                            slotIndex: s.slot - 1,
+                            filePath: fsPath
+                        });
+                        outputWindow(outputChannel, `[SUCCESS] ✅ Slot ${s.slot} assembled successfully - ${path.basename(fsPath)}`);
+                    } else if (result.problems.some((p: any) => p.isfatal)) {
+                        outputWindow(outputChannel, `[ERROR] ❌ Slot ${s.slot} failed to assemble due to errors - ${path.basename(fsPath)}`);
                     } else {
-                        outputWindow(outputChannel, `Skipping ${s.slot}: assemble produced no machine code`);
+                        outputWindow(outputChannel, `[ERROR] ❌ Slot ${s.slot} produced no machine code - ${path.basename(fsPath)}`);
                     }
                 }
             } catch (e) {
-                vscode.window.showErrorMessage(`Failed to program spnbank: ${e}`);
+                outputWindow(outputChannel, `[ERROR] ❌ Error processing bank file ${path.basename(file.fsPath)}: ${e}`);
+                hasAssemblyErrors = true;
             }
         }
+        
+        // Check if we can proceed to programming phase
+        if (hasAssemblyErrors) {
+            vscode.window.showErrorMessage('Programming aborted: One or more programs failed to assemble. Check the Output panel for details.');
+            outputWindow(outputChannel, `[ERROR] ❌ Assembly phase completed with errors. Programming aborted.`);
+            return;
+        }
+        
+        if (programsToDownload.length === 0) {
+            vscode.window.showWarningMessage('No programs to download: All assigned slots are empty or failed to assemble.');
+            outputWindow(outputChannel, `[WARNING] ⚠ No programs available for download.`);
+            return;
+        }
+        
+        // Second phase: Program all successfully assembled code
+        outputWindow(outputChannel, `[SUCCESS] ✅ Assembly phase completed successfully. Programming ${programsToDownload.length} program(s)...`);
+        
+        for (const program of programsToDownload) {
+            try {
+                outputWindow(outputChannel, `[INFO] 📡 Programming slot ${program.slotIndex + 1}: ${path.basename(program.filePath)}...`);
+                await programEeprom(program.machineCode, outputChannel, program.slotIndex);
+                outputWindow(outputChannel, `[SUCCESS] ✅ Slot ${program.slotIndex + 1} programmed successfully - ${path.basename(program.filePath)}`);
+            } catch (e) {
+                vscode.window.showErrorMessage(`Failed to program slot ${program.slotIndex + 1}: ${e}`);
+                outputWindow(outputChannel, `[ERROR] ❌ Failed to program slot ${program.slotIndex + 1}: ${e}`);
+            }
+        }
+        
+        outputWindow(outputChannel, `[SUCCESS] ✅ Programming phase completed.`);
     });
 
     const unassignCmd = vscode.commands.registerCommand('fv1.unassignSlot', async (item?: vscode.TreeItem) => {
@@ -308,13 +390,21 @@ export function activate(context: vscode.ExtensionContext) {
             const doc = await vscode.workspace.openTextDocument(bankUri!);
             const json = doc.getText() ? JSON.parse(doc.getText()) : {};
             const entry = json.slots && json.slots[slotNum - 1];
-            if (!entry || !entry.path) { vscode.window.showErrorMessage(`Slot ${slotNum} is unassigned`); return; }
+            if (!entry || !entry.path) { 
+                outputWindow(outputChannel, `[ERROR] ❌ Slot ${slotNum} is unassigned`);
+                vscode.window.showErrorMessage(`Slot ${slotNum} is unassigned`); 
+                return; 
+            }
             const bankDir = path.dirname(bankUri!.fsPath);
             const fsPath = path.isAbsolute(entry.path) ? entry.path : path.resolve(bankDir, entry.path);
-            if (!fs.existsSync(fsPath)) { vscode.window.showErrorMessage(`File not found: ${fsPath}`); return; }
+            if (!fs.existsSync(fsPath)) { 
+                outputWindow(outputChannel, `[ERROR] ❌ File not found: ${fsPath}`);
+                vscode.window.showErrorMessage(`File not found: ${fsPath}`); 
+                return; 
+            }
             const content = fs.readFileSync(fsPath, 'utf8');
             const assembler = new FV1Assembler({ fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true });
-            outputWindow(outputChannel, `Assembling ${fsPath}...`);
+            outputWindow(outputChannel, `[INFO] 🔧 Assembling ${path.basename(fsPath)} for slot ${slotNum}...`);
             const result = assembler.assemble(content);
             const fileUri = vscode.Uri.file(fsPath);
             fv1Diagnostics.delete(fileUri);
@@ -326,16 +416,20 @@ export function activate(context: vscode.ExtensionContext) {
                     const diagnostic = new vscode.Diagnostic(range, p.message, severity);
                     diagnostic.source = 'fv1-assembler';
                     newDiagnostics.push(diagnostic);
-                    outputWindow(outputChannel, `${p.isfatal ? 'Error' : 'Warning'}: ${p.message}`);
+                    outputWindow(outputChannel, `${p.isfatal ? '[ERROR] ❌' : '[WARNING] ⚠'} ${p.message}`);
                 });
                 fv1Diagnostics.set(fileUri, newDiagnostics);
             }
             if (result.machineCode && result.machineCode.length > 0) {
+                outputWindow(outputChannel, `[SUCCESS] ✅ Assembly completed for slot ${slotNum}`);
                 await programEeprom(result.machineCode, outputChannel, slotNum - 1);
             } else {
-                outputWindow(outputChannel, `Assemble produced no machine code for slot ${slotNum}`);
+                outputWindow(outputChannel, `[ERROR] ❌ Assembly produced no machine code for slot ${slotNum}`);
             }
-        } catch (e) { vscode.window.showErrorMessage(`Failed to program slot: ${e}`); }
+        } catch (e) { 
+            outputWindow(outputChannel, `[ERROR] ❌ Failed to program slot: ${e}`);
+            vscode.window.showErrorMessage(`Failed to program slot: ${e}`); 
+        }
     });
 
     const assembleCommand = vscode.commands.registerCommand('fv1.assemble', async () => { await assembleFV1(outputChannel, fv1Diagnostics); });
