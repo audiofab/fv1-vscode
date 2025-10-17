@@ -2,7 +2,7 @@
   "name": "fv1-vscode",
   "displayName": "Audiofab FV-1 Programming",
   "description": "An extension providing development support for Spin Semiconductor's FV-1 chip and programming support for the Audiofab Easy Spin guitar pedal.",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "publisher": "ms-audiofab",
   "publisherDisplayName": "Audiofab Inc.",
   "icon": "doc/logo_600x493.png",
@@ -40,7 +40,24 @@
         "extensions": [
           ".spn"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./resources/light/spn-file.svg",
+          "dark": "./resources/dark/spn-file.svg"
+        }
+      },
+      {
+        "id": "spnbank",
+        "aliases": [
+          "Easy Spin Bank"
+        ],
+        "extensions": [
+          ".spnbank"
+        ],
+        "icon": {
+          "light": "./resources/light/spnbank-file.svg",
+          "dark": "./resources/dark/spnbank-file.svg"
+        }
       }
     ],
     "grammars": [
@@ -66,6 +83,35 @@
         "title": "Assemble current file to an Intel HEX file",
         "category": "FV-1"
       }
+      ,
+      {
+        "command": "fv1.createSpnBank",
+        "title": "Create new .spnbank",
+        "category": "FV-1"
+      },
+      {
+        "command": "fv1.programSpnBank",
+        "title": "Program Bank",
+        "category": "FV-1"
+      }
+      ,
+      {
+        "command": "fv1.programThisSlot",
+        "title": "Program this slot",
+        "category": "FV-1"
+      }
+      ,
+      {
+        "command": "fv1.unassignSlot",
+        "title": "Unassign slot",
+        "category": "FV-1"
+      }
+      ,
+      {
+        "command": "fv1.revealSpnBank",
+        "title": "Reveal Easy Spin Bank",
+        "category": "FV-1"
+      }
     ],
     "keybindings": [
       {
@@ -84,7 +130,46 @@
         "when": "editorTextFocus && resourceExtname == .spn"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "audiofab.spnBanks",
+          "name": "Easy Spin Banks",
+          "icon": "doc/logo_600x493.png"
+        }
+      ]
+    },
     "menus": {
+      "commandPalette": [
+        {
+          "command": "fv1.programSpnBank",
+          "when": "false"
+        },
+        {
+          "command": "fv1.programThisSlot",
+          "when": "false"
+        },
+        {
+          "command": "fv1.unassignSlot",
+          "when": "false"
+        },
+        {
+          "command": "fv1.revealSpnBank",
+          "when": "false"
+        },
+        {
+          "command": "fv1.assemble",
+          "when": "resourceExtname == .spn"
+        },
+        {
+          "command": "fv1.assembleAndProgram",
+          "when": "resourceExtname == .spn"
+        },
+        {
+          "command": "fv1.assembleToHex",
+          "when": "resourceExtname == .spn"
+        }
+      ],
       "editor/context": [
         {
           "when": "resourceExtname == .spn",
@@ -95,6 +180,35 @@
           "when": "resourceExtname == .spn",
           "command": "fv1.assembleAndProgram",
           "group": "fv1@2"
+        }
+      ],
+      "explorer/context": [],
+      "view/item/context": [
+        {
+          "when": "view == audiofab.spnBanks && viewItem == spnSlotAssigned",
+          "command": "fv1.programThisSlot",
+          "group": "inline"
+        },
+        {
+          "when": "view == audiofab.spnBanks && viewItem == spnSlotAssigned",
+          "command": "fv1.unassignSlot",
+          "group": "inline"
+        },
+        {
+          "when": "view == audiofab.spnBanks && viewItem == spnBank",
+          "command": "fv1.programSpnBank",
+          "group": "navigation"
+        }
+      ],
+  "view/item/toolbar": [
+        {
+          "when": "view == audiofab.spnBanks && viewItem == spnSlotAssigned",
+          "command": "fv1.unassignSlot",
+          "group": "inline",
+          "icon": {
+            "light": "resources/light/unassign.svg",
+            "dark": "resources/dark/unassign.svg"
+          }
         }
       ]
     },
