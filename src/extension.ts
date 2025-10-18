@@ -189,6 +189,116 @@ async function outputIntelHexFile(machineCode: number[], outputChannel: vscode.O
 }
 
 /**
+ * Load an Intel HEX file and program it to EEPROM
+ */
+async function loadHexToEeprom(outputChannel: vscode.OutputChannel): Promise<void> {
+    try {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            vscode.window.showErrorMessage('No active editor');
+            return;
+        }
+
+        const document = activeEditor.document;
+        if (!document.fileName.endsWith('.hex')) {
+            vscode.window.showErrorMessage('Active file is not an Intel HEX file (.hex)');
+            return;
+        }
+
+        const hexFilePath = document.fileName;
+        outputWindow(outputChannel, `[INFO] 📄 Loading Intel HEX file: ${path.basename(hexFilePath)}...`);
+
+        // Read the HEX file content
+        const hexContent = fs.readFileSync(hexFilePath, 'utf8');
+
+        // Validate the HEX file
+        const validation = IntelHexParser.validateHex(hexContent);
+        if (!validation.valid) {
+            outputWindow(outputChannel, `[ERROR] ❌ Invalid Intel HEX file:`);
+            validation.errors.forEach(error => {
+                outputWindow(outputChannel, `[ERROR] ❌   ${error}`);
+            });
+            vscode.window.showErrorMessage('Invalid Intel HEX file. Check Output panel for details.');
+            return;
+        }
+
+        // Parse the HEX file
+        outputWindow(outputChannel, `[INFO] 🔧 Parsing Intel HEX file...`);
+        const buffer = IntelHexParser.parse(hexContent);
+        outputWindow(outputChannel, `[SUCCESS] ✅ Parsed ${buffer.length} bytes from Intel HEX file`);
+
+        // Get MCP2221 device
+        const config = vscode.workspace.getConfiguration('fv1');
+        let verifyWrites: boolean | undefined = config.get<boolean>('verifyWrites');
+        let eepromAddress: number | undefined = config.get<number>('i2cAddress');
+        let pageSize: number | undefined = config.get<number>('writePageSize');
+
+        if (verifyWrites === undefined) verifyWrites = true;
+        if (isNaN(Number(eepromAddress)) || eepromAddress === undefined || eepromAddress < 0 || eepromAddress > 127) {
+            eepromAddress = DEFAULT_EEPROM_ADDRESS;
+        }
+        if (isNaN(Number(pageSize)) || pageSize === undefined || pageSize < 0 || pageSize > 512) {
+            pageSize = DEFAULT_WRITE_PAGE_SIZE;
+        }
+
+        const selectedDevice = await detectMCP2221();
+        if (!selectedDevice) {
+            vscode.window.showErrorMessage('No MCP2221 device selected');
+            return;
+        }
+
+        // Initialize I2C communication
+        const hidDevice = await HID.HIDAsync.open(selectedDevice.path!);
+        const source = new NodeHIDStreamSource(hidDevice);
+        const device = new MCP2221(source);
+        const bus = new I2CBusMCP2221(device);
+
+        await device.common.status({ opaque: 'Speed-Setup-400', i2cClock: 400 });
+
+        const abus = new I2CAddressedBus(bus, eepromAddress!);
+        const eeprom = new EEPROM(abus, { writePageSize: pageSize! });
+
+        // Program the EEPROM
+        outputWindow(outputChannel, `[INFO] 📡 Programming EEPROM with ${buffer.length} bytes...`);
+        const writeData = new Uint8Array(buffer);
+        await eeprom.write(0, writeData); // Write starting at address 0
+
+        // Verify if enabled
+        if (verifyWrites) {
+            outputWindow(outputChannel, `[INFO] 🔍 Verifying EEPROM contents...`);
+            const verifyBuffer = await eeprom.read(0, buffer.length);
+            const verifyArray = ArrayBuffer.isView(verifyBuffer) ?
+                new Uint8Array((verifyBuffer as any).buffer, (verifyBuffer as any).byteOffset, (verifyBuffer as any).byteLength) :
+                new Uint8Array(verifyBuffer as any, 0, (verifyBuffer as any).byteLength);
+
+            let verificationFailed = false;
+            for (let i = 0; i < writeData.length; i++) {
+                if (writeData[i] !== verifyArray[i]) {
+                    outputWindow(outputChannel, `[ERROR] ❌ Verification failed at address 0x${i.toString(16).toUpperCase().padStart(4, '0')}: expected 0x${writeData[i].toString(16).toUpperCase().padStart(2, '0')}, got 0x${verifyArray[i].toString(16).toUpperCase().padStart(2, '0')}`);
+                    verificationFailed = true;
+                    break;
+                }
+            }
+
+            if (verificationFailed) {
+                vscode.window.showErrorMessage('EEPROM verification failed. Check Output panel for details.');
+                return;
+            }
+
+            outputWindow(outputChannel, `[SUCCESS] ✅ Successfully wrote and verified ${buffer.length} bytes to EEPROM`);
+            vscode.window.showInformationMessage(`Successfully programmed ${buffer.length} bytes to EEPROM`);
+        } else {
+            outputWindow(outputChannel, `[SUCCESS] ✅ Successfully wrote ${buffer.length} bytes to EEPROM`);
+            vscode.window.showInformationMessage(`Successfully programmed ${buffer.length} bytes to EEPROM`);
+        }
+
+    } catch (error) {
+        outputWindow(outputChannel, `[ERROR] ❌ Error loading HEX file to EEPROM: ${error}`);
+        vscode.window.showErrorMessage(`Error loading HEX file to EEPROM: ${error}`);
+    }
+}
+
+/**
  * Export an entire .spnbank to a multi-segment Intel HEX file
  */
 async function exportBankToHex(outputChannel: vscode.OutputChannel, item?: any): Promise<void> {
@@ -551,6 +661,7 @@ export function activate(context: vscode.ExtensionContext) {
     const assembleAndProgramCommand = vscode.commands.registerCommand('fv1.assembleAndProgram', async () => { const result = await assembleFV1(outputChannel, fv1Diagnostics); if (result && result.machineCode.length > 0) await programEeprom(result.machineCode, outputChannel); });
     const assembleToHexCommand = vscode.commands.registerCommand('fv1.assembleToHex', async () => { const result = await assembleFV1(outputChannel, fv1Diagnostics); if (result && result.machineCode.length > 0) await outputIntelHexFile(result.machineCode, outputChannel); });
     const exportBankToHexCommand = vscode.commands.registerCommand('fv1.exportBankToHex', async (item?: any) => { await exportBankToHex(outputChannel, item); });
+    const loadHexToEepromCommand = vscode.commands.registerCommand('fv1.loadHexToEeprom', async () => { await loadHexToEeprom(outputChannel); });
 
     context.subscriptions.push(
         createCmd,
@@ -561,6 +672,7 @@ export function activate(context: vscode.ExtensionContext) {
         assembleToHexCommand,
         assembleAndProgramCommand,
         exportBankToHexCommand,
+        loadHexToEepromCommand,
         spnBanksView,
         provider,
         outputChannel,

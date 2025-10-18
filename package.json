@@ -116,6 +116,11 @@
         "command": "fv1.exportBankToHex",
         "title": "Export to .hex",
         "category": "FV-1"
+      },
+      {
+        "command": "fv1.loadHexToEeprom",
+        "title": "Load .hex to EEPROM",
+        "category": "FV-1"
       }
     ],
     "keybindings": [
@@ -133,6 +138,11 @@
         "command": "fv1.assembleToHex",
         "key": "ctrl+alt+f5",
         "when": "editorTextFocus && resourceExtname == .spn"
+      },
+      {
+        "command": "fv1.loadHexToEeprom",
+        "key": "ctrl+shift+f6",
+        "when": "editorTextFocus && resourceExtname == .hex"
       }
     ],
     "views": {
@@ -177,6 +187,10 @@
         {
           "command": "fv1.assembleToHex",
           "when": "resourceExtname == .spn"
+        },
+        {
+          "command": "fv1.loadHexToEeprom",
+          "when": "resourceExtname == .hex"
         }
       ],
       "editor/context": [
@@ -189,6 +203,11 @@
           "when": "resourceExtname == .spn",
           "command": "fv1.assembleAndProgram",
           "group": "fv1@2"
+        },
+        {
+          "when": "resourceExtname == .hex",
+          "command": "fv1.loadHexToEeprom",
+          "group": "fv1@1"
         }
       ],
       "explorer/context": [],
