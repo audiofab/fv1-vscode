@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.1.0]
+
+- Added support for programming a .hex file to EEPROM
+- Added a "Backup pedal" command to save the current pedal contents to a .hex file
+
 ## [1.0.9]
 
 - Added support for exporting an entire bank to a .hex file

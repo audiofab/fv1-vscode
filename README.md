@@ -14,12 +14,19 @@ To install the extension, first download and install [Visual Studio Code](https:
 
 Apart from syntax highlighting in the editor for `.spn` files, there are currently the following commands provided by the extension:
 
-- FV-1: Assemble current file
-- FV-1: Assemble current file and program to EEPROM
-- FV-1: Assemble current file to an Intel HEX file
-- FV-1: Create new `.spnbank`
+### Commands that operate on `.spn` files
+- *FV-1: Assemble current file*
+- *FV-1: Assemble current file and load to EEPROM*
+- *FV-1: Assemble current file to an Intel HEX file*
 
-Use the VS Code command palette (press `Ctrl+Shift+P` and start typing `FV-1`) to find and launch these actions.
+### Commands the deal with Intel .hex files
+- *FV-1: Backup pedal* (saves the entire EEPROM contents of your Easy Spin pedal to a .hex file)
+- *FV-1: Load .hex to EEPROM* (loads arbitrary .hex files to your Easy Spin)
+
+### Program bank managment commands
+- *FV-1: Create new .spnbank* (creates a new bank for your Easy Spin which you can configure with the [Easy Spin Bank Editor](#the-easy-spin-bank-editor))
+
+Use the VS Code command palette (press `Ctrl+Shift+P` and start typing `FV-1`) to find and launch these actions. The first three items are only valid when a `.spn` file is open or selected and the *Load .hex to EEPROM* command is only active when a `.hex` file is open or selected.
 
 ![commands](doc/commands.png)
 
@@ -55,7 +62,6 @@ There are some settings provided in the VS Code settings as well (look under Ext
 
 We plan to implement the following features in the near future so stay tuned and look for updates to the extension in the coming days and weeks!
 
-- Backing up a pedal's programs
 - A disassembler
 - Support programming in a higher-level language like Python or a block diagram language?
 - Integrate a simulator?

@@ -299,6 +299,117 @@ async function loadHexToEeprom(outputChannel: vscode.OutputChannel): Promise<voi
 }
 
 /**
+ * Backup all 8 program slots from the pedal's EEPROM to an Intel HEX file
+ */
+async function backupPedal(outputChannel: vscode.OutputChannel): Promise<void> {
+    try {
+        outputWindow(outputChannel, `[INFO] 💾 Starting pedal backup...`);
+
+        // Get MCP2221 device
+        const config = vscode.workspace.getConfiguration('fv1');
+        let eepromAddress: number | undefined = config.get<number>('i2cAddress');
+        let pageSize: number | undefined = config.get<number>('writePageSize');
+
+        if (isNaN(Number(eepromAddress)) || eepromAddress === undefined || eepromAddress < 0 || eepromAddress > 127) {
+            eepromAddress = DEFAULT_EEPROM_ADDRESS;
+        }
+        if (isNaN(Number(pageSize)) || pageSize === undefined || pageSize < 0 || pageSize > 512) {
+            pageSize = DEFAULT_WRITE_PAGE_SIZE;
+        }
+
+        const selectedDevice = await detectMCP2221();
+        if (!selectedDevice) {
+            vscode.window.showErrorMessage('No MCP2221 device selected');
+            return;
+        }
+
+        // Initialize I2C communication
+        outputWindow(outputChannel, `[INFO] 🔌 Connecting to pedal...`);
+        const hidDevice = await HID.HIDAsync.open(selectedDevice.path!);
+        const source = new NodeHIDStreamSource(hidDevice);
+        const device = new MCP2221(source);
+        const bus = new I2CBusMCP2221(device);
+
+        await device.common.status({ opaque: 'Speed-Setup-400', i2cClock: 400 });
+
+        const abus = new I2CAddressedBus(bus, eepromAddress!);
+        const eeprom = new EEPROM(abus, { writePageSize: pageSize! });
+
+        // Read all 8 program slots (8 x 512 bytes = 4096 bytes)
+        const totalBytes = 8 * FV1_EEPROM_SLOT_SIZE_BYTES;
+        outputWindow(outputChannel, `[INFO] 📖 Reading ${totalBytes} bytes from EEPROM (8 program slots)...`);
+        
+        const readBuffer = await eeprom.read(0, totalBytes);
+        const dataArray = ArrayBuffer.isView(readBuffer) ?
+            new Uint8Array((readBuffer as any).buffer, (readBuffer as any).byteOffset, (readBuffer as any).byteLength) :
+            new Uint8Array(readBuffer as any, 0, (readBuffer as any).byteLength);
+
+        outputWindow(outputChannel, `[SUCCESS] ✅ Successfully read ${dataArray.length} bytes from EEPROM`);
+
+        // Create segments for each program slot
+        const segments: Array<{data: Buffer, address: number}> = [];
+        for (let slot = 0; slot < 8; slot++) {
+            const startOffset = slot * FV1_EEPROM_SLOT_SIZE_BYTES;
+            const slotData = dataArray.slice(startOffset, startOffset + FV1_EEPROM_SLOT_SIZE_BYTES);
+            segments.push({
+                data: Buffer.from(slotData),
+                address: startOffset
+            });
+            outputWindow(outputChannel, `[INFO] 📦 Prepared slot ${slot + 1} data (${FV1_EEPROM_SLOT_SIZE_BYTES} bytes at address 0x${startOffset.toString(16).toUpperCase().padStart(4, '0')})`);
+        }
+
+        // Prompt user for save location
+        const defaultFileName = `pedal-backup-${new Date().toISOString().replace(/:/g, '-').split('.')[0]}.hex`;
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '.';
+        const saveUri = await vscode.window.showSaveDialog({
+            defaultUri: vscode.Uri.file(path.join(workspaceFolder, defaultFileName)),
+            filters: {
+                'Intel HEX files': ['hex'],
+                'All files': ['*']
+            },
+            saveLabel: 'Save Backup'
+        });
+
+        if (!saveUri) {
+            outputWindow(outputChannel, `[WARNING] ⚠ Backup cancelled by user`);
+            return;
+        }
+
+        // Generate multi-segment Intel HEX file
+        outputWindow(outputChannel, `[INFO] 📄 Generating Intel HEX file...`);
+        const hexFileString = IntelHexParser.generateMultiSegment(segments, 16);
+
+        // Write the file
+        fs.writeFileSync(saveUri.fsPath, hexFileString, 'utf8');
+
+        if (fs.existsSync(saveUri.fsPath)) {
+            outputWindow(outputChannel, `[SUCCESS] ✅ Pedal backup saved to: ${path.basename(saveUri.fsPath)}`);
+            outputWindow(outputChannel, `[INFO] 📄 Backup contains all 8 program slots (${totalBytes} bytes total)`);
+            vscode.window.showInformationMessage(`Pedal backup successfully saved to ${path.basename(saveUri.fsPath)}`);
+            
+            // Ask if user wants to open the file
+            const openFile = await vscode.window.showInformationMessage(
+                'Backup complete! Would you like to open the backup file?',
+                'Open File',
+                'Close'
+            );
+            
+            if (openFile === 'Open File') {
+                const doc = await vscode.workspace.openTextDocument(saveUri);
+                await vscode.window.showTextDocument(doc);
+            }
+        } else {
+            outputWindow(outputChannel, `[ERROR] ❌ Failed to save backup file: ${path.basename(saveUri.fsPath)}`);
+            vscode.window.showErrorMessage('Failed to save backup file');
+        }
+
+    } catch (error) {
+        outputWindow(outputChannel, `[ERROR] ❌ Error backing up pedal: ${error}`);
+        vscode.window.showErrorMessage(`Error backing up pedal: ${error}`);
+    }
+}
+
+/**
  * Export an entire .spnbank to a multi-segment Intel HEX file
  */
 async function exportBankToHex(outputChannel: vscode.OutputChannel, item?: any): Promise<void> {
@@ -662,6 +773,7 @@ export function activate(context: vscode.ExtensionContext) {
     const assembleToHexCommand = vscode.commands.registerCommand('fv1.assembleToHex', async () => { const result = await assembleFV1(outputChannel, fv1Diagnostics); if (result && result.machineCode.length > 0) await outputIntelHexFile(result.machineCode, outputChannel); });
     const exportBankToHexCommand = vscode.commands.registerCommand('fv1.exportBankToHex', async (item?: any) => { await exportBankToHex(outputChannel, item); });
     const loadHexToEepromCommand = vscode.commands.registerCommand('fv1.loadHexToEeprom', async () => { await loadHexToEeprom(outputChannel); });
+    const backupPedalCommand = vscode.commands.registerCommand('fv1.backupPedal', async () => { await backupPedal(outputChannel); });
 
     context.subscriptions.push(
         createCmd,
@@ -673,6 +785,7 @@ export function activate(context: vscode.ExtensionContext) {
         assembleAndProgramCommand,
         exportBankToHexCommand,
         loadHexToEepromCommand,
+        backupPedalCommand,
         spnBanksView,
         provider,
         outputChannel,
