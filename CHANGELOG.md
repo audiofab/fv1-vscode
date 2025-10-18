@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.0.9]
+
+- Added support for exporting an entire bank to a .hex file
+
 ## [1.0.8]
 
 - Added support for assigning programs to all 8 program slots and saving as a .spnbank file

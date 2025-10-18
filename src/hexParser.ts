@@ -127,6 +127,78 @@ export class IntelHexParser {
         return lines.join('\n');
     }
 
+    /**
+     * Generate Intel HEX file with multiple data segments at different addresses
+     * @param segments Array of {data: Buffer, address: number} objects
+     * @param recordSize Size of each data record in bytes
+     * @returns Intel HEX format string
+     */
+    static generateMultiSegment(segments: Array<{data: Buffer, address: number}>, recordSize: number = 16): string {
+        const lines: string[] = [];
+        let currentExtendedAddress = -1;
+
+        for (const segment of segments) {
+            const { data, address } = segment;
+            
+            for (let i = 0; i < data.length; i += recordSize) {
+                const recordLength = Math.min(recordSize, data.length - i);
+                const currentAddress = address + i;
+                const recordData = data.slice(i, i + recordLength);
+                
+                // Check if we need an extended linear address record (for addresses > 64KB)
+                const extendedAddress = (currentAddress >> 16) & 0xFFFF;
+                if (extendedAddress !== currentExtendedAddress) {
+                    currentExtendedAddress = extendedAddress;
+                    
+                    // Generate extended linear address record (type 04)
+                    const extendedData = Buffer.alloc(2);
+                    extendedData.writeUInt16BE(extendedAddress, 0);
+                    
+                    let extendedChecksum = 2 + 0 + 0 + 0x04; // length + address + type
+                    for (let j = 0; j < 2; j++) {
+                        extendedChecksum += extendedData[j];
+                    }
+                    extendedChecksum = (256 - (extendedChecksum & 0xFF)) & 0xFF;
+                    
+                    const extendedRecord = [
+                        ':',
+                        '02', // Record length
+                        '0000', // Address (always 0000 for extended records)
+                        '04', // Extended linear address record type
+                        extendedData.toString('hex').toUpperCase(),
+                        extendedChecksum.toString(16).padStart(2, '0').toUpperCase()
+                    ].join('');
+                    
+                    lines.push(extendedRecord);
+                }
+                
+                // Generate data record
+                const recordAddress = currentAddress & 0xFFFF; // Lower 16 bits
+                let checksum = recordLength + (recordAddress >> 8) + (recordAddress & 0xFF) + 0x00; // 0x00 = data record
+                for (let j = 0; j < recordLength; j++) {
+                    checksum += recordData[j];
+                }
+                checksum = (256 - (checksum & 0xFF)) & 0xFF;
+                
+                const record = [
+                    ':',
+                    recordLength.toString(16).padStart(2, '0').toUpperCase(),
+                    recordAddress.toString(16).padStart(4, '0').toUpperCase(),
+                    '00', // Data record type
+                    recordData.toString('hex').toUpperCase(),
+                    checksum.toString(16).padStart(2, '0').toUpperCase()
+                ].join('');
+                
+                lines.push(record);
+            }
+        }
+        
+        // Add end of file record
+        lines.push(':00000001FF');
+        
+        return lines.join('\n');
+    }
+
     static validateHex(hexContent: string): { valid: boolean; errors: string[] } {
         const errors: string[] = [];
         const lines = hexContent.split('\n').map(line => line.trim()).filter(line => line.length > 0);

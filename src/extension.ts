@@ -188,6 +188,120 @@ async function outputIntelHexFile(machineCode: number[], outputChannel: vscode.O
     }
 }
 
+/**
+ * Export an entire .spnbank to a multi-segment Intel HEX file
+ */
+async function exportBankToHex(outputChannel: vscode.OutputChannel, item?: any): Promise<void> {
+    try {
+        const files = item && item.resourceUri ? [item.resourceUri] : await vscode.workspace.findFiles('**/*.spnbank', '**/node_modules/**');
+        if (!files || files.length === 0) { 
+            vscode.window.showErrorMessage('No .spnbank files found'); 
+            return; 
+        }
+
+        let bankUri: vscode.Uri;
+        if (files.length === 1) {
+            bankUri = files[0];
+        } else {
+            const pick = await vscode.window.showQuickPick(
+                files.map(f => ({ label: vscode.workspace.asRelativePath(f), uri: f })), 
+                { placeHolder: 'Select .spnbank file to export' }
+            );
+            if (!pick) return;
+            bankUri = pick.uri;
+        }
+
+        // Read and parse the bank file
+        const doc = await vscode.workspace.openTextDocument(bankUri);
+        const json = doc.getText() ? JSON.parse(doc.getText()) : {};
+        const slots = Array.isArray(json.slots) ? json.slots : [];
+        
+        // Collect segments for multi-segment HEX generation
+        const segments: Array<{data: Buffer, address: number}> = [];
+        const bankDir = path.dirname(bankUri.fsPath);
+        let processedSlots = 0;
+
+        outputWindow(outputChannel, `[INFO] 📄 Starting bank export to Intel HEX format...`);
+
+        for (const slot of slots) {
+            if (!slot || !slot.path) continue; // Skip unassigned slots
+            
+            const fsPath = path.isAbsolute(slot.path) ? slot.path : path.resolve(bankDir, slot.path);
+            
+            if (!fs.existsSync(fsPath)) {
+                outputWindow(outputChannel, `[WARNING] ⚠ Skipping slot ${slot.slot}: file not found ${path.basename(fsPath)}`);
+                continue;
+            }
+
+            // Assemble the program
+            const content = fs.readFileSync(fsPath, 'utf8');
+            const assembler = new FV1Assembler({ 
+                fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true 
+            });
+            
+            outputWindow(outputChannel, `[INFO] 🔧 Assembling slot ${slot.slot}: ${path.basename(fsPath)}...`);
+            const result = assembler.assemble(content);
+
+            // Check for assembly errors
+            if (result.problems.some((p: any) => p.isfatal)) {
+                outputWindow(outputChannel, `[ERROR] ❌ Slot ${slot.slot} failed to assemble - skipping: ${path.basename(fsPath)}`);
+                result.problems.forEach((p: any) => {
+                    if (p.isfatal) {
+                        outputWindow(outputChannel, `[ERROR] ❌ ${p.message}`);
+                    }
+                });
+                continue;
+            }
+
+            if (!result.machineCode || result.machineCode.length === 0) {
+                outputWindow(outputChannel, `[WARNING] ⚠ Slot ${slot.slot} produced no machine code - skipping: ${path.basename(fsPath)}`);
+                continue;
+            }
+
+            // Add this slot to the segments
+            const machineCodeBuffer = Buffer.from(FV1Assembler.toUint8Array(result.machineCode));
+            const slotAddress = (slot.slot - 1) * FV1_EEPROM_SLOT_SIZE_BYTES;
+            segments.push({
+                data: machineCodeBuffer,
+                address: slotAddress
+            });
+
+            outputWindow(outputChannel, `[SUCCESS] ✅ Slot ${slot.slot} assembled successfully: ${path.basename(fsPath)}`);
+            processedSlots++;
+        }
+
+        if (segments.length === 0) {
+            vscode.window.showWarningMessage('No programs to export: All assigned slots are empty or failed to assemble.');
+            outputWindow(outputChannel, `[WARNING] ⚠ No programs available for export.`);
+            return;
+        }
+
+        // Generate the output filename
+        const bankName = path.basename(bankUri.fsPath, '.spnbank');
+        const outputFile = path.join(path.dirname(bankUri.fsPath), `${bankName}.hex`);
+
+        // Generate multi-segment Intel HEX file
+        outputWindow(outputChannel, `[INFO] 📄 Generating multi-segment Intel HEX file with ${segments.length} program(s)...`);
+        const hexFileString = IntelHexParser.generateMultiSegment(segments, 16);
+        
+        // Write the file
+        fs.writeFileSync(outputFile, hexFileString, 'utf8');
+        
+        if (fs.existsSync(outputFile)) {
+            outputWindow(outputChannel, `[SUCCESS] ✅ Bank exported to Intel HEX: ${path.basename(outputFile)}`);
+            outputWindow(outputChannel, `[INFO] 📄 Export summary: ${segments.length} program(s) exported from ${processedSlots} assigned slot(s)`);
+            vscode.window.showInformationMessage(`Bank exported successfully to ${path.basename(outputFile)}`);
+        } else {
+            outputWindow(outputChannel, `[ERROR] ❌ Failed to save HEX file: ${path.basename(outputFile)}`);
+            vscode.window.showErrorMessage('Failed to save HEX file');
+        }
+
+    } catch (error) {
+        outputWindow(outputChannel, `[ERROR] ❌ Error exporting bank to HEX: ${error}`);
+        vscode.window.showErrorMessage(`Error exporting bank to HEX: ${error}`);
+    }
+}
+
 function selectProgramSlot(): Promise<number | undefined> {
     return new Promise<number | undefined>((resolve) => {
         try {
@@ -436,6 +550,7 @@ export function activate(context: vscode.ExtensionContext) {
     const assembleCommand = vscode.commands.registerCommand('fv1.assemble', async () => { await assembleFV1(outputChannel, fv1Diagnostics); });
     const assembleAndProgramCommand = vscode.commands.registerCommand('fv1.assembleAndProgram', async () => { const result = await assembleFV1(outputChannel, fv1Diagnostics); if (result && result.machineCode.length > 0) await programEeprom(result.machineCode, outputChannel); });
     const assembleToHexCommand = vscode.commands.registerCommand('fv1.assembleToHex', async () => { const result = await assembleFV1(outputChannel, fv1Diagnostics); if (result && result.machineCode.length > 0) await outputIntelHexFile(result.machineCode, outputChannel); });
+    const exportBankToHexCommand = vscode.commands.registerCommand('fv1.exportBankToHex', async (item?: any) => { await exportBankToHex(outputChannel, item); });
 
     context.subscriptions.push(
         createCmd,
@@ -445,6 +560,7 @@ export function activate(context: vscode.ExtensionContext) {
         assembleCommand,
         assembleToHexCommand,
         assembleAndProgramCommand,
+        exportBankToHexCommand,
         spnBanksView,
         provider,
         outputChannel,
