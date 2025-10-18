@@ -10,6 +10,7 @@ import { NodeHIDStreamSource } from './node-hid-stream.js';
 import { FV1Assembler, FV1AssemblerResult } from './FV1Assembler.js';
 import { IntelHexParser } from './hexParser.js';
 import { SpnBankProvider } from './SpnBanksProvider.js';
+import { BlockDiagramEditorProvider } from './blockDiagram/editor/BlockDiagramEditorProvider.js';
 
 const FV1_EEPROM_SLOT_SIZE_BYTES = 512; // Each FV-1 slot is 512 bytes
 
@@ -775,6 +776,9 @@ export function activate(context: vscode.ExtensionContext) {
     const loadHexToEepromCommand = vscode.commands.registerCommand('fv1.loadHexToEeprom', async () => { await loadHexToEeprom(outputChannel); });
     const backupPedalCommand = vscode.commands.registerCommand('fv1.backupPedal', async () => { await backupPedal(outputChannel); });
 
+    // Register block diagram editor
+    const blockDiagramEditorProvider = BlockDiagramEditorProvider.register(context);
+
     context.subscriptions.push(
         createCmd,
         programAllCmd,
@@ -786,6 +790,7 @@ export function activate(context: vscode.ExtensionContext) {
         exportBankToHexCommand,
         loadHexToEepromCommand,
         backupPedalCommand,
+        blockDiagramEditorProvider,
         spnBanksView,
         provider,
         outputChannel,

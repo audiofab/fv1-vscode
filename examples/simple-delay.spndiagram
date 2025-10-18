@@ -1,0 +1,82 @@
+{
+  "blocks": [
+    {
+      "id": "input-1",
+      "type": "input.adcl",
+      "position": {
+        "x": 100,
+        "y": 200
+      },
+      "parameters": {}
+    },
+    {
+      "id": "delay-1",
+      "type": "fx.delay",
+      "position": {
+        "x": 409.0000423571271,
+        "y": 231.00026828371756
+      },
+      "parameters": {
+        "delayTime": 1000
+      }
+    },
+    {
+      "id": "output-1",
+      "type": "output.dacl",
+      "position": {
+        "x": 693.9999717619152,
+        "y": 208.00006923450772
+      },
+      "parameters": {}
+    },
+    {
+      "id": "block_91e91297-b4b8-435c-96fa-2563f4148e6d",
+      "type": "input.pot",
+      "position": {
+        "x": 132.99927522249254,
+        "y": 334.0033112672035
+      },
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn_45b2faa8-6b0d-480e-924e-50e6a5fb1aeb",
+      "from": {
+        "blockId": "input-1",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "delay-1",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "conn_4c8cd110-88c8-4267-9ed7-e918f2db684b",
+      "from": {
+        "blockId": "delay-1",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "output-1",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "conn_ac5e0432-acb3-49d2-b72b-0f78e5f7a952",
+      "from": {
+        "blockId": "block_91e91297-b4b8-435c-96fa-2563f4148e6d",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "delay-1",
+        "portId": "time_ctrl"
+      }
+    }
+  ],
+  "canvas": {
+    "zoom": 1,
+    "panX": 0,
+    "panY": 0
+  }
+}

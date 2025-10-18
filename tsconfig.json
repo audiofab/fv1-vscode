@@ -18,5 +18,9 @@
     "moduleResolution": "node16"
   },
   "include": ["src/**/*", "types/**/*"],
-  "exclude": ["node_modules", ".vscode-test"]
+  "exclude": [
+    "node_modules", 
+    ".vscode-test",
+    "src/blockDiagram/editor/webview/**/*"
+  ]
 }
