@@ -49,13 +49,16 @@ export class GainBlock extends BaseBlock {
         
         code.push('; Gain Block');
         if (gainCtrlReg) {
-            code.push(`; Gain modulated by ${gainCtrlReg}`);
-            // For CV control, multiply input by control signal
-            // This is a simplified approach - full implementation would scale the CV
+            code.push(`; Gain modulated by ${gainCtrlReg} (base: ${baseGain})`);
+            // Read input, then multiply by CV control value
             code.push(`rdax ${inputReg}, 1.0`);
-            code.push(`mulx ${gainCtrlReg}`);
-            code.push(`rdax ${inputReg}, ${this.formatS15(baseGain - 1.0)}`);
+            code.push(`mulx ${gainCtrlReg}  ; Apply CV control`);
+            // Optionally scale by base gain too if needed
+            if (Math.abs(baseGain - 1.0) > 0.001) {
+                code.push(`rdax ${inputReg}, ${this.formatS15(baseGain - 1.0)}  ; Add base gain offset`);
+            }
         } else {
+            code.push(`; Static gain: ${baseGain}`);
             code.push(`rdax ${inputReg}, ${this.formatS15(baseGain)}`);
         }
         code.push(`wrax ${outputReg}, 0.0`);

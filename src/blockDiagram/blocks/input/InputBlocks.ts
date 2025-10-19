@@ -154,16 +154,25 @@ export class PotBlock extends BaseBlock {
         const potNumber = this.getParameterValue<number>(ctx, this.type, 'potNumber', 0);
         const invert = this.getParameterValue<boolean>(ctx, this.type, 'invert', false);
         
+        // Allocate two registers for the high-shelf filter (SpinCAD approach)
+        const filterReg0 = ctx.allocateRegister(this.type, 'filter0');
+        const filterReg1 = ctx.allocateRegister(this.type, 'filter1');
+        
         const potName = `POT${potNumber}`;
         
         code.push(`; Potentiometer ${potNumber}`);
-        code.push(`ldax ${potName}`);
+        code.push('; POT filtering a-la-SpinCAD');
+        code.push(`rdax ${potName}, 1.0`);
+        code.push(`rdfx ${filterReg0}, 0.001`);
+        code.push(`wrhx ${filterReg0}, -0.75`);
+        code.push(`rdax ${filterReg1}, 0.75`);
         
         if (invert) {
             code.push('sof -1.0, 1.0  ; Invert');
         }
         
-        code.push(`wrax ${outputReg}, 0.0`);
+        code.push(`wrax ${filterReg1}, 1.0  ; Store filtered value and keep in ACC`);
+        code.push(`wrax ${outputReg}, 0.0  ; Write to output`);
         code.push('');
         
         return code;

@@ -25,6 +25,7 @@ export class CodeGenerationContext implements CodeGenContext {
     private memoryAllocations: MemoryAllocation[] = [];
     private nextRegister: number = 0;
     private nextMemoryAddress: number = 0;
+    private currentBlockId: string | null = null;
     
     // FV-1 hardware limits
     private readonly MAX_REGISTERS = 32;  // REG0-REG31
@@ -35,16 +36,28 @@ export class CodeGenerationContext implements CodeGenContext {
     }
     
     /**
-     * Get the register that feeds a block's input port
+     * Set the current block being processed
      */
-    getInputRegister(blockId: string, portId: string): string {
+    setCurrentBlock(blockId: string): void {
+        this.currentBlockId = blockId;
+    }
+    
+    /**
+     * Get the register that feeds a block's input port
+     * Returns null if input is not connected (for optional inputs like CV)
+     */
+    getInputRegister(blockIdOrType: string, portId: string): string | null {
+        // If blockIdOrType looks like a type (contains '.'), use current block ID
+        const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
+        
         // Find the connection feeding this input
         const connection = this.graph.connections.find(
             conn => conn.to.blockId === blockId && conn.to.portId === portId
         );
         
         if (!connection) {
-            throw new Error(`No connection found for input ${blockId}.${portId}`);
+            // No connection - this is OK for optional inputs
+            return null;
         }
         
         // Find the register allocated to the source output
@@ -65,7 +78,10 @@ export class CodeGenerationContext implements CodeGenContext {
     /**
      * Allocate a register for a block's output port
      */
-    allocateRegister(blockId: string, portId: string): string {
+    allocateRegister(blockIdOrType: string, portId: string): string {
+        // If blockIdOrType looks like a type (contains '.'), use current block ID
+        const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
+        
         // Check if already allocated
         const existing = this.registerAllocations.find(
             alloc => alloc.blockId === blockId && alloc.portId === portId
@@ -94,7 +110,10 @@ export class CodeGenerationContext implements CodeGenContext {
     /**
      * Allocate delay memory for a block
      */
-    allocateMemory(blockId: string, size: number): { name: string; address: number; size: number } {
+    allocateMemory(blockIdOrType: string, size: number): { name: string; address: number; size: number } {
+        // If blockIdOrType looks like a type (contains '.'), use current block ID
+        const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
+        
         // Check if already allocated
         const existing = this.memoryAllocations.find(
             alloc => alloc.blockId === blockId
@@ -129,7 +148,10 @@ export class CodeGenerationContext implements CodeGenContext {
     /**
      * Get a parameter value from a block
      */
-    getParameter(blockId: string, parameterId: string): any {
+    getParameter(blockIdOrType: string, parameterId: string): any {
+        // If blockIdOrType looks like a type (contains '.'), use current block ID
+        const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
+        
         const block = this.graph.blocks.find(b => b.id === blockId);
         if (!block) {
             throw new Error(`Block ${blockId} not found`);

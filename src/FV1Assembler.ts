@@ -475,7 +475,7 @@ class FV1Assembler {
     this.memories.forEach(mem => {
       mem.start = nextAvailableAddress;
       nextAvailableAddress += mem.size;
-      if (nextAvailableAddress >= this.MAX_DELAY_MEMORY) {
+      if (nextAvailableAddress > this.MAX_DELAY_MEMORY) {
         this.problems.push({message: `Total delay memory exceeds ${this.MAX_DELAY_MEMORY} words`, isfatal: true, line: mem.line});
       }
       if (this.options.fv1AsmMemBug) {

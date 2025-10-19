@@ -1,21 +1,36 @@
 {
+  "version": "1.0",
+  "metadata": {
+    "name": "Stereo Mixer with Delay",
+    "author": "",
+    "description": "Stereo input mixer with delay effect and POT-controlled gain"
+  },
   "blocks": [
     {
       "id": "input-left",
       "type": "input.adcl",
-      "position": { "x": 50, "y": 150 },
+      "position": {
+        "x": 50,
+        "y": 150
+      },
       "parameters": {}
     },
     {
       "id": "input-right",
       "type": "input.adcr",
-      "position": { "x": 50, "y": 300 },
+      "position": {
+        "x": 50,
+        "y": 300
+      },
       "parameters": {}
     },
     {
       "id": "pot1",
       "type": "input.pot",
-      "position": { "x": 50, "y": 450 },
+      "position": {
+        "x": 50,
+        "y": 450
+      },
       "parameters": {
         "potNumber": 0
       }
@@ -23,7 +38,10 @@
     {
       "id": "gain-left",
       "type": "math.gain",
-      "position": { "x": 250, "y": 150 },
+      "position": {
+        "x": 250,
+        "y": 150
+      },
       "parameters": {
         "gain": 0.8
       }
@@ -31,7 +49,10 @@
     {
       "id": "gain-right",
       "type": "math.gain",
-      "position": { "x": 250, "y": 300 },
+      "position": {
+        "x": 250,
+        "y": 300
+      },
       "parameters": {
         "gain": 0.8
       }
@@ -39,7 +60,10 @@
     {
       "id": "mixer",
       "type": "math.mixer",
-      "position": { "x": 450, "y": 225 },
+      "position": {
+        "x": 450,
+        "y": 225
+      },
       "parameters": {
         "levelA": 0.5,
         "levelB": 0.5
@@ -48,21 +72,30 @@
     {
       "id": "delay",
       "type": "fx.delay",
-      "position": { "x": 650, "y": 225 },
+      "position": {
+        "x": 650,
+        "y": 225
+      },
       "parameters": {
-        "delayTime": 500
+        "delayTime": 0.934
       }
     },
     {
       "id": "output-left",
       "type": "output.dacl",
-      "position": { "x": 850, "y": 150 },
+      "position": {
+        "x": 850,
+        "y": 150
+      },
       "parameters": {}
     },
     {
       "id": "output-right",
       "type": "output.dacr",
-      "position": { "x": 850, "y": 300 },
+      "position": {
+        "x": 850,
+        "y": 300
+      },
       "parameters": {}
     }
   ],
@@ -157,7 +190,7 @@
     }
   ],
   "canvas": {
-    "zoom": 1.0,
+    "zoom": 1,
     "panX": 0,
     "panY": 0
   }

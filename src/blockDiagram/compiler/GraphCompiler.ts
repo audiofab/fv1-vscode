@@ -81,17 +81,8 @@ export class GraphCompiler {
         codeLines.push(';================================================================================');
         codeLines.push('');
         
-        // Memory declarations
-        const memoryBlocks = context.getMemoryBlocks();
-        if (memoryBlocks.length > 0) {
-            codeLines.push('; Memory allocations');
-            for (const mem of memoryBlocks) {
-                codeLines.push(`${mem.name}\tequ\t${mem.size}`);
-            }
-            codeLines.push('');
-        }
-        
-        // Generate code for each block
+        // Generate code for each block (this will allocate resources)
+        const bodyCode: string[] = [];
         try {
             for (const blockId of executionOrder) {
                 const block = graph.blocks.find(b => b.id === blockId);
@@ -105,9 +96,12 @@ export class GraphCompiler {
                     continue;
                 }
                 
+                // Set current block context
+                context.setCurrentBlock(blockId);
+                
                 // Generate block code
                 const blockCode = definition.generateCode(context);
-                codeLines.push(...blockCode);
+                bodyCode.push(...blockCode);
             }
         } catch (error) {
             return {
@@ -115,6 +109,19 @@ export class GraphCompiler {
                 errors: [`Code generation failed: ${error}`]
             };
         }
+        
+        // Now add memory declarations (after allocation during code generation)
+        const memoryBlocks = context.getMemoryBlocks();
+        if (memoryBlocks.length > 0) {
+            codeLines.push('; Memory allocations');
+            for (const mem of memoryBlocks) {
+                codeLines.push(`mem\t${mem.name}\t${mem.size}`);
+            }
+            codeLines.push('');
+        }
+        
+        // Add the generated code body
+        codeLines.push(...bodyCode);
         
         // 5. Count instructions (rough estimate)
         const instructions = codeLines.filter(line => {
