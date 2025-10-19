@@ -23,6 +23,7 @@ export class CodeGenerationContext implements CodeGenContext {
     private graph: BlockGraph;
     private registerAllocations: RegisterAllocation[] = [];
     private memoryAllocations: MemoryAllocation[] = [];
+    private freedRegisters: string[] = [];  // Pool of freed registers for reuse
     private nextRegister: number = 0;
     private nextMemoryAddress: number = 0;
     private currentBlockId: string | null = null;
@@ -91,20 +92,48 @@ export class CodeGenerationContext implements CodeGenContext {
             return existing.register;
         }
         
-        // Allocate new register
-        if (this.nextRegister >= this.MAX_REGISTERS) {
-            throw new Error('Out of registers! Maximum 32 registers available.');
+        // Try to reuse a freed register first
+        let registerName: string;
+        if (this.freedRegisters.length > 0) {
+            registerName = this.freedRegisters.pop()!;
+        } else {
+            // Allocate new register
+            if (this.nextRegister >= this.MAX_REGISTERS) {
+                throw new Error('Out of registers! Maximum 32 registers available.');
+            }
+            registerName = `REG${this.nextRegister}`;
+            this.nextRegister++;
         }
         
-        const registerName = `REG${this.nextRegister}`;
         this.registerAllocations.push({
             blockId,
             portId,
             register: registerName
         });
         
-        this.nextRegister++;
         return registerName;
+    }
+    
+    /**
+     * Free a register for reuse by other blocks
+     * This allows temporary registers to be recycled
+     */
+    freeRegister(blockIdOrType: string, portId: string): void {
+        // If blockIdOrType looks like a type (contains '.'), use current block ID
+        const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
+        
+        // Find and remove the allocation
+        const allocationIndex = this.registerAllocations.findIndex(
+            alloc => alloc.blockId === blockId && alloc.portId === portId
+        );
+        
+        if (allocationIndex !== -1) {
+            const allocation = this.registerAllocations[allocationIndex];
+            this.registerAllocations.splice(allocationIndex, 1);
+            
+            // Add to freed registers pool for reuse
+            this.freedRegisters.push(allocation.register);
+        }
     }
     
     /**
@@ -191,6 +220,7 @@ export class CodeGenerationContext implements CodeGenContext {
     reset(): void {
         this.registerAllocations = [];
         this.memoryAllocations = [];
+        this.freedRegisters = [];
         this.nextRegister = 0;
         this.nextMemoryAddress = 0;
     }

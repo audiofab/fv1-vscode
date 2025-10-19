@@ -95,9 +95,6 @@ export class DelayBlock extends BaseBlock {
         const outputReg = ctx.allocateRegister(this.type, 'out');
         const delayMem = ctx.allocateMemory(this.type, maxDelaySamples);
         
-        // If time is CV-controlled, we need an ADDR_PTR register for rmpa
-        const addrReg = timeCtrlReg ? ctx.allocateRegister(this.type, 'addr_ptr') : null;
-        
         // Generate code
         code.push(`; Delay Effect (${baseDelayTime}s base, max ${maxDelayTime}s)`);
         code.push(`; Memory: ${delayMem.name} @ ${delayMem.address} (${maxDelaySamples} samples)`);
@@ -107,7 +104,7 @@ export class DelayBlock extends BaseBlock {
         code.push('');
         
         // Setup for variable delay using RMPA if CV-controlled
-        if (timeCtrlReg && addrReg) {
+        if (timeCtrlReg) {
             // Calculate delay offset from CV value and load into ADDR_PTR
             code.push(`; Calculate delay offset from CV`);
             code.push(`ldax ${timeCtrlReg}  ; Load CV (0.0 to 1.0)`);
@@ -122,7 +119,7 @@ export class DelayBlock extends BaseBlock {
         code.push(`rdax ${inputReg}, 1.0`);
         
         // Read delayed signal
-        if (timeCtrlReg && addrReg) {
+        if (timeCtrlReg) {
             // Use RMPA to read from variable position set by ADDR_PTR
             code.push(`; Variable delay read using RMPA`);
             code.push(`rmpa 1.0  ; Read from delay[ADDR_PTR], coefficient 1.0`);
@@ -168,6 +165,10 @@ export class DelayBlock extends BaseBlock {
         
         // Write output
         code.push(`wrax ${outputReg}, 0.0`);
+        
+        // Free temporary registers for reuse
+        ctx.freeRegister(this.type, 'wet_temp');
+        
         code.push('');
         
         return code;

@@ -60,6 +60,9 @@ export interface CodeGenContext {
     // Allocate a new register for a block's output
     allocateRegister(blockId: string, portId: string): string;
     
+    // Free a register for reuse
+    freeRegister(blockId: string, portId: string): void;
+    
     // Allocate delay memory
     allocateMemory(blockId: string, size: number): { name: string; address: number; size: number };
     
