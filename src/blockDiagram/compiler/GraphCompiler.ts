@@ -102,6 +102,10 @@ export class GraphCompiler {
                 // Generate block code
                 const blockCode = definition.generateCode(context);
                 bodyCode.push(...blockCode);
+                
+                // Reset scratch registers for next block
+                // Scratch registers are only valid during a single block's code generation
+                context.resetScratchRegisters();
             }
         } catch (error) {
             return {

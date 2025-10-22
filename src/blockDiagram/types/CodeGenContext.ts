@@ -23,8 +23,8 @@ export class CodeGenerationContext implements CodeGenContext {
     private graph: BlockGraph;
     private registerAllocations: RegisterAllocation[] = [];
     private memoryAllocations: MemoryAllocation[] = [];
-    private freedRegisters: string[] = [];  // Pool of freed registers for reuse
-    private nextRegister: number = 0;
+    private nextRegister: number = 0;  // Allocate permanent registers from REG0 upward
+    private nextScratchRegister: number = 31;  // Allocate scratch registers from REG31 downward
     private nextMemoryAddress: number = 0;
     private currentBlockId: string | null = null;
     
@@ -78,6 +78,7 @@ export class CodeGenerationContext implements CodeGenContext {
     
     /**
      * Allocate a register for a block's output port
+     * These are permanent registers allocated from REG0 upward
      */
     allocateRegister(blockIdOrType: string, portId: string): string {
         // If blockIdOrType looks like a type (contains '.'), use current block ID
@@ -92,18 +93,17 @@ export class CodeGenerationContext implements CodeGenContext {
             return existing.register;
         }
         
-        // Try to reuse a freed register first
-        let registerName: string;
-        if (this.freedRegisters.length > 0) {
-            registerName = this.freedRegisters.pop()!;
-        } else {
-            // Allocate new register
-            if (this.nextRegister >= this.MAX_REGISTERS) {
-                throw new Error('Out of registers! Maximum 32 registers available.');
-            }
-            registerName = `REG${this.nextRegister}`;
-            this.nextRegister++;
+        // Check if we have room for another permanent register
+        // Need to ensure we don't collide with scratch registers
+        if (this.nextRegister > this.nextScratchRegister) {
+            throw new Error(
+                'Out of registers! Permanent registers (REG0-REG' + (this.nextRegister - 1) + 
+                ') have collided with scratch registers (REG' + (this.nextScratchRegister + 1) + '-REG31).'
+            );
         }
+        
+        const registerName = `REG${this.nextRegister}`;
+        this.nextRegister++;
         
         this.registerAllocations.push({
             blockId,
@@ -115,25 +115,32 @@ export class CodeGenerationContext implements CodeGenContext {
     }
     
     /**
-     * Free a register for reuse by other blocks
-     * This allows temporary registers to be recycled
+     * Get a scratch/temporary register for intermediate calculations
+     * Scratch registers are allocated from REG31 downward and are automatically
+     * available again after the current block's code generation completes
      */
-    freeRegister(blockIdOrType: string, portId: string): void {
-        // If blockIdOrType looks like a type (contains '.'), use current block ID
-        const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
-        
-        // Find and remove the allocation
-        const allocationIndex = this.registerAllocations.findIndex(
-            alloc => alloc.blockId === blockId && alloc.portId === portId
-        );
-        
-        if (allocationIndex !== -1) {
-            const allocation = this.registerAllocations[allocationIndex];
-            this.registerAllocations.splice(allocationIndex, 1);
-            
-            // Add to freed registers pool for reuse
-            this.freedRegisters.push(allocation.register);
+    getScratchRegister(): string {
+        // Check if we have room for another scratch register
+        // Need to ensure we don't collide with permanent registers
+        if (this.nextScratchRegister < this.nextRegister) {
+            throw new Error(
+                'Out of registers! Scratch registers (REG' + (this.nextScratchRegister + 1) + '-REG31) ' +
+                'have collided with permanent registers (REG0-REG' + (this.nextRegister - 1) + ').'
+            );
         }
+        
+        const registerName = `REG${this.nextScratchRegister}`;
+        this.nextScratchRegister--;
+        
+        return registerName;
+    }
+    
+    /**
+     * Reset scratch register allocation
+     * Called after each block's code generation to make scratch registers available again
+     */
+    resetScratchRegisters(): void {
+        this.nextScratchRegister = 31;
     }
     
     /**
@@ -220,8 +227,8 @@ export class CodeGenerationContext implements CodeGenContext {
     reset(): void {
         this.registerAllocations = [];
         this.memoryAllocations = [];
-        this.freedRegisters = [];
         this.nextRegister = 0;
+        this.nextScratchRegister = 31;
         this.nextMemoryAddress = 0;
     }
 }

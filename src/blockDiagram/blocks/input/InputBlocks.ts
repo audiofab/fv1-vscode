@@ -154,8 +154,8 @@ export class PotBlock extends BaseBlock {
         const potNumber = this.getParameterValue<number>(ctx, this.type, 'potNumber', 0);
         const invert = this.getParameterValue<boolean>(ctx, this.type, 'invert', false);
         
-        // Allocate a temporary register for filtering
-        const filterReg0 = ctx.allocateRegister(this.type, 'filter0');
+        // Get a scratch register for filtering
+        const filterReg0 = ctx.getScratchRegister();
         
         const potName = `POT${potNumber}`;
         
@@ -171,9 +171,6 @@ export class PotBlock extends BaseBlock {
         }
         
         code.push(`wrax ${outputReg}, 0.0  ; Write to output`);
-        
-        // Free the temporary filter register for reuse
-        ctx.freeRegister(this.type, 'filter0');
         code.push('');
         
         return code;

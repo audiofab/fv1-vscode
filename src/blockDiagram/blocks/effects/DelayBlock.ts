@@ -141,7 +141,7 @@ export class DelayBlock extends BaseBlock {
         }
         
         // Save wet signal temporarily and write to delay line
-        const wetReg = ctx.allocateRegister(this.type, 'wet_temp');
+        const wetReg = ctx.getScratchRegister();
         code.push(`wrax ${wetReg}, 1.0  ; Save wet, keep in ACC`);
         
         // Add input for feedback and write to delay line
@@ -165,10 +165,6 @@ export class DelayBlock extends BaseBlock {
         
         // Write output
         code.push(`wrax ${outputReg}, 0.0`);
-        
-        // Free temporary registers for reuse
-        ctx.freeRegister(this.type, 'wet_temp');
-        
         code.push('');
         
         return code;

@@ -60,8 +60,13 @@ export interface CodeGenContext {
     // Allocate a new register for a block's output
     allocateRegister(blockId: string, portId: string): string;
     
-    // Free a register for reuse
-    freeRegister(blockId: string, portId: string): void;
+    // Get a scratch/temporary register for intermediate calculations
+    // Scratch registers are allocated from high registers (REG31) down
+    // They are automatically available again after the current block's code generation
+    getScratchRegister(): string;
+    
+    // Reset scratch register allocation (called after each block's code generation)
+    resetScratchRegisters(): void;
     
     // Allocate delay memory
     allocateMemory(blockId: string, size: number): { name: string; address: number; size: number };
