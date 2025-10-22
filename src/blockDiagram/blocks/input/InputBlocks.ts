@@ -148,6 +148,19 @@ export class PotBlock extends BaseBlock {
         ];
     }
     
+    getEquDeclarations(ctx: CodeGenContext): string[] {
+        const equs: string[] = [];
+        
+        // Register filter constants as EQUs if not already registered
+        if (!ctx.hasEqu('kpotflt')) {
+            ctx.registerEqu('kpotflt', '0.001');
+            ctx.registerEqu('kpothx', '-0.75');
+            ctx.registerEqu('kpotmix', '0.75');
+        }
+        
+        return equs;
+    }
+    
     generateCode(ctx: CodeGenContext): string[] {
         const code: string[] = [];
         const outputReg = ctx.allocateRegister(this.type, 'out');
@@ -162,9 +175,9 @@ export class PotBlock extends BaseBlock {
         code.push(`; Potentiometer ${potNumber}`);
         code.push('; POT filtering a-la-SpinCAD');
         code.push(`rdax ${potName}, 1.0`);
-        code.push(`rdfx ${filterReg0}, 0.001`);
-        code.push(`wrhx ${filterReg0}, -0.75`);
-        code.push(`rdax ${outputReg}, 0.75`);
+        code.push(`rdfx ${filterReg0}, kpotflt`);
+        code.push(`wrhx ${filterReg0}, kpothx`);
+        code.push(`rdax ${outputReg}, kpotmix`);
         
         if (invert) {
             code.push('sof -1.0, 1.0  ; Invert');

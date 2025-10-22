@@ -71,6 +71,15 @@ export interface CodeGenContext {
     // Allocate delay memory
     allocateMemory(blockId: string, size: number): { name: string; address: number; size: number };
     
+    // Register an EQU constant declaration
+    registerEqu(name: string, value: string | number): void;
+    
+    // Check if an EQU constant has been registered
+    hasEqu(name: string): boolean;
+    
+    // Get all registered EQU declarations
+    getEquDeclarations(): Array<{ name: string; value: string }>;
+    
     // Get parameter value
     getParameter(blockId: string, parameterId: string): any;
     
@@ -120,6 +129,21 @@ export interface IBlockDefinition {
      * @returns Array of assembly code lines
      */
     generateCode(ctx: CodeGenContext): string[];
+    
+    /**
+     * Get EQU declarations for constants used by this block (optional)
+     * @param ctx Code generation context
+     * @returns Array of EQU declaration lines (e.g., "equ\tkrt\t0.5")
+     */
+    getEquDeclarations?(ctx: CodeGenContext): string[];
+    
+    /**
+     * Get initialization code to run once at startup (optional)
+     * This code will be placed in a SKP block
+     * @param ctx Code generation context
+     * @returns Array of initialization code lines
+     */
+    getInitCode?(ctx: CodeGenContext): string[];
     
     /**
      * Validate this block's configuration and connections

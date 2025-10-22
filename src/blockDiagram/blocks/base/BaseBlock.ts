@@ -44,6 +44,22 @@ export abstract class BaseBlock implements IBlockDefinition {
     abstract generateCode(ctx: CodeGenContext): string[];
     
     /**
+     * Get EQU declarations for constants used by this block (optional)
+     * Default implementation returns empty array
+     */
+    getEquDeclarations?(ctx: CodeGenContext): string[] {
+        return [];
+    }
+    
+    /**
+     * Get initialization code to run once at startup (optional)
+     * Default implementation returns empty array
+     */
+    getInitCode?(ctx: CodeGenContext): string[] {
+        return [];
+    }
+    
+    /**
      * Validate this block's configuration and connections
      * Default implementation checks required inputs
      */

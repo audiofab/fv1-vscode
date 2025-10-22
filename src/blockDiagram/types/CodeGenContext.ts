@@ -19,10 +19,16 @@ interface MemoryAllocation {
     size: number;
 }
 
+interface EquDeclaration {
+    name: string;
+    value: string;
+}
+
 export class CodeGenerationContext implements CodeGenContext {
     private graph: BlockGraph;
     private registerAllocations: RegisterAllocation[] = [];
     private memoryAllocations: MemoryAllocation[] = [];
+    private equDeclarations: EquDeclaration[] = [];
     private nextRegister: number = 0;  // Allocate permanent registers from REG0 upward
     private nextScratchRegister: number = 31;  // Allocate scratch registers from REG31 downward
     private nextMemoryAddress: number = 0;
@@ -144,6 +150,33 @@ export class CodeGenerationContext implements CodeGenContext {
     }
     
     /**
+     * Register an EQU constant declaration
+     */
+    registerEqu(name: string, value: string | number): void {
+        // Check if already registered
+        if (this.hasEqu(name)) {
+            return; // Already registered, skip
+        }
+        
+        const valueStr = typeof value === 'number' ? value.toString() : value;
+        this.equDeclarations.push({ name, value: valueStr });
+    }
+    
+    /**
+     * Check if an EQU constant has been registered
+     */
+    hasEqu(name: string): boolean {
+        return this.equDeclarations.some(equ => equ.name === name);
+    }
+    
+    /**
+     * Get all registered EQU declarations
+     */
+    getEquDeclarations(): Array<{ name: string; value: string }> {
+        return [...this.equDeclarations];
+    }
+    
+    /**
      * Allocate delay memory for a block
      */
     allocateMemory(blockIdOrType: string, size: number): { name: string; address: number; size: number } {
@@ -227,6 +260,7 @@ export class CodeGenerationContext implements CodeGenContext {
     reset(): void {
         this.registerAllocations = [];
         this.memoryAllocations = [];
+        this.equDeclarations = [];
         this.nextRegister = 0;
         this.nextScratchRegister = 31;
         this.nextMemoryAddress = 0;
