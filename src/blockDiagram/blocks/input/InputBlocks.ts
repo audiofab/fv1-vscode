@@ -45,10 +45,12 @@ export class ADCLBlock extends BaseBlock {
         const code: string[] = [];
         const outputReg = ctx.allocateRegister(this.type, 'out');
         const gain = this.getParameterValue(ctx, this.type, 'gain', 1.0);
+        const gainConst = ctx.getStandardConstant(gain);
+        const zero = ctx.getStandardConstant(0.0);
         
         code.push('; Left ADC Input');
-        code.push(`rdax ADCL, ${this.formatS15(gain)}`);
-        code.push(`wrax ${outputReg}, 0.0`);
+        code.push(`rdax ADCL, ${gainConst}`);
+        code.push(`wrax ${outputReg}, ${zero}`);
         code.push('');
         
         return code;
@@ -94,10 +96,12 @@ export class ADCRBlock extends BaseBlock {
         const code: string[] = [];
         const outputReg = ctx.allocateRegister(this.type, 'out');
         const gain = this.getParameterValue(ctx, this.type, 'gain', 1.0);
+        const gainConst = ctx.getStandardConstant(gain);
+        const zero = ctx.getStandardConstant(0.0);
         
         code.push('; Right ADC Input');
-        code.push(`rdax ADCR, ${this.formatS15(gain)}`);
-        code.push(`wrax ${outputReg}, 0.0`);
+        code.push(`rdax ADCR, ${gainConst}`);
+        code.push(`wrax ${outputReg}, ${zero}`);
         code.push('');
         
         return code;
@@ -171,19 +175,22 @@ export class PotBlock extends BaseBlock {
         const filterReg0 = ctx.getScratchRegister();
         
         const potName = `POT${potNumber}`;
+        const one = ctx.getStandardConstant(1.0);
+        const negOne = ctx.getStandardConstant(-1.0);
+        const zero = ctx.getStandardConstant(0.0);
         
         code.push(`; Potentiometer ${potNumber}`);
         code.push('; POT filtering a-la-SpinCAD');
-        code.push(`rdax ${potName}, 1.0`);
+        code.push(`rdax ${potName}, ${one}`);
         code.push(`rdfx ${filterReg0}, kpotflt`);
         code.push(`wrhx ${filterReg0}, kpothx`);
         code.push(`rdax ${outputReg}, kpotmix`);
         
         if (invert) {
-            code.push('sof -1.0, 1.0  ; Invert');
+            code.push(`sof ${negOne}, ${one}  ; Invert`);
         }
         
-        code.push(`wrax ${outputReg}, 0.0  ; Write to output`);
+        code.push(`wrax ${outputReg}, ${zero}  ; Write to output`);
         code.push('');
         
         return code;

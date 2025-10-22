@@ -46,22 +46,26 @@ export class GainBlock extends BaseBlock {
         const outputReg = ctx.allocateRegister(this.type, 'out');
         const gainCtrlReg = ctx.getInputRegister(this.type, 'gain_ctrl');
         const baseGain = this.getParameterValue(ctx, this.type, 'gain', 1.0);
+        const one = ctx.getStandardConstant(1.0);
+        const zero = ctx.getStandardConstant(0.0);
         
         code.push('; Gain Block');
         if (gainCtrlReg) {
             code.push(`; Gain modulated by ${gainCtrlReg} (base: ${baseGain})`);
             // Read input, then multiply by CV control value
-            code.push(`rdax ${inputReg}, 1.0`);
+            code.push(`rdax ${inputReg}, ${one}`);
             code.push(`mulx ${gainCtrlReg}  ; Apply CV control`);
             // Optionally scale by base gain too if needed
             if (Math.abs(baseGain - 1.0) > 0.001) {
-                code.push(`rdax ${inputReg}, ${this.formatS15(baseGain - 1.0)}  ; Add base gain offset`);
+                const offset = ctx.getStandardConstant(baseGain - 1.0);
+                code.push(`rdax ${inputReg}, ${offset}  ; Add base gain offset`);
             }
         } else {
             code.push(`; Static gain: ${baseGain}`);
-            code.push(`rdax ${inputReg}, ${this.formatS15(baseGain)}`);
+            const gainConst = ctx.getStandardConstant(baseGain);
+            code.push(`rdax ${inputReg}, ${gainConst}`);
         }
-        code.push(`wrax ${outputReg}, 0.0`);
+        code.push(`wrax ${outputReg}, ${zero}`);
         code.push('');
         
         return code;
@@ -123,11 +127,14 @@ export class MixerBlock extends BaseBlock {
         const outputReg = ctx.allocateRegister(this.type, 'out');
         const gain1 = this.getParameterValue(ctx, this.type, 'gain1', 0.5);
         const gain2 = this.getParameterValue(ctx, this.type, 'gain2', 0.5);
+        const gain1Const = ctx.getStandardConstant(gain1);
+        const gain2Const = ctx.getStandardConstant(gain2);
+        const zero = ctx.getStandardConstant(0.0);
         
         code.push('; Mixer Block');
-        code.push(`rdax ${input1Reg}, ${this.formatS15(gain1)}`);
-        code.push(`rdax ${input2Reg}, ${this.formatS15(gain2)}`);
-        code.push(`wrax ${outputReg}, 0.0`);
+        code.push(`rdax ${input1Reg}, ${gain1Const}`);
+        code.push(`rdax ${input2Reg}, ${gain2Const}`);
+        code.push(`wrax ${outputReg}, ${zero}`);
         code.push('');
         
         return code;

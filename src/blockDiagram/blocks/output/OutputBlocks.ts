@@ -44,10 +44,12 @@ export class DACLBlock extends BaseBlock {
         const code: string[] = [];
         const inputReg = ctx.getInputRegister(this.type, 'in');
         const gain = this.getParameterValue(ctx, this.type, 'gain', 1.0);
+        const gainConst = ctx.getStandardConstant(gain);
+        const zero = ctx.getStandardConstant(0.0);
         
         code.push('; Left DAC Output');
-        code.push(`rdax ${inputReg}, ${this.formatS15(gain)}`);
-        code.push('wrax DACL, 0.0');
+        code.push(`rdax ${inputReg}, ${gainConst}`);
+        code.push(`wrax DACL, ${zero}`);
         code.push('');
         
         return code;
@@ -103,10 +105,12 @@ export class DACRBlock extends BaseBlock {
         const code: string[] = [];
         const inputReg = ctx.getInputRegister(this.type, 'in');
         const gain = this.getParameterValue(ctx, this.type, 'gain', 1.0);
+        const gainConst = ctx.getStandardConstant(gain);
+        const zero = ctx.getStandardConstant(0.0);
         
         code.push('; Right DAC Output');
-        code.push(`rdax ${inputReg}, ${this.formatS15(gain)}`);
-        code.push('wrax DACR, 0.0');
+        code.push(`rdax ${inputReg}, ${gainConst}`);
+        code.push(`wrax DACR, ${zero}`);
         code.push('');
         
         return code;

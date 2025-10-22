@@ -115,21 +115,25 @@ export class DelayBlock extends BaseBlock {
             code.push('');
         }
         
+        const one = ctx.getStandardConstant(1.0);
+        const zero = ctx.getStandardConstant(0.0);
+        const half = ctx.getStandardConstant(0.5);
+        
         // Read input signal into accumulator  
-        code.push(`rdax ${inputReg}, 1.0`);
+        code.push(`rdax ${inputReg}, ${one}`);
         
         // Read delayed signal
         if (timeCtrlReg) {
             // Use RMPA to read from variable position set by ADDR_PTR
             code.push(`; Variable delay read using RMPA`);
-            code.push(`rmpa 1.0  ; Read from delay[ADDR_PTR], coefficient 1.0`);
+            code.push(`rmpa ${one}  ; Read from delay[ADDR_PTR], coefficient 1.0`);
         } else {
             // Fixed delay - read from calculated offset
             const offset = maxDelaySamples - baseDelaySamples;
             if (offset > 0) {
-                code.push(`rda ${delayMem.name} + ${offset}, 1.0`);
+                code.push(`rda ${delayMem.name} + ${offset}, ${one}`);
             } else {
-                code.push(`rda ${delayMem.name}#, 1.0`);
+                code.push(`rda ${delayMem.name}#, ${one}`);
             }
         }
         
@@ -137,34 +141,37 @@ export class DelayBlock extends BaseBlock {
         if (mixCtrlReg) {
             code.push(`mulx ${mixCtrlReg}  ; Apply wet mix from CV`);
         } else {
-            code.push(`sof ${this.formatS15(baseMix)}, 0.0  ; Apply wet mix`);
+            const mixConst = ctx.getStandardConstant(baseMix);
+            code.push(`sof ${mixConst}, ${zero}  ; Apply wet mix`);
         }
         
         // Save wet signal temporarily and write to delay line
         const wetReg = ctx.getScratchRegister();
-        code.push(`wrax ${wetReg}, 1.0  ; Save wet, keep in ACC`);
+        code.push(`wrax ${wetReg}, ${one}  ; Save wet, keep in ACC`);
         
         // Add input for feedback and write to delay line
-        code.push(`rdax ${inputReg}, 1.0`);
+        code.push(`rdax ${inputReg}, ${one}`);
         if (fbCtrlReg) {
             code.push(`mulx ${fbCtrlReg}  ; Apply feedback from CV`);
         } else {
-            code.push(`sof ${this.formatS15(baseFeedback)}, 0.0  ; Apply feedback`);
+            const fbConst = ctx.getStandardConstant(baseFeedback);
+            code.push(`sof ${fbConst}, ${zero}  ; Apply feedback`);
         }
-        code.push(`wra ${delayMem.name}, 0.0  ; Write to delay line`);
+        code.push(`wra ${delayMem.name}, ${zero}  ; Write to delay line`);
         
         // Mix dry and wet signals
-        code.push(`rdax ${wetReg}, 1.0  ; Get wet signal`);
+        code.push(`rdax ${wetReg}, ${one}  ; Get wet signal`);
         if (mixCtrlReg) {
             // Dry is complex with CV - simplified approach
-            code.push(`rdax ${inputReg}, 0.5  ; Add some dry signal`);
+            code.push(`rdax ${inputReg}, ${half}  ; Add some dry signal`);
         } else {
             const dryGain = 1.0 - baseMix;
-            code.push(`rdax ${inputReg}, ${this.formatS15(dryGain)}  ; Add dry signal`);
+            const dryConst = ctx.getStandardConstant(dryGain);
+            code.push(`rdax ${inputReg}, ${dryConst}  ; Add dry signal`);
         }
         
         // Write output
-        code.push(`wrax ${outputReg}, 0.0`);
+        code.push(`wrax ${outputReg}, ${zero}`);
         code.push('');
         
         return code;

@@ -407,21 +407,72 @@ export class GraphCompiler {
                 continue;
             }
             
+            // Check for self-loops
+            if (connection.from.blockId === connection.to.blockId) {
+                errors.push(
+                    `Self-loop detected: Block ${sourceBlock.type} (${connection.from.blockId}) ` +
+                    `cannot have its output connected to its own input`
+                );
+                continue;
+            }
+            
             // Check ports exist
             const sourceDef = this.registry.getBlock(sourceBlock.type);
             const destDef = this.registry.getBlock(destBlock.type);
             
-            if (sourceDef && !sourceDef.outputs.some(p => p.id === connection.from.portId)) {
+            if (!sourceDef || !destDef) continue;
+            
+            const sourcePort = sourceDef.outputs.find(p => p.id === connection.from.portId);
+            const destPort = destDef.inputs.find(p => p.id === connection.to.portId);
+            
+            if (!sourcePort) {
                 errors.push(
                     `Connection references non-existent output port '${connection.from.portId}' ` +
                     `on block ${connection.from.blockId}`
                 );
+                continue;
             }
             
-            if (destDef && !destDef.inputs.some(p => p.id === connection.to.portId)) {
+            if (!destPort) {
                 errors.push(
                     `Connection references non-existent input port '${connection.to.portId}' ` +
                     `on block ${connection.to.blockId}`
+                );
+                continue;
+            }
+            
+            // Validate port type compatibility
+            if (sourcePort.type !== destPort.type) {
+                errors.push(
+                    `Port type mismatch: Cannot connect ${sourcePort.type} output ` +
+                    `'${sourcePort.name}' from ${sourceDef.name} (${sourceBlock.id}) ` +
+                    `to ${destPort.type} input '${destPort.name}' on ${destDef.name} (${destBlock.id}). ` +
+                    `Port types must match (audio→audio or control→control).`
+                );
+            }
+        }
+        
+        // Check for multiple connections to the same input (multiple drivers)
+        const inputConnections = new Map<string, string[]>();
+        for (const connection of graph.connections) {
+            const inputKey = `${connection.to.blockId}:${connection.to.portId}`;
+            if (!inputConnections.has(inputKey)) {
+                inputConnections.set(inputKey, []);
+            }
+            inputConnections.get(inputKey)!.push(connection.from.blockId);
+        }
+        
+        for (const [inputKey, sources] of inputConnections.entries()) {
+            if (sources.length > 1) {
+                const [blockId, portId] = inputKey.split(':');
+                const block = graph.blocks.find(b => b.id === blockId);
+                const def = block ? this.registry.getBlock(block.type) : undefined;
+                const port = def?.inputs.find(p => p.id === portId);
+                
+                errors.push(
+                    `Multiple connections to the same input: ` +
+                    `${def?.name || 'Unknown'} (${blockId}) input '${port?.name || portId}' ` +
+                    `has ${sources.length} connections. Each input can only have one source.`
                 );
             }
         }
