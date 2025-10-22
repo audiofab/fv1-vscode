@@ -74,11 +74,17 @@ export interface CodeGenContext {
     // Register an EQU constant declaration
     registerEqu(name: string, value: string | number): void;
     
+    // Get or create a standard constant name for common values
+    getStandardConstant(value: number): string;
+    
     // Check if an EQU constant has been registered
     hasEqu(name: string): boolean;
     
     // Get all registered EQU declarations
     getEquDeclarations(): Array<{ name: string; value: string }>;
+    
+    // Get all register aliases
+    getRegisterAliases(): Array<{ alias: string; register: string }>;
     
     // Get parameter value
     getParameter(blockId: string, parameterId: string): any;

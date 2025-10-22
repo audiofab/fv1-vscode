@@ -4,6 +4,7 @@
  */
 
 import { BlockGraph } from '../types/Graph.js';
+import { Block } from '../types/Block.js';
 import { BlockRegistry } from '../blocks/BlockRegistry.js';
 import { TopologicalSort } from './TopologicalSort.js';
 import { CodeGenerationContext } from '../types/CodeGenContext.js';
@@ -125,6 +126,10 @@ export class GraphCompiler {
                 // Set current block context
                 context.setCurrentBlock(blockId);
                 
+                // Add block section header comment
+                const blockComment = this.generateBlockComment(block, context, graph);
+                bodyCode.push(...blockComment);
+                
                 // Generate block code
                 const blockCode = definition.generateCode(context);
                 bodyCode.push(...blockCode);
@@ -157,19 +162,33 @@ export class GraphCompiler {
         
         // Section 2: EQU declarations
         const contextEqus = context.getEquDeclarations();
-        if (equDeclarations.length > 0 || contextEqus.length > 0) {
+        const registerAliases = context.getRegisterAliases();
+        
+        if (equDeclarations.length > 0 || contextEqus.length > 0 || registerAliases.length > 0) {
             codeLines.push('; EQU Declarations');
             codeLines.push(';--------------------------------------------------------------------------------');
             
-            // Add block-specific EQUs first
-            equDeclarations.forEach(line => codeLines.push(line));
+            // Subsection 2a: Constants
+            if (equDeclarations.length > 0 || contextEqus.length > 0) {
+                codeLines.push('; Constants');
+                // Add block-specific EQUs first
+                equDeclarations.forEach(line => codeLines.push(line));
+                
+                // Add context EQUs (programmatically registered)
+                contextEqus.forEach(equ => {
+                    codeLines.push(`equ\t${equ.name}\t${equ.value}`);
+                });
+                codeLines.push('');
+            }
             
-            // Add context EQUs (programmatically registered)
-            contextEqus.forEach(equ => {
-                codeLines.push(`equ\t${equ.name}\t${equ.value}`);
-            });
-            
-            codeLines.push('');
+            // Subsection 2b: Register Aliases
+            if (registerAliases.length > 0) {
+                codeLines.push('; Register Aliases');
+                registerAliases.forEach(alias => {
+                    codeLines.push(`equ\t${alias.alias}\t${alias.register}`);
+                });
+                codeLines.push('');
+            }
         }
         
         // Section 3: MEM declarations
@@ -244,6 +263,75 @@ export class GraphCompiler {
             statistics,
             warnings: warnings.length > 0 ? warnings : undefined
         };
+    }
+    
+    /**
+     * Generate a descriptive comment block for a block's code section
+     */
+    private generateBlockComment(
+        block: Block, 
+        context: CodeGenerationContext, 
+        graph: BlockGraph
+    ): string[] {
+        const definition = this.registry.getBlock(block.type);
+        if (!definition) {
+            return [];
+        }
+        
+        const lines: string[] = [];
+        lines.push(';===============================================================================');
+        lines.push(`; ${definition.name} (${block.id})`);
+        
+        // Show inputs if any
+        if (definition.inputs.length > 0) {
+            const inputInfo: string[] = [];
+            for (const input of definition.inputs) {
+                const inputReg = context.getInputRegister(block.id, input.id);
+                if (inputReg) {
+                    inputInfo.push(`${input.name}: ${inputReg}`);
+                } else if (!input.required) {
+                    inputInfo.push(`${input.name}: (not connected)`);
+                }
+            }
+            if (inputInfo.length > 0) {
+                lines.push(`; Inputs: ${inputInfo.join(', ')}`);
+            }
+        }
+        
+        // Show outputs if any
+        if (definition.outputs.length > 0) {
+            const outputInfo: string[] = [];
+            for (const output of definition.outputs) {
+                // Get the register allocation for this output
+                const alloc = (context as any).registerAllocations.find(
+                    (a: any) => a.blockId === block.id && a.portId === output.id
+                );
+                if (alloc) {
+                    outputInfo.push(`${output.name}: ${alloc.alias}`);
+                }
+            }
+            if (outputInfo.length > 0) {
+                lines.push(`; Outputs: ${outputInfo.join(', ')}`);
+            }
+        }
+        
+        // Show parameter values if any
+        if (definition.parameters.length > 0) {
+            const paramInfo: string[] = [];
+            for (const param of definition.parameters) {
+                const value = block.parameters[param.id];
+                if (value !== undefined) {
+                    paramInfo.push(`${param.name}=${value}`);
+                }
+            }
+            if (paramInfo.length > 0) {
+                lines.push(`; Parameters: ${paramInfo.join(', ')}`);
+            }
+        }
+        
+        lines.push(';-------------------------------------------------------------------------------');
+        
+        return lines;
     }
     
     /**

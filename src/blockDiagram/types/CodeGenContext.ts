@@ -10,6 +10,7 @@ interface RegisterAllocation {
     blockId: string;
     portId: string;
     register: string;
+    alias: string;  // Human-readable alias for the register
 }
 
 interface MemoryAllocation {
@@ -111,13 +112,52 @@ export class CodeGenerationContext implements CodeGenContext {
         const registerName = `REG${this.nextRegister}`;
         this.nextRegister++;
         
+        // Generate a meaningful alias for this register
+        const alias = this.generateRegisterAlias(blockId, portId);
+        
         this.registerAllocations.push({
             blockId,
             portId,
-            register: registerName
+            register: registerName,
+            alias
         });
         
-        return registerName;
+        return alias;  // Return the alias, not the raw register name
+    }
+    
+    /**
+     * Generate a meaningful alias for a register
+     */
+    private generateRegisterAlias(blockId: string, portId: string): string {
+        // Get the block to find its type
+        const block = this.graph.blocks.find(b => b.id === blockId);
+        if (!block) {
+            // Fallback to blockId
+            return this.sanitizeIdentifier(`${blockId}_${portId}`);
+        }
+        
+        // Create alias from block type and port
+        // e.g., "input.adcl" + "out" -> "adcl_out"
+        // e.g., "math.gain" + "out" -> "gain_out"
+        const typeParts = block.type.split('.');
+        const baseName = typeParts[typeParts.length - 1]; // Get last part (e.g., "adcl", "gain")
+        
+        // If there are multiple blocks of the same type, add a number
+        const sameTypeBlocks = this.graph.blocks.filter(b => b.type === block.type);
+        let suffix = '';
+        if (sameTypeBlocks.length > 1) {
+            const index = sameTypeBlocks.findIndex(b => b.id === blockId);
+            suffix = `${index + 1}`;
+        }
+        
+        return this.sanitizeIdentifier(`${baseName}${suffix}_${portId}`);
+    }
+    
+    /**
+     * Sanitize an identifier to make it valid for assembly
+     */
+    private sanitizeIdentifier(name: string): string {
+        return name.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
     }
     
     /**
@@ -151,6 +191,7 @@ export class CodeGenerationContext implements CodeGenContext {
     
     /**
      * Register an EQU constant declaration
+     * For common values, use standardized names
      */
     registerEqu(name: string, value: string | number): void {
         // Check if already registered
@@ -160,6 +201,37 @@ export class CodeGenerationContext implements CodeGenContext {
         
         const valueStr = typeof value === 'number' ? value.toString() : value;
         this.equDeclarations.push({ name, value: valueStr });
+    }
+    
+    /**
+     * Get or create a standard EQU name for a common constant value
+     * Returns the EQU name to use in code
+     */
+    getStandardConstant(value: number): string {
+        // Map of common values to standard names
+        const standardConstants: Map<number, string> = new Map([
+            [0.0, 'k_zero'],
+            [0.5, 'k_half'],
+            [1.0, 'k_one'],
+            [-1.0, 'k_neg_one'],
+            [2.0, 'k_two'],
+            [-0.5, 'k_neg_half'],
+            [0.25, 'k_quarter'],
+            [0.75, 'k_three_quarters']
+        ]);
+        
+        // Check if this is a standard constant
+        const standardName = standardConstants.get(value);
+        if (standardName) {
+            // Register it if not already registered
+            if (!this.hasEqu(standardName)) {
+                this.registerEqu(standardName, value);
+            }
+            return standardName;
+        }
+        
+        // For non-standard values, return the literal
+        return value.toString();
     }
     
     /**
@@ -174,6 +246,16 @@ export class CodeGenerationContext implements CodeGenContext {
      */
     getEquDeclarations(): Array<{ name: string; value: string }> {
         return [...this.equDeclarations];
+    }
+    
+    /**
+     * Get all register aliases for EQU declarations
+     */
+    getRegisterAliases(): Array<{ alias: string; register: string }> {
+        return this.registerAllocations.map(alloc => ({
+            alias: alloc.alias,
+            register: alloc.register
+        }));
     }
     
     /**
