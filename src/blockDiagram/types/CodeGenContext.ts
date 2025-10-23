@@ -80,7 +80,8 @@ export class CodeGenerationContext implements CodeGenContext {
             );
         }
         
-        return allocation.register;
+        // Return the alias (symbolic name) instead of raw register name
+        return allocation.alias;
     }
     
     /**
@@ -97,7 +98,7 @@ export class CodeGenerationContext implements CodeGenContext {
         );
         
         if (existing) {
-            return existing.register;
+            return existing.alias;  // Return alias, not raw register name
         }
         
         // Check if we have room for another permanent register

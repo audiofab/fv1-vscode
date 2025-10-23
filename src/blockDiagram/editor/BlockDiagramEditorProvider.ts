@@ -195,6 +195,50 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             border-right: 1px solid var(--vscode-panel-border);
             overflow-y: auto;
             z-index: 999;
+            transition: width 0.2s ease;
+        }
+        
+        .palette.collapsed {
+            width: 0;
+            border-right: none;
+        }
+        
+        .palette-toggle-handle {
+            position: absolute;
+            left: 250px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 60px;
+            background-color: var(--vscode-sideBar-background);
+            border: 1px solid var(--vscode-panel-border);
+            border-left: none;
+            border-radius: 0 4px 4px 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: left 0.2s ease, background-color 0.15s ease;
+            padding: 0;
+        }
+        
+        .palette.collapsed ~ .palette-toggle-handle {
+            left: 0;
+        }
+        
+        .palette-toggle-handle:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+        
+        .palette-toggle-icon {
+            font-size: 14px;
+            color: var(--vscode-foreground);
+            user-select: none;
+        }
+        
+        .palette-content {
+            width: 250px;
         }
         
         .palette-category {
@@ -239,6 +283,11 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             right: 0;
             bottom: 0;
             overflow: hidden;
+            transition: left 0.2s ease;
+        }
+        
+        .canvas-container.palette-collapsed {
+            left: 16px;
         }
         
         /* Property panel */

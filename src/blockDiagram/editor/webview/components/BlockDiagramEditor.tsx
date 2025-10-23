@@ -33,6 +33,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
     const [zoom, setZoom] = useState(1.0);
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+    const [isPaletteCollapsed, setIsPaletteCollapsed] = useState(false);
     
     // Selection state
     const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
@@ -98,6 +99,21 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         window.addEventListener('resize', updateSize);
         return () => window.removeEventListener('resize', updateSize);
     }, []);
+    
+    // Update canvas size when palette collapse state changes
+    useEffect(() => {
+        // Wait for CSS transition to complete (0.2s) plus a small buffer
+        const timer = setTimeout(() => {
+            if (containerRef.current) {
+                setCanvasSize({
+                    width: containerRef.current.clientWidth,
+                    height: containerRef.current.clientHeight
+                });
+            }
+        }, 250); // 250ms = 200ms transition + 50ms buffer
+        
+        return () => clearTimeout(timer);
+    }, [isPaletteCollapsed]);
     
     // Save graph changes
     const saveGraph = useCallback((newGraph: BlockGraph) => {
@@ -432,11 +448,13 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             <BlockPalette
                 metadata={blockMetadata}
                 onAddBlock={addBlock}
+                isCollapsed={isPaletteCollapsed}
+                onToggleCollapse={() => setIsPaletteCollapsed(!isPaletteCollapsed)}
             />
             
             <div 
                 ref={containerRef} 
-                className="canvas-container"
+                className={`canvas-container ${isPaletteCollapsed ? 'palette-collapsed' : ''}`}
                 onDrop={handleCanvasDrop}
                 onDragOver={handleCanvasDragOver}
             >
