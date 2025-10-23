@@ -72,7 +72,7 @@ export class FV1HoverProvider implements vscode.HoverProvider {
             const markdown = new vscode.MarkdownString();
             markdown.appendMarkdown(`**Symbol:** \`${word}\``);
             if (symbolValue.original) {
-                markdown.appendMarkdown(`\n\n**Defined as:** (\`${symbolValue.original}\`)`);
+                markdown.appendMarkdown(`\n\n**Defined as:** \`${symbolValue.original}\``);
             }
             markdown.appendMarkdown(`\n\n**Value:** \`${symbolValue.value}\``);
             
