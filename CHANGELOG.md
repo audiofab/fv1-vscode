@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.1.1]
+
+- Major editor UI enhancements
+
 ## [1.1.0]
 
 - Added support for programming a .hex file to EEPROM

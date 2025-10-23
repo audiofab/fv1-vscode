@@ -501,10 +501,10 @@ class FV1Assembler {
 
     try {
       lines.forEach((lineParts, lineNumber) => {
+        errorLine = lineNumber;
         const mnemonic = lineParts[0];
         const encoding = this.encodeInstruction(mnemonic, lineParts.slice(1), lineNumber);
         if (encoding === null) {
-          errorLine = lineNumber;
           throw new Error('Encoding error');
         }
         machineCode.push(encoding);
