@@ -13,7 +13,6 @@ export class ADCLBlock extends BaseBlock {
     readonly description = 'Left channel audio input (ADCL)';
     readonly color = '#2196F3';
     readonly width = 150;
-    readonly height = 80;
     
     constructor() {
         super();
@@ -39,6 +38,9 @@ export class ADCLBlock extends BaseBlock {
                 description: 'Input gain (0.0 to 2.0)'
             }
         ];
+        
+        // Auto-calculate height based on port count
+        this.autoCalculateHeight();
     }
     
     generateCode(ctx: CodeGenContext): string[] {
@@ -67,7 +69,6 @@ export class ADCRBlock extends BaseBlock {
     readonly description = 'Right channel audio input (ADCR)';
     readonly color = '#2196F3';
     readonly width = 150;
-    readonly height = 80;
     
     constructor() {
         super();
@@ -90,6 +91,9 @@ export class ADCRBlock extends BaseBlock {
                 description: 'Input gain (0.0 to 2.0)'
             }
         ];
+        
+        // Auto-calculate height based on port count
+        this.autoCalculateHeight();
     }
     
     generateCode(ctx: CodeGenContext): string[] {
@@ -118,7 +122,6 @@ export class PotBlock extends BaseBlock {
     readonly description = 'Read potentiometer control value (POT0, POT1, or POT2)';
     readonly color = '#4CAF50';
     readonly width = 150;
-    readonly height = 80;
     
     constructor() {
         super();
@@ -150,6 +153,9 @@ export class PotBlock extends BaseBlock {
                 description: 'Invert the pot value (1.0 - value)'
             }
         ];
+        
+        // Auto-calculate height based on port count
+        this.autoCalculateHeight();
     }
     
     getEquDeclarations(ctx: CodeGenContext): string[] {

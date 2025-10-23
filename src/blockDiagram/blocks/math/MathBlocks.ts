@@ -12,7 +12,6 @@ export class GainBlock extends BaseBlock {
     readonly description = 'Multiply signal by gain factor';
     readonly color = '#FF9800';
     readonly width = 150;
-    readonly height = 80;
     
     constructor() {
         super();
@@ -38,6 +37,9 @@ export class GainBlock extends BaseBlock {
                 description: 'Gain factor (-2.0 to 2.0, modulated by Gain CV)'
             }
         ];
+        
+        // Auto-calculate height based on port count
+        this.autoCalculateHeight();
     }
     
     generateCode(ctx: CodeGenContext): string[] {
@@ -82,14 +84,15 @@ export class MixerBlock extends BaseBlock {
     readonly description = 'Mix two audio signals';
     readonly color = '#FF9800';
     readonly width = 150;
-    readonly height = 100;
     
     constructor() {
         super();
         
         this._inputs = [
             { id: 'in1', name: 'Input 1', type: 'audio', required: true },
-            { id: 'in2', name: 'Input 2', type: 'audio', required: true }
+            { id: 'in2', name: 'Input 2', type: 'audio', required: true },
+            { id: 'gain1_ctrl', name: 'Gain 1 CV', type: 'control', required: false },
+            { id: 'gain2_ctrl', name: 'Gain 2 CV', type: 'control', required: false }
         ];
         
         this._outputs = [
@@ -105,7 +108,7 @@ export class MixerBlock extends BaseBlock {
                 min: 0.0,
                 max: 1.0,
                 step: 0.01,
-                description: 'Gain for input 1'
+                description: 'Base gain for input 1 (modulated by Gain 1 CV if connected)'
             },
             {
                 id: 'gain2',
@@ -115,25 +118,80 @@ export class MixerBlock extends BaseBlock {
                 min: 0.0,
                 max: 1.0,
                 step: 0.01,
-                description: 'Gain for input 2'
+                description: 'Base gain for input 2 (modulated by Gain 2 CV if connected)'
             }
         ];
+        
+        // Auto-calculate height based on port count
+        this.autoCalculateHeight();
     }
     
     generateCode(ctx: CodeGenContext): string[] {
         const code: string[] = [];
         const input1Reg = ctx.getInputRegister(this.type, 'in1');
         const input2Reg = ctx.getInputRegister(this.type, 'in2');
+        const gain1CtrlReg = ctx.getInputRegister(this.type, 'gain1_ctrl');
+        const gain2CtrlReg = ctx.getInputRegister(this.type, 'gain2_ctrl');
         const outputReg = ctx.allocateRegister(this.type, 'out');
-        const gain1 = this.getParameterValue(ctx, this.type, 'gain1', 0.5);
-        const gain2 = this.getParameterValue(ctx, this.type, 'gain2', 0.5);
-        const gain1Const = ctx.getStandardConstant(gain1);
-        const gain2Const = ctx.getStandardConstant(gain2);
+        const baseGain1 = this.getParameterValue(ctx, this.type, 'gain1', 0.5);
+        const baseGain2 = this.getParameterValue(ctx, this.type, 'gain2', 0.5);
         const zero = ctx.getStandardConstant(0.0);
+        const one = ctx.getStandardConstant(1.0);
         
         code.push('; Mixer Block');
-        code.push(`rdax ${input1Reg}, ${gain1Const}`);
-        code.push(`rdax ${input2Reg}, ${gain2Const}`);
+        
+        // Handle input 1 with optional CV control
+        if (gain1CtrlReg) {
+            code.push(`; Input 1 with CV modulation (base: ${baseGain1})`);
+            const temp1 = ctx.getScratchRegister();
+            code.push(`rdax ${input1Reg}, ${one}`);
+            code.push(`mulx ${gain1CtrlReg}  ; Apply CV control`);
+            // Add base gain offset if needed
+            if (Math.abs(baseGain1 - 1.0) > 0.001) {
+                const offset = ctx.getStandardConstant(baseGain1 - 1.0);
+                code.push(`rdax ${input1Reg}, ${offset}  ; Add base gain offset`);
+            }
+            code.push(`wrax ${temp1}, ${zero}  ; Store input 1 result`);
+            
+            // Handle input 2 with optional CV control
+            if (gain2CtrlReg) {
+                code.push(`; Input 2 with CV modulation (base: ${baseGain2})`);
+                code.push(`rdax ${input2Reg}, ${one}`);
+                code.push(`mulx ${gain2CtrlReg}  ; Apply CV control`);
+                // Add base gain offset if needed
+                if (Math.abs(baseGain2 - 1.0) > 0.001) {
+                    const offset = ctx.getStandardConstant(baseGain2 - 1.0);
+                    code.push(`rdax ${input2Reg}, ${offset}  ; Add base gain offset`);
+                }
+            } else {
+                const gain2Const = ctx.getStandardConstant(baseGain2);
+                code.push(`rdax ${input2Reg}, ${gain2Const}`);
+            }
+            code.push(`rdax ${temp1}, ${one}  ; Add input 1 result`);
+        } else {
+            // Input 1 uses static gain
+            const gain1Const = ctx.getStandardConstant(baseGain1);
+            code.push(`rdax ${input1Reg}, ${gain1Const}`);
+            
+            // Handle input 2 with optional CV control
+            if (gain2CtrlReg) {
+                code.push(`; Input 2 with CV modulation (base: ${baseGain2})`);
+                const temp2 = ctx.getScratchRegister();
+                code.push(`wrax ${temp2}, ${zero}  ; Store input 1 result`);
+                code.push(`rdax ${input2Reg}, ${one}`);
+                code.push(`mulx ${gain2CtrlReg}  ; Apply CV control`);
+                // Add base gain offset if needed
+                if (Math.abs(baseGain2 - 1.0) > 0.001) {
+                    const offset = ctx.getStandardConstant(baseGain2 - 1.0);
+                    code.push(`rdax ${input2Reg}, ${offset}  ; Add base gain offset`);
+                }
+                code.push(`rdax ${temp2}, ${one}  ; Add input 1 result`);
+            } else {
+                const gain2Const = ctx.getStandardConstant(baseGain2);
+                code.push(`rdax ${input2Reg}, ${gain2Const}`);
+            }
+        }
+        
         code.push(`wrax ${outputReg}, ${zero}`);
         code.push('');
         

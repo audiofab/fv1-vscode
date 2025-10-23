@@ -12,7 +12,6 @@ export class DelayBlock extends BaseBlock {
     readonly description = 'Simple delay with feedback';
     readonly color = '#4CAF50';
     readonly width = 180;
-    readonly height = 120;
     
     constructor() {
         super();
@@ -70,6 +69,9 @@ export class DelayBlock extends BaseBlock {
                 description: 'Wet/dry mix (0.0 = dry, 1.0 = wet, modulated by Mix CV)'
             }
         ];
+        
+        // Auto-calculate height based on port count
+        this.autoCalculateHeight();
     }
     
     generateCode(ctx: CodeGenContext): string[] {

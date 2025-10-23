@@ -12,7 +12,6 @@ export class DACLBlock extends BaseBlock {
     readonly description = 'Left channel audio output (DACL)';
     readonly color = '#F44336';
     readonly width = 150;
-    readonly height = 80;
     
     constructor() {
         super();
@@ -38,6 +37,9 @@ export class DACLBlock extends BaseBlock {
                 description: 'Output gain (0.0 to 2.0)'
             }
         ];
+        
+        // Auto-calculate height based on port count
+        this.autoCalculateHeight();
     }
     
     generateCode(ctx: CodeGenContext): string[] {
@@ -76,7 +78,6 @@ export class DACRBlock extends BaseBlock {
     readonly description = 'Right channel audio output (DACR)';
     readonly color = '#F44336';
     readonly width = 150;
-    readonly height = 80;
     
     constructor() {
         super();
@@ -99,6 +100,9 @@ export class DACRBlock extends BaseBlock {
                 description: 'Output gain (0.0 to 2.0)'
             }
         ];
+        
+        // Auto-calculate height based on port count
+        this.autoCalculateHeight();
     }
     
     generateCode(ctx: CodeGenContext): string[] {

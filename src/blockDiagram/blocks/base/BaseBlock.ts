@@ -24,7 +24,7 @@ export abstract class BaseBlock implements IBlockDefinition {
     readonly color: string = '#607D8B';
     readonly icon?: string;
     readonly width: number = 200;
-    readonly height: number = 100;
+    private _height: number = 100;
     
     // I/O definition (use protected to allow subclass initialization)
     protected _inputs: BlockPort[] = [];
@@ -36,6 +36,47 @@ export abstract class BaseBlock implements IBlockDefinition {
     get inputs(): BlockPort[] { return this._inputs; }
     get outputs(): BlockPort[] { return this._outputs; }
     get parameters(): BlockParameter[] { return this._parameters; }
+    
+    /**
+     * Get block height - automatically calculated based on port count unless overridden
+     */
+    get height(): number {
+        return this._height;
+    }
+    
+    /**
+     * Set custom height (optional - will auto-calculate if not called)
+     */
+    protected setHeight(value: number): void {
+        this._height = value;
+    }
+    
+    /**
+     * Auto-calculate and set height based on port count
+     * Called automatically after ports are defined
+     */
+    protected autoCalculateHeight(): void {
+        this._height = this.calculateMinHeight();
+    }
+    
+    /**
+     * Calculate the minimum height needed to fit all ports
+     * Port layout: first port at y=40, then 20px spacing between ports
+     * Add 20px padding at bottom
+     */
+    protected calculateMinHeight(): number {
+        const portSpacing = 20;
+        const firstPortY = 40;
+        const bottomPadding = 20;
+        const maxPorts = Math.max(this._inputs.length, this._outputs.length);
+        
+        if (maxPorts === 0) {
+            return 100; // Default minimum height
+        }
+        
+        const lastPortY = firstPortY + (maxPorts - 1) * portSpacing;
+        return lastPortY + bottomPadding;
+    }
     
     /**
      * Generate FV-1 assembly code for this block
