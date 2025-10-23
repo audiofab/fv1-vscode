@@ -162,6 +162,66 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         setSelectedBlockId(null);
     }, [graph, saveGraph]);
     
+    // Validate connection before adding
+    const validateConnection = useCallback((
+        from: { blockId: string; portId: string },
+        to: { blockId: string; portId: string }
+    ): { valid: boolean; error?: string } => {
+        // Find the blocks
+        const fromBlock = graph.blocks.find(b => b.id === from.blockId);
+        const toBlock = graph.blocks.find(b => b.id === to.blockId);
+        
+        if (!fromBlock || !toBlock) {
+            return { valid: false, error: 'Block not found' };
+        }
+        
+        // Get block metadata
+        const fromMetadata = blockMetadata.find(m => m.type === fromBlock.type);
+        const toMetadata = blockMetadata.find(m => m.type === toBlock.type);
+        
+        if (!fromMetadata || !toMetadata) {
+            return { valid: false, error: 'Block metadata not found' };
+        }
+        
+        // Find the ports
+        const fromPort = fromMetadata.outputs.find(p => p.id === from.portId);
+        const toPort = toMetadata.inputs.find(p => p.id === to.portId);
+        
+        if (!fromPort || !toPort) {
+            return { valid: false, error: 'Port not found' };
+        }
+        
+        // Rule 1: Prevent self-loops
+        if (from.blockId === to.blockId) {
+            return { 
+                valid: false, 
+                error: `Cannot connect a block to itself (${fromMetadata.name})` 
+            };
+        }
+        
+        // Rule 2: Check port type compatibility
+        if (fromPort.type !== toPort.type) {
+            return { 
+                valid: false, 
+                error: `Port type mismatch: Cannot connect ${fromPort.type} output '${fromPort.name}' to ${toPort.type} input '${toPort.name}'. Types must match (audio→audio or control→control).` 
+            };
+        }
+        
+        // Rule 3: Check for multiple connections to same input
+        const existingConnection = graph.connections.find(
+            c => c.to.blockId === to.blockId && c.to.portId === to.portId
+        );
+        
+        if (existingConnection) {
+            return { 
+                valid: false, 
+                error: `Input '${toPort.name}' on ${toMetadata.name} is already connected. Each input can only have one source.` 
+            };
+        }
+        
+        return { valid: true };
+    }, [graph, blockMetadata]);
+    
     // Add connection
     const addConnection = useCallback((
         from: { blockId: string; portId: string },
@@ -177,6 +237,17 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         
         if (exists) return;
         
+        // Validate the connection
+        const validation = validateConnection(from, to);
+        if (!validation.valid) {
+            // Show error message to user
+            vscode.postMessage({ 
+                type: 'error', 
+                message: validation.error
+            });
+            return;
+        }
+        
         const newConnection: Connection = {
             id: `conn_${uuidv4()}`,
             from,
@@ -189,7 +260,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         };
         
         saveGraph(newGraph);
-    }, [graph, saveGraph]);
+    }, [graph, saveGraph, validateConnection, vscode]);
     
     // Delete connection
     const deleteConnection = useCallback((connectionId: string) => {
