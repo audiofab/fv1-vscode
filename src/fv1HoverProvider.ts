@@ -54,23 +54,32 @@ export class FV1HoverProvider implements vscode.HoverProvider {
         const symbols = this.documentManager.getSymbols(document);
         
         // Build symbol lookup map
-        const symbolMap = new Map<string, string>();
+        const symbolMap = new Map<string, { value: string; original: string }>();
         for (const symbol of symbols) {
-            symbolMap.set(symbol.name.toLowerCase(), symbol.value);
+            symbolMap.set(symbol.name.toLowerCase(), { value: symbol.value, original: symbol.original });
         }
         
         // Check if it's a symbol
-        const symbolValue = symbolMap.get(wordLower);
-        
+        let symbolValue = symbolMap.get(wordLower);
+        if (!symbolValue) {
+            if (wordLower.endsWith('#') || wordLower.endsWith('^')) {
+                // Handle special cases for symbols ending with # or ^
+                symbolValue = symbolMap.get(wordLower.slice(0, -1));
+            }
+        }
+
         if (symbolValue) {
             const markdown = new vscode.MarkdownString();
-            markdown.appendMarkdown(`**Symbol:** \`${word}\`\n\n`);
-            markdown.appendMarkdown(`**Value:** \`${symbolValue}\``);
+            markdown.appendMarkdown(`**Symbol:** \`${word}\``);
+            if (symbolValue.original) {
+                markdown.appendMarkdown(`\n\n**Defined as:** (\`${symbolValue.original}\`)`);
+            }
+            markdown.appendMarkdown(`\n\n**Value:** \`${symbolValue.value}\``);
             
             // Try to evaluate numeric expressions
             try {
                 // Simple evaluation for common cases
-                const numericValue = this.evaluateExpression(symbolValue);
+                const numericValue = this.evaluateExpression(symbolValue.value);
                 if (numericValue !== null) {
                     markdown.appendMarkdown(`\n\n**Decimal:** ${numericValue}`);
                     
