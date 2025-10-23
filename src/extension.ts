@@ -11,6 +11,9 @@ import { FV1Assembler, FV1AssemblerResult } from './FV1Assembler.js';
 import { IntelHexParser } from './hexParser.js';
 import { SpnBankProvider } from './SpnBanksProvider.js';
 import { BlockDiagramEditorProvider } from './blockDiagram/editor/BlockDiagramEditorProvider.js';
+import { FV1HoverProvider } from './fv1HoverProvider.js';
+import { FV1DefinitionProvider } from './fv1DefinitionProvider.js';
+import { FV1DocumentManager } from './fv1DocumentManager.js';
 
 const FV1_EEPROM_SLOT_SIZE_BYTES = 512; // Each FV-1 slot is 512 bytes
 
@@ -21,7 +24,7 @@ async function outputWindow(outputChannel: vscode.OutputChannel, message: string
     isLine ? outputChannel.appendLine(message) : outputChannel.append(message);
 }
 
-async function assembleFV1(outputChannel: vscode.OutputChannel, diagnostics: vscode.DiagnosticCollection): Promise<FV1AssemblerResult | undefined> {
+async function assembleFV1(outputChannel: vscode.OutputChannel, documentManager: FV1DocumentManager): Promise<FV1AssemblerResult | undefined> {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
         vscode.window.showErrorMessage('No active editor');
@@ -33,24 +36,25 @@ async function assembleFV1(outputChannel: vscode.OutputChannel, diagnostics: vsc
         return undefined;
     }
 
-    const content = document.getText();
-    const assembler = new FV1Assembler({ fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true });
-    outputWindow(outputChannel, `[INFO] 🔧 Assembling ${path.basename(document.fileName)}...`);
-    const result = assembler.assemble(content);
+    // Save the document if it has unsaved changes
+    if (document.isDirty) {
+        const saved = await document.save();
+        if (!saved) {
+            vscode.window.showErrorMessage('Failed to save document. Assembly aborted.');
+            return undefined;
+        }
+        outputWindow(outputChannel, `[INFO] 💾 Saved ${path.basename(document.fileName)}`);
+    }
 
-    // publish diagnostics
-    const fileUri = document.uri;
-    diagnostics.delete(fileUri);
-    const newDiagnostics: Array<vscode.Diagnostic> = [];
-    let hasErrors = false;
+    outputWindow(outputChannel, `[INFO] 🔧 Assembling ${path.basename(document.fileName)}...`);
     
+    // Get the cached assembly result from document manager
+    const result = documentManager.getAssemblyResult(document);
+    
+    // Output any problems to the output channel
+    let hasErrors = false;
     if (result.problems.length > 0) {
         result.problems.forEach((p: any) => {
-            const range = new vscode.Range(p.line - 1, 0, p.line - 1, Number.MAX_SAFE_INTEGER);
-            const severity = p.isfatal ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning;
-            const diagnostic = new vscode.Diagnostic(range, p.message, severity);
-            diagnostic.source = 'fv1-assembler';
-            newDiagnostics.push(diagnostic);
             const prefix = p.isfatal ? '[ERROR]' : '[WARNING]';
             const icon = p.isfatal ? '❌' : '⚠';
             outputWindow(outputChannel, `${prefix} ${icon} ${p.message}`);
@@ -58,7 +62,6 @@ async function assembleFV1(outputChannel: vscode.OutputChannel, diagnostics: vsc
                 hasErrors = true;
             }
         });
-        diagnostics.set(fileUri, newDiagnostics);
     }
 
     // Add success message if no errors
@@ -433,6 +436,21 @@ async function exportBankToHex(outputChannel: vscode.OutputChannel, item?: any):
             bankUri = pick.uri;
         }
 
+        // Save all dirty .spn files before assembling
+        const dirtySpnDocs = vscode.workspace.textDocuments.filter(doc => 
+            doc.isDirty && doc.fileName.endsWith('.spn')
+        );
+        if (dirtySpnDocs.length > 0) {
+            outputWindow(outputChannel, `[INFO] 💾 Saving ${dirtySpnDocs.length} unsaved .spn file(s)...`);
+            for (const doc of dirtySpnDocs) {
+                const saved = await doc.save();
+                if (!saved) {
+                    vscode.window.showErrorMessage(`Failed to save ${path.basename(doc.fileName)}. Export aborted.`);
+                    return;
+                }
+            }
+        }
+        
         // Read and parse the bank file
         const doc = await vscode.workspace.openTextDocument(bankUri);
         const json = doc.getText() ? JSON.parse(doc.getText()) : {};
@@ -541,6 +559,59 @@ export function activate(context: vscode.ExtensionContext) {
     const outputChannel = vscode.window.createOutputChannel('FV-1 Assembler');
     const fv1Diagnostics = vscode.languages.createDiagnosticCollection('fv1-assembler');
 
+    // Create centralized document manager
+    const documentManager = new FV1DocumentManager(fv1Diagnostics);
+    
+    // Register hover provider for FV-1 assembly files
+    const fv1HoverProvider = new FV1HoverProvider(documentManager);
+    const hoverProvider = vscode.languages.registerHoverProvider(
+        { language: 'fv1-assembly', scheme: 'file' },
+        fv1HoverProvider
+    );
+    context.subscriptions.push(hoverProvider);
+    
+    // Register definition provider for FV-1 assembly files (Ctrl+Click navigation)
+    const fv1DefinitionProvider = new FV1DefinitionProvider(documentManager);
+    const definitionProvider = vscode.languages.registerDefinitionProvider(
+        { language: 'fv1-assembly', scheme: 'file' },
+        fv1DefinitionProvider
+    );
+    context.subscriptions.push(definitionProvider);
+    
+    // Setup document event listeners for live diagnostics
+    const onDidOpenTextDocument = vscode.workspace.onDidOpenTextDocument((document) => {
+        documentManager.onDocumentOpen(document);
+    });
+    
+    const onDidChangeTextDocument = vscode.workspace.onDidChangeTextDocument((event) => {
+        documentManager.onDocumentChange(event.document);
+    });
+    
+    const onDidCloseTextDocument = vscode.workspace.onDidCloseTextDocument((document) => {
+        documentManager.onDocumentClose(document);
+    });
+    
+    // Process already open documents
+    for (const document of vscode.workspace.textDocuments) {
+        if (document.languageId === 'fv1-assembly') {
+            documentManager.onDocumentOpen(document);
+        }
+    }
+    
+    // Listen for configuration changes
+    const onDidChangeConfiguration = vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration('fv1.spinAsmMemBug')) {
+            documentManager.refreshAll();
+        }
+    });
+    
+    context.subscriptions.push(
+        onDidOpenTextDocument,
+        onDidChangeTextDocument,
+        onDidCloseTextDocument,
+        onDidChangeConfiguration
+    );
+
     const provider = new SpnBankProvider(vscode.workspace.workspaceFolders?.[0]?.uri);
     const spnBanksView = vscode.window.createTreeView('audiofab.spnBanks', { treeDataProvider: provider, dragAndDropController: provider });
     // give provider access to the TreeView so it can reveal items on change
@@ -588,6 +659,21 @@ export function activate(context: vscode.ExtensionContext) {
     const programAllCmd = vscode.commands.registerCommand('fv1.programSpnBank', async (item?: any) => {
         const files = item && item.resourceUri ? [item.resourceUri] : await vscode.workspace.findFiles('**/*.spnbank', '**/node_modules/**');
         if (!files || files.length === 0) { vscode.window.showErrorMessage('No .spnbank files found'); return; }
+        
+        // Save all dirty .spn files before assembling
+        const dirtySpnDocs = vscode.workspace.textDocuments.filter(doc => 
+            doc.isDirty && doc.fileName.endsWith('.spn')
+        );
+        if (dirtySpnDocs.length > 0) {
+            outputWindow(outputChannel, `[INFO] 💾 Saving ${dirtySpnDocs.length} unsaved .spn file(s)...`);
+            for (const doc of dirtySpnDocs) {
+                const saved = await doc.save();
+                if (!saved) {
+                    vscode.window.showErrorMessage(`Failed to save ${path.basename(doc.fileName)}. Programming aborted.`);
+                    return;
+                }
+            }
+        }
         
         // First phase: Assemble all programs and collect results
         const programsToDownload: Array<{ machineCode: number[], slotIndex: number, filePath: string }> = [];
@@ -739,6 +825,18 @@ export function activate(context: vscode.ExtensionContext) {
                 vscode.window.showErrorMessage(`File not found: ${fsPath}`); 
                 return; 
             }
+            
+            // Check if this file is open and dirty, save it first
+            const openDoc = vscode.workspace.textDocuments.find(doc => doc.fileName === fsPath);
+            if (openDoc && openDoc.isDirty) {
+                outputWindow(outputChannel, `[INFO] 💾 Saving ${path.basename(fsPath)}...`);
+                const saved = await openDoc.save();
+                if (!saved) {
+                    vscode.window.showErrorMessage(`Failed to save ${path.basename(fsPath)}. Programming aborted.`);
+                    return;
+                }
+            }
+            
             const content = fs.readFileSync(fsPath, 'utf8');
             const assembler = new FV1Assembler({ fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true });
             outputWindow(outputChannel, `[INFO] 🔧 Assembling ${path.basename(fsPath)} for slot ${slotNum}...`);
@@ -769,9 +867,9 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    const assembleCommand = vscode.commands.registerCommand('fv1.assemble', async () => { await assembleFV1(outputChannel, fv1Diagnostics); });
-    const assembleAndProgramCommand = vscode.commands.registerCommand('fv1.assembleAndProgram', async () => { const result = await assembleFV1(outputChannel, fv1Diagnostics); if (result && result.machineCode.length > 0) await programEeprom(result.machineCode, outputChannel); });
-    const assembleToHexCommand = vscode.commands.registerCommand('fv1.assembleToHex', async () => { const result = await assembleFV1(outputChannel, fv1Diagnostics); if (result && result.machineCode.length > 0) await outputIntelHexFile(result.machineCode, outputChannel); });
+    const assembleCommand = vscode.commands.registerCommand('fv1.assemble', async () => { await assembleFV1(outputChannel, documentManager); });
+    const assembleAndProgramCommand = vscode.commands.registerCommand('fv1.assembleAndProgram', async () => { const result = await assembleFV1(outputChannel, documentManager); if (result && result.machineCode.length > 0) await programEeprom(result.machineCode, outputChannel); });
+    const assembleToHexCommand = vscode.commands.registerCommand('fv1.assembleToHex', async () => { const result = await assembleFV1(outputChannel, documentManager); if (result && result.machineCode.length > 0) await outputIntelHexFile(result.machineCode, outputChannel); });
     const exportBankToHexCommand = vscode.commands.registerCommand('fv1.exportBankToHex', async (item?: any) => { await exportBankToHex(outputChannel, item); });
     const loadHexToEepromCommand = vscode.commands.registerCommand('fv1.loadHexToEeprom', async () => { await loadHexToEeprom(outputChannel); });
     const backupPedalCommand = vscode.commands.registerCommand('fv1.backupPedal', async () => { await backupPedal(outputChannel); });
