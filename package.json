@@ -103,6 +103,11 @@
         "category": "FV-1"
       },
       {
+        "command": "fv1.createBlockDiagram",
+        "title": "Create new block diagram",
+        "category": "FV-1"
+      },
+      {
         "command": "fv1.programSpnBank",
         "title": "Program Bank",
         "category": "FV-1"

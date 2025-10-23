@@ -35,12 +35,17 @@ export class CodeGenerationContext implements CodeGenContext {
     private nextMemoryAddress: number = 0;
     private currentBlockId: string | null = null;
     
+    // Accumulator forwarding optimization
+    // Maps "blockId:portId" to whether it should preserve accumulator (wrax reg, 1.0)
+    private accumulatorForwarding: Map<string, boolean> = new Map();
+    
     // FV-1 hardware limits
     private readonly MAX_REGISTERS = 32;  // REG0-REG31
     private readonly MAX_MEMORY = 32768;  // Delay memory words
     
     constructor(graph: BlockGraph) {
         this.graph = graph;
+        this.analyzeAccumulatorForwarding();
     }
     
     /**
@@ -48,6 +53,67 @@ export class CodeGenerationContext implements CodeGenContext {
      */
     setCurrentBlock(blockId: string): void {
         this.currentBlockId = blockId;
+    }
+    
+    /**
+     * Analyze graph to determine which outputs can use accumulator forwarding
+     * An output can forward its accumulator value to the next block if:
+     * 1. It has exactly ONE consumer (one outgoing connection)
+     * 2. The consumer block processes it as its FIRST/PRIMARY input
+     */
+    private analyzeAccumulatorForwarding(): void {
+        // For each connection, determine if accumulator forwarding is possible
+        for (const connection of this.graph.connections) {
+            const sourceKey = `${connection.from.blockId}:${connection.from.portId}`;
+            
+            // Count how many connections use this output
+            const consumersOfThisOutput = this.graph.connections.filter(
+                conn => conn.from.blockId === connection.from.blockId && 
+                        conn.from.portId === connection.from.portId
+            );
+            
+            // Only enable forwarding if there's exactly ONE consumer
+            if (consumersOfThisOutput.length === 1) {
+                // Check if this is the primary input of the consumer block
+                const targetBlock = this.graph.blocks.find(b => b.id === connection.to.blockId);
+                if (targetBlock) {
+                    // For now, we'll enable forwarding for any single-consumer output
+                    // In the future, we could add more sophisticated analysis
+                    this.accumulatorForwarding.set(sourceKey, true);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Check if an output should preserve the accumulator value (use wrax reg, 1.0)
+     * This is used by blocks when storing their output
+     */
+    shouldPreserveAccumulator(blockIdOrType: string, portId: string): boolean {
+        const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
+        const key = `${blockId}:${portId}`;
+        return this.accumulatorForwarding.get(key) ?? false;
+    }
+    
+    /**
+     * Check if an input can skip loading from register (accumulator already has value)
+     * This is used by blocks when loading their inputs
+     */
+    isAccumulatorForwarded(blockIdOrType: string, portId: string): boolean {
+        const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
+        
+        // Find the connection feeding this input
+        const connection = this.graph.connections.find(
+            conn => conn.to.blockId === blockId && conn.to.portId === portId
+        );
+        
+        if (!connection) {
+            return false;
+        }
+        
+        // Check if the source output is set to forward its accumulator
+        const sourceKey = `${connection.from.blockId}:${connection.from.portId}`;
+        return this.accumulatorForwarding.get(sourceKey) ?? false;
     }
     
     /**
@@ -347,5 +413,7 @@ export class CodeGenerationContext implements CodeGenContext {
         this.nextRegister = 0;
         this.nextScratchRegister = 31;
         this.nextMemoryAddress = 0;
+        this.accumulatorForwarding.clear();
+        this.analyzeAccumulatorForwarding();
     }
 }

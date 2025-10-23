@@ -51,11 +51,20 @@ export class GainBlock extends BaseBlock {
         const one = ctx.getStandardConstant(1.0);
         const zero = ctx.getStandardConstant(0.0);
         
+        // Check if input is already in accumulator (optimization)
+        const inputForwarded = ctx.isAccumulatorForwarded(this.type, 'in');
+        
+        // Check if we should preserve accumulator for next block
+        const preserveAcc = ctx.shouldPreserveAccumulator(this.type, 'out');
+        const clearValue = preserveAcc ? one : zero;
+        
         code.push('; Gain Block');
         if (gainCtrlReg) {
             code.push(`; Gain modulated by ${gainCtrlReg} (base: ${baseGain})`);
-            // Read input, then multiply by CV control value
-            code.push(`rdax ${inputReg}, ${one}`);
+            // Read input (or skip if already in accumulator)
+            if (!inputForwarded) {
+                code.push(`rdax ${inputReg}, ${one}`);
+            }
             code.push(`mulx ${gainCtrlReg}  ; Apply CV control`);
             // Optionally scale by base gain too if needed
             if (Math.abs(baseGain - 1.0) > 0.001) {
@@ -65,9 +74,15 @@ export class GainBlock extends BaseBlock {
         } else {
             code.push(`; Static gain: ${baseGain}`);
             const gainConst = ctx.getStandardConstant(baseGain);
-            code.push(`rdax ${inputReg}, ${gainConst}`);
+            // Read input (or skip if already in accumulator)
+            if (!inputForwarded) {
+                code.push(`rdax ${inputReg}, ${gainConst}`);
+            } else if (Math.abs(baseGain - 1.0) > 0.001) {
+                // Input already in ACC, but need to apply gain
+                code.push(`sof ${gainConst}, 0`);
+            }
         }
-        code.push(`wrax ${outputReg}, ${zero}`);
+        code.push(`wrax ${outputReg}, ${clearValue}`);
         code.push('');
         
         return code;

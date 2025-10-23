@@ -48,11 +48,16 @@ export class ADCLBlock extends BaseBlock {
         const outputReg = ctx.allocateRegister(this.type, 'out');
         const gain = this.getParameterValue(ctx, this.type, 'gain', 1.0);
         const gainConst = ctx.getStandardConstant(gain);
+        const one = ctx.getStandardConstant(1.0);
         const zero = ctx.getStandardConstant(0.0);
+        
+        // Check if we should preserve accumulator for next block
+        const preserveAcc = ctx.shouldPreserveAccumulator(this.type, 'out');
+        const clearValue = preserveAcc ? one : zero;
         
         code.push('; Left ADC Input');
         code.push(`rdax ADCL, ${gainConst}`);
-        code.push(`wrax ${outputReg}, ${zero}`);
+        code.push(`wrax ${outputReg}, ${clearValue}`);
         code.push('');
         
         return code;
@@ -101,11 +106,16 @@ export class ADCRBlock extends BaseBlock {
         const outputReg = ctx.allocateRegister(this.type, 'out');
         const gain = this.getParameterValue(ctx, this.type, 'gain', 1.0);
         const gainConst = ctx.getStandardConstant(gain);
+        const one = ctx.getStandardConstant(1.0);
         const zero = ctx.getStandardConstant(0.0);
+        
+        // Check if we should preserve accumulator for next block
+        const preserveAcc = ctx.shouldPreserveAccumulator(this.type, 'out');
+        const clearValue = preserveAcc ? one : zero;
         
         code.push('; Right ADC Input');
         code.push(`rdax ADCR, ${gainConst}`);
-        code.push(`wrax ${outputReg}, ${zero}`);
+        code.push(`wrax ${outputReg}, ${clearValue}`);
         code.push('');
         
         return code;
@@ -185,6 +195,10 @@ export class PotBlock extends BaseBlock {
         const negOne = ctx.getStandardConstant(-1.0);
         const zero = ctx.getStandardConstant(0.0);
         
+        // Check if we should preserve accumulator for next block
+        const preserveAcc = ctx.shouldPreserveAccumulator(this.type, 'out');
+        const clearValue = preserveAcc ? one : zero;
+        
         code.push(`; Potentiometer ${potNumber}`);
         code.push('; POT filtering a-la-SpinCAD');
         code.push(`rdax ${potName}, ${one}`);
@@ -196,7 +210,7 @@ export class PotBlock extends BaseBlock {
             code.push(`sof ${negOne}, ${one}  ; Invert`);
         }
         
-        code.push(`wrax ${outputReg}, ${zero}  ; Write to output`);
+        code.push(`wrax ${outputReg}, ${clearValue}  ; Write to output`);
         code.push('');
         
         return code;

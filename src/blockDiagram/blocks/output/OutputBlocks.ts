@@ -47,10 +47,19 @@ export class DACLBlock extends BaseBlock {
         const inputReg = ctx.getInputRegister(this.type, 'in');
         const gain = this.getParameterValue(ctx, this.type, 'gain', 1.0);
         const gainConst = ctx.getStandardConstant(gain);
+        const one = ctx.getStandardConstant(1.0);
         const zero = ctx.getStandardConstant(0.0);
         
+        // Check if input is already in accumulator (optimization)
+        const inputForwarded = ctx.isAccumulatorForwarded(this.type, 'in');
+        
         code.push('; Left DAC Output');
-        code.push(`rdax ${inputReg}, ${gainConst}`);
+        if (!inputForwarded) {
+            code.push(`rdax ${inputReg}, ${gainConst}`);
+        } else if (Math.abs(gain - 1.0) > 0.001) {
+            // Input already in ACC, but need to apply gain
+            code.push(`sof ${gainConst}, 0`);
+        }
         code.push(`wrax DACL, ${zero}`);
         code.push('');
         
@@ -110,10 +119,19 @@ export class DACRBlock extends BaseBlock {
         const inputReg = ctx.getInputRegister(this.type, 'in');
         const gain = this.getParameterValue(ctx, this.type, 'gain', 1.0);
         const gainConst = ctx.getStandardConstant(gain);
+        const one = ctx.getStandardConstant(1.0);
         const zero = ctx.getStandardConstant(0.0);
         
+        // Check if input is already in accumulator (optimization)
+        const inputForwarded = ctx.isAccumulatorForwarded(this.type, 'in');
+        
         code.push('; Right DAC Output');
-        code.push(`rdax ${inputReg}, ${gainConst}`);
+        if (!inputForwarded) {
+            code.push(`rdax ${inputReg}, ${gainConst}`);
+        } else if (Math.abs(gain - 1.0) > 0.001) {
+            // Input already in ACC, but need to apply gain
+            code.push(`sof ${gainConst}, 0`);
+        }
         code.push(`wrax DACR, ${zero}`);
         code.push('');
         

@@ -656,6 +656,37 @@ export function activate(context: vscode.ExtensionContext) {
         provider.refresh();
     });
 
+    const createBlockDiagramCmd = vscode.commands.registerCommand('fv1.createBlockDiagram', async () => {
+        const saveUri = await vscode.window.showSaveDialog({
+            filters: { 'FV-1 Block Diagram': ['spndiagram'] },
+            defaultUri: vscode.Uri.file(path.join(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '.', 'new.spndiagram'))
+        });
+        
+        if (!saveUri) return;
+        
+        try {
+            // Read the default template
+            const templatePath = path.join(context.extensionPath, 'resources', 'templates', 'default-diagram.json');
+            let templateContent = fs.readFileSync(templatePath, 'utf8');
+            
+            // Parse and update the diagram name
+            const diagram = JSON.parse(templateContent);
+            diagram.metadata.name = path.basename(saveUri.fsPath, '.spndiagram');
+            
+            // Write the diagram to the new file
+            const content = JSON.stringify(diagram, null, 2);
+            await vscode.workspace.fs.writeFile(saveUri, Buffer.from(content, 'utf8'));
+            
+            // Open the newly created file with the custom editor
+            await vscode.commands.executeCommand('vscode.openWith', saveUri, 'fv1.blockDiagramEditor');
+            
+            vscode.window.showInformationMessage(`Created new block diagram: ${path.basename(saveUri.fsPath)}`);
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to create block diagram: ${error}`);
+            console.error('Error creating block diagram:', error);
+        }
+    });
+
     const programAllCmd = vscode.commands.registerCommand('fv1.programSpnBank', async (item?: any) => {
         const files = item && item.resourceUri ? [item.resourceUri] : await vscode.workspace.findFiles('**/*.spnbank', '**/node_modules/**');
         if (!files || files.length === 0) { vscode.window.showErrorMessage('No .spnbank files found'); return; }
@@ -879,6 +910,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         createCmd,
+        createBlockDiagramCmd,
         programAllCmd,
         unassignCmd,
         programThisSlotCmd,

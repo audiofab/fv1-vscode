@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "New Block Diagram",
+    "author": "",
+    "description": ""
+  },
+  "blocks": [
+    {
+      "id": "input-1",
+      "type": "input.adcl",
+      "position": {
+        "x": 100,
+        "y": 200
+      },
+      "parameters": {
+        "gain": 1.0
+      }
+    },
+    {
+      "id": "output-1",
+      "type": "output.dacl",
+      "position": {
+        "x": 600,
+        "y": 200
+      },
+      "parameters": {
+        "gain": 1.0
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-1",
+      "from": {
+        "blockId": "input-1",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "output-1",
+        "portId": "in"
+      }
+    }
+  ]
+}

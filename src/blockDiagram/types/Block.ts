@@ -68,6 +68,13 @@ export interface CodeGenContext {
     // Reset scratch register allocation (called after each block's code generation)
     resetScratchRegisters(): void;
     
+    // Accumulator forwarding optimization
+    // Check if output should preserve accumulator (use wrax reg, 1.0 instead of wrax reg, 0.0)
+    shouldPreserveAccumulator(blockId: string, portId: string): boolean;
+    
+    // Check if input value is already in accumulator (skip rdax instruction)
+    isAccumulatorForwarded(blockId: string, portId: string): boolean;
+    
     // Allocate delay memory
     allocateMemory(blockId: string, size: number): { name: string; address: number; size: number };
     
