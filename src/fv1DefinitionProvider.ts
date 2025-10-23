@@ -36,8 +36,14 @@ export class FV1DefinitionProvider implements vscode.DefinitionProvider {
         const symbols = this.documentManager.getSymbols(document);
         
         // Find the symbol
-        const symbol = symbols.find(s => s.name.toLowerCase() === wordLower);
-        
+        let symbol = symbols.find(s => s.name.toLowerCase() === wordLower);
+        if (!symbol) {
+            if (wordLower.endsWith('#') || wordLower.endsWith('^')) {
+                // Handle special cases for symbols ending with # or ^
+                symbol = symbols.find(s => s.name.toLowerCase() === wordLower.slice(0, -1));
+            }
+        }
+
         if (symbol && symbol.line !== undefined) {
             console.log(`[Definition] Found symbol at line ${symbol.line}`);
             

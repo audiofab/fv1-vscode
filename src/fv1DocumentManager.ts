@@ -169,9 +169,9 @@ export class FV1DocumentManager {
     /**
      * Get symbol information from the assembly result
      */
-    public getSymbols(document: vscode.TextDocument): Array<{ name: string; value: string; line?: number }> {
+    public getSymbols(document: vscode.TextDocument): Array<{ name: string; value: string; line?: number; original?: string }> {
         const result = this.getAssemblyResult(document);
-        const symbols: Array<{ name: string; value: string; line?: number }> = [];
+        const symbols: Array<{ name: string; value: string; line?: number; original?: string }> = [];
         
         // Add EQU symbols
         if (result.symbols) {
@@ -179,7 +179,8 @@ export class FV1DocumentManager {
                 symbols.push({
                     name: symbol.name,
                     value: symbol.value,
-                    line: symbol.line
+                    line: symbol.line,
+                    original: symbol.original
                 });
             }
         }
@@ -189,8 +190,9 @@ export class FV1DocumentManager {
             for (const memory of result.memories) {
                 symbols.push({
                     name: memory.name,
-                    value: `MEM ${memory.size} words (${memory.start ?? 0}-${memory.end ?? 0})`,
-                    line: memory.line
+                    value: `Delay memory block ${memory.start ?? 0}/${memory.end ?? 0} (start/end)`,
+                    line: memory.line,
+                    original: memory.original
                 });
             }
         }
