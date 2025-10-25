@@ -2,8 +2,8 @@
  * Simple delay effect block
  */
 
-import { BaseBlock } from '../base/BaseBlock.js';
-import { CodeGenContext } from '../../types/Block.js';
+import { BaseBlock } from '../../base/BaseBlock.js';
+import { CodeGenContext } from '../../../types/Block.js';
 
 export class DelayBlock extends BaseBlock {
     readonly type = 'fx.delay';
@@ -36,7 +36,7 @@ export class DelayBlock extends BaseBlock {
                 min: 0.01,
                 max: 1.0,
                 step: 0.01,
-                description: 'Maximum delay time in seconds (controls memory allocation)'
+                description: 'Maximum delay time in seconds (controls memory allocation). Max = 32768 samples / sample rate.'
             },
             {
                 id: 'delayTime',
@@ -78,10 +78,20 @@ export class DelayBlock extends BaseBlock {
         const code: string[] = [];
         
         // Get base parameters
-        const maxDelayTime = this.getParameterValue(ctx, this.type, 'maxDelayTime', 1.0);
+        const maxDelayTimeRequested = this.getParameterValue(ctx, this.type, 'maxDelayTime', 1.0);
         const baseDelayTime = this.getParameterValue(ctx, this.type, 'delayTime', 0.5);
         const baseFeedback = this.getParameterValue(ctx, this.type, 'feedback', 0.5);
         const baseMix = this.getParameterValue(ctx, this.type, 'mix', 0.5);
+        
+        // Clamp maxDelayTime to actual maximum based on sample rate
+        const absoluteMaxDelay = this.getMaxDelayTime();
+        const maxDelayTime = Math.min(maxDelayTimeRequested, absoluteMaxDelay);
+        
+        // Warn if clamped
+        if (maxDelayTimeRequested > absoluteMaxDelay) {
+            code.push(`; WARNING: Requested delay time ${maxDelayTimeRequested}s exceeds maximum ${absoluteMaxDelay.toFixed(3)}s`);
+            code.push(`;          at sample rate ${this.getSampleRate()} Hz. Clamped to ${absoluteMaxDelay.toFixed(3)}s`);
+        }
         
         // Check if control inputs are connected
         const timeCtrlReg = ctx.getInputRegister(this.type, 'time_ctrl');
@@ -98,7 +108,7 @@ export class DelayBlock extends BaseBlock {
         const delayMem = ctx.allocateMemory(this.type, maxDelaySamples);
         
         // Generate code
-        code.push(`; Delay Effect (${baseDelayTime}s base, max ${maxDelayTime}s)`);
+        code.push(`; Delay Effect (${baseDelayTime}s base, max ${maxDelayTime}s @ ${this.getSampleRate()} Hz)`);
         code.push(`; Memory: ${delayMem.name} @ ${delayMem.address} (${maxDelaySamples} samples)`);
         if (timeCtrlReg) code.push(`; Time modulated by ${timeCtrlReg}`);
         if (fbCtrlReg) code.push(`; Feedback modulated by ${fbCtrlReg}`);

@@ -4,13 +4,21 @@
  */
 
 import { IBlockDefinition, BlockMetadata } from '../types/Block.js';
-import { ADCLBlock, ADCRBlock, PotBlock } from './input/InputBlocks.js';
-import { DACLBlock, DACRBlock } from './output/OutputBlocks.js';
-import { VolumeBlock } from './math/MathBlocks.js';
-import { Mixer2Block, Mixer3Block, Mixer4Block } from './math/MixerBlocks.js';
+import { ADCLBlock } from './input/ADCLBlock.js';
+import { ADCRBlock } from './input/ADCRBlock.js';
+import { PotBlock } from './input/PotBlock.js';
+import { DACLBlock } from './output/DACLBlock.js';
+import { DACRBlock } from './output/DACRBlock.js';
+import { VolumeBlock } from './math/VolumeBlock.js';
+import { Mixer2Block } from './math/Mixer2Block.js';
+import { Mixer3Block } from './math/Mixer3Block.js';
+import { Mixer4Block } from './math/Mixer4Block.js';
 import { GainBoostBlock } from './math/GainBoostBlock.js';
-import { DelayBlock } from './effects/delay/DelayBlocks.js';
+import { DelayBlock } from './effects/delay/DelayBlock.js';
+import { PingPongDelayBlock } from './effects/delay/PingPongDelayBlock.js';
 import { TapTempoBlock } from './effects/control/TapTempoBlock.js';
+import { PhaserBlock } from './effects/modulation/PhaserBlock.js';
+import { RingModulatorBlock } from './effects/modulation/RingModulatorBlock.js';
 
 export class BlockRegistry {
     private blocks: Map<string, IBlockDefinition> = new Map();
@@ -42,6 +50,11 @@ export class BlockRegistry {
         
         // Effect blocks - Delay
         this.register(new DelayBlock());
+        this.register(new PingPongDelayBlock());
+        
+        // Effect blocks - Modulation
+        this.register(new PhaserBlock());
+        this.register(new RingModulatorBlock());
         
         // Effect blocks - Control
         this.register(new TapTempoBlock());

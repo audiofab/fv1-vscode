@@ -13,6 +13,31 @@ import {
     CodeGenContext
 } from '../../types/Block.js';
 
+/**
+ * Abstract base class for block definitions
+ * Provides common functionality and structure for all blocks
+ * 
+ * Sample Rate Configuration:
+ * -------------------------
+ * The FV-1 sample rate defaults to 32768 Hz, which gives a maximum delay time of 1.0 second
+ * (32768 samples / 32768 Hz = 1.0s).
+ * 
+ * To support different sample rates, override the getSampleRate() method in your block class:
+ * 
+ * @example
+ * ```typescript
+ * class MyBlock extends BaseBlock {
+ *   protected getSampleRate(): number {
+ *     return 48000; // Custom sample rate
+ *   }
+ * }
+ * ```
+ * 
+ * This affects:
+ * - timeToSamples() / samplesToTime() conversion
+ * - getMaxDelayTime() calculation (32768 samples / sample rate)
+ * - All delay-based effects that allocate memory
+ */
 export abstract class BaseBlock implements IBlockDefinition {
     // Metadata (must be set by subclasses)
     abstract readonly type: string;
@@ -25,6 +50,18 @@ export abstract class BaseBlock implements IBlockDefinition {
     readonly icon?: string;
     readonly width: number = 200;
     private _height: number = 100;
+    
+    // Global FV-1 constants
+    /**
+     * FV-1 sample rate in Hz
+     * Default: 32768 Hz (can be overridden via getSampleRate())
+     */
+    protected static readonly DEFAULT_SAMPLE_RATE: number = 32768;
+    
+    /**
+     * FV-1 total delay memory size in samples
+     */
+    protected static readonly MAX_DELAY_MEMORY: number = 32768;
     
     // I/O definition (use protected to allow subclass initialization)
     protected _inputs: BlockPort[] = [];
@@ -181,11 +218,36 @@ export abstract class BaseBlock implements IBlockDefinition {
     }
     
     /**
+     * Get the FV-1 sample rate in Hz
+     * Override this method to support different sample rates
+     * Default: 32768 Hz
+     */
+    protected getSampleRate(): number {
+        return BaseBlock.DEFAULT_SAMPLE_RATE;
+    }
+    
+    /**
+     * Get the maximum delay time in seconds based on available memory and sample rate
+     * FV-1 has 32768 samples of delay memory total
+     * @returns Maximum delay time in seconds
+     */
+    protected getMaxDelayTime(): number {
+        return BaseBlock.MAX_DELAY_MEMORY / this.getSampleRate();
+    }
+    
+    /**
      * Helper: Calculate delay samples from time in seconds
-     * FV-1 runs at 32.768 kHz sample rate
+     * Uses the configurable sample rate
      */
     protected timeToSamples(timeSeconds: number): number {
-        return Math.floor(timeSeconds * 32768);
+        return Math.floor(timeSeconds * this.getSampleRate());
+    }
+    
+    /**
+     * Helper: Calculate time in seconds from sample count
+     */
+    protected samplesToTime(samples: number): number {
+        return samples / this.getSampleRate();
     }
     
     /**
