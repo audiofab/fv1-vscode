@@ -9,7 +9,8 @@ import { DACLBlock, DACRBlock } from './output/OutputBlocks.js';
 import { VolumeBlock } from './math/MathBlocks.js';
 import { Mixer2Block, Mixer3Block, Mixer4Block } from './math/MixerBlocks.js';
 import { GainBoostBlock } from './math/GainBoostBlock.js';
-import { DelayBlock } from './effects/DelayBlock.js';
+import { DelayBlock } from './effects/delay/DelayBlocks.js';
+import { TapTempoBlock } from './effects/control/TapTempoBlock.js';
 
 export class BlockRegistry {
     private blocks: Map<string, IBlockDefinition> = new Map();
@@ -39,8 +40,11 @@ export class BlockRegistry {
         this.register(new Mixer3Block());
         this.register(new Mixer4Block());
         
-        // Effect blocks
+        // Effect blocks - Delay
         this.register(new DelayBlock());
+        
+        // Effect blocks - Control
+        this.register(new TapTempoBlock());
     }
     
     /**

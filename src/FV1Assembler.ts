@@ -773,13 +773,27 @@ class FV1Assembler {
 
       case 'JAM': // 0000000000000000000000001N010011
       {
-        const n = this.parseInteger(operands[0], 1);
+        let rmpLfo = this.parseInteger(operands[0], 2);       // Translated to 1-bit value below
 
-        if (n === null) {
+        if (rmpLfo === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
           return null;
         }
-        return (1 >> 7 | n << 6 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
+        // Convert rmpLfo to 1-bit value
+        if (![0, 1, 2, 3].includes(rmpLfo)) {
+          this.problems.push({message: `Line ${lineNumber}: Invalid LFO selection in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+          return null;
+        } else {
+          // Convert LFO selection to a 1-bit value (this is another error in the FV-1 datasheet!)
+          switch (rmpLfo) {
+            case 0: rmpLfo = 0; break;
+            case 1: rmpLfo = 1; break;
+            case 2: rmpLfo = 0; break;  // RMP0 constant
+            case 3: rmpLfo = 1; break;  // RMP1 constant
+          }
+        }
+
+        return (1 >> 7 | rmpLfo << 6 | instruction.opcode) >>> 0; // >>>0 ensures unsigned value
       }
 
       // Instructions with no operands (aliases for other instructions with zeroed operands)
