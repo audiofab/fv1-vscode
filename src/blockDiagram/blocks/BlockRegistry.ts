@@ -6,7 +6,9 @@
 import { IBlockDefinition, BlockMetadata } from '../types/Block.js';
 import { ADCLBlock, ADCRBlock, PotBlock } from './input/InputBlocks.js';
 import { DACLBlock, DACRBlock } from './output/OutputBlocks.js';
-import { GainBlock, MixerBlock } from './math/MathBlocks.js';
+import { VolumeBlock } from './math/MathBlocks.js';
+import { Mixer2Block, Mixer3Block, Mixer4Block } from './math/MixerBlocks.js';
+import { GainBoostBlock } from './math/GainBoostBlock.js';
 import { DelayBlock } from './effects/DelayBlock.js';
 
 export class BlockRegistry {
@@ -31,8 +33,11 @@ export class BlockRegistry {
         this.register(new DACRBlock());
         
         // Math blocks
-        this.register(new GainBlock());
-        this.register(new MixerBlock());
+        this.register(new VolumeBlock());
+        this.register(new GainBoostBlock());
+        this.register(new Mixer2Block());
+        this.register(new Mixer3Block());
+        this.register(new Mixer4Block());
         
         // Effect blocks
         this.register(new DelayBlock());

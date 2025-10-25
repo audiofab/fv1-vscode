@@ -31,10 +31,10 @@ export class DACLBlock extends BaseBlock {
                 name: 'Gain',
                 type: 'number',
                 default: 1.0,
-                min: 0.0,
-                max: 2.0,
+                min: -2.0,
+                max: 1.99993896484375,
                 step: 0.01,
-                description: 'Output gain (0.0 to 2.0)'
+                description: 'Output gain (S1.14 format: -2.0 to +1.9999)'
             }
         ];
         
@@ -46,7 +46,6 @@ export class DACLBlock extends BaseBlock {
         const code: string[] = [];
         const inputReg = ctx.getInputRegister(this.type, 'in');
         const gain = this.getParameterValue(ctx, this.type, 'gain', 1.0);
-        const gainConst = ctx.getStandardConstant(gain);
         const one = ctx.getStandardConstant(1.0);
         const zero = ctx.getStandardConstant(0.0);
         
@@ -54,12 +53,18 @@ export class DACLBlock extends BaseBlock {
         const inputForwarded = ctx.isAccumulatorForwarded(this.type, 'in');
         
         code.push('; Left DAC Output');
+        
+        // Load input if not already in accumulator
         if (!inputForwarded) {
-            code.push(`rdax ${inputReg}, ${gainConst}`);
-        } else if (Math.abs(gain - 1.0) > 0.001) {
-            // Input already in ACC, but need to apply gain
+            code.push(`rdax ${inputReg}, ${one}`);
+        }
+        
+        // Apply gain using SOF (only if gain != 1.0)
+        if (Math.abs(gain - 1.0) > 0.00001) {
+            const gainConst = ctx.getStandardConstant(gain);
             code.push(`sof ${gainConst}, 0`);
         }
+        
         code.push(`wrax DACL, ${zero}`);
         code.push('');
         
@@ -103,10 +108,10 @@ export class DACRBlock extends BaseBlock {
                 name: 'Gain',
                 type: 'number',
                 default: 1.0,
-                min: 0.0,
-                max: 2.0,
+                min: -2.0,
+                max: 1.99993896484375,
                 step: 0.01,
-                description: 'Output gain (0.0 to 2.0)'
+                description: 'Output gain (S1.14 format: -2.0 to +1.9999)'
             }
         ];
         
@@ -118,7 +123,6 @@ export class DACRBlock extends BaseBlock {
         const code: string[] = [];
         const inputReg = ctx.getInputRegister(this.type, 'in');
         const gain = this.getParameterValue(ctx, this.type, 'gain', 1.0);
-        const gainConst = ctx.getStandardConstant(gain);
         const one = ctx.getStandardConstant(1.0);
         const zero = ctx.getStandardConstant(0.0);
         
@@ -126,12 +130,18 @@ export class DACRBlock extends BaseBlock {
         const inputForwarded = ctx.isAccumulatorForwarded(this.type, 'in');
         
         code.push('; Right DAC Output');
+        
+        // Load input if not already in accumulator
         if (!inputForwarded) {
-            code.push(`rdax ${inputReg}, ${gainConst}`);
-        } else if (Math.abs(gain - 1.0) > 0.001) {
-            // Input already in ACC, but need to apply gain
+            code.push(`rdax ${inputReg}, ${one}`);
+        }
+        
+        // Apply gain using SOF (only if gain != 1.0)
+        if (Math.abs(gain - 1.0) > 0.00001) {
+            const gainConst = ctx.getStandardConstant(gain);
             code.push(`sof ${gainConst}, 0`);
         }
+        
         code.push(`wrax DACR, ${zero}`);
         code.push('');
         

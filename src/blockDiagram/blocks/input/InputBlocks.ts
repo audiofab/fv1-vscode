@@ -32,10 +32,10 @@ export class ADCLBlock extends BaseBlock {
                 name: 'Gain',
                 type: 'number',
                 default: 1.0,
-                min: 0.0,
-                max: 2.0,
+                min: -2.0,
+                max: 1.99993896484375,
                 step: 0.01,
-                description: 'Input gain (0.0 to 2.0)'
+                description: 'Input gain (S1.14 format: -2.0 to +1.9999)'
             }
         ];
         
@@ -90,10 +90,10 @@ export class ADCRBlock extends BaseBlock {
                 name: 'Gain',
                 type: 'number',
                 default: 1.0,
-                min: 0.0,
-                max: 2.0,
+                min: -2.0,
+                max: 1.99993896484375,
                 step: 0.01,
-                description: 'Input gain (0.0 to 2.0)'
+                description: 'Input gain (S1.14 format: -2.0 to +1.9999)'
             }
         ];
         

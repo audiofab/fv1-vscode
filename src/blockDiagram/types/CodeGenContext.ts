@@ -349,7 +349,35 @@ export class CodeGenerationContext implements CodeGenContext {
             );
         }
         
-        const memName = `mem_${blockId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        // Generate a short, unique memory name based on block type
+        // Follow same pattern as register aliases: use block type name + instance number
+        const block = this.graph.blocks.find(b => b.id === blockId);
+        let memName: string;
+        
+        if (block) {
+            // Extract base name from block type (e.g., "effects.delay" -> "delay")
+            const typeParts = block.type.split('.');
+            const baseName = typeParts[typeParts.length - 1];
+            
+            // If there are multiple blocks of the same type, add instance number
+            const sameTypeBlocks = this.graph.blocks.filter(b => b.type === block.type);
+            let suffix = '';
+            if (sameTypeBlocks.length > 1) {
+                const index = sameTypeBlocks.findIndex(b => b.id === blockId);
+                suffix = `${index + 1}`;
+            }
+            
+            memName = this.sanitizeIdentifier(`${baseName}${suffix}_mem`);
+        } else {
+            // Fallback to generic name with counter
+            memName = `mem${this.memoryAllocations.length}`;
+        }
+        
+        // Ensure name doesn't exceed 32 characters (FV-1 limit)
+        if (memName.length > 32) {
+            memName = memName.substring(0, 32);
+        }
+        
         const allocation = {
             blockId,
             name: memName,
