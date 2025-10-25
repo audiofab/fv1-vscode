@@ -9,7 +9,7 @@ import { CodeGenContext } from '../../types/Block.js';
 
 export class VolumeBlock extends BaseBlock {
     readonly type = 'math.volume';
-    readonly category = 'Math';
+    readonly category = 'Utility';
     readonly name = 'Volume';
     readonly description = 'Volume control with optional CV modulation';
     readonly color = '#FF9800';

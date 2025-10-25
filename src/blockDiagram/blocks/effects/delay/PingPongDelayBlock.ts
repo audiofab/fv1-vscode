@@ -11,7 +11,7 @@ import { CodeGenContext } from '../../../types/Block.js';
 
 export class PingPongDelayBlock extends BaseBlock {
     readonly type = 'fx.pingpong';
-    readonly category = 'Effects';
+    readonly category = 'Delay';
     readonly name = 'Ping Pong Delay';
     readonly description = 'Stereo delay with alternating left/right taps';
     readonly color = '#4CAF50';

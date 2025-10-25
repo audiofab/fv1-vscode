@@ -11,7 +11,7 @@ import { CodeGenContext } from '../../types/Block.js';
 
 export class GainBoostBlock extends BaseBlock {
     readonly type = 'math.gainboost';
-    readonly category = 'Math';
+    readonly category = 'Utility';
     readonly name = 'Gain Boost';
     readonly description = 'Gain in 6dB increments (uses cascaded SOF)';
     readonly color = '#2468f2';  // SpinCAD blue color

@@ -11,7 +11,7 @@ import { CodeGenContext } from '../../../types/Block.js';
 
 export class PhaserBlock extends BaseBlock {
     readonly type = 'fx.phaser';
-    readonly category = 'Effects';
+    readonly category = 'Modulation';
     readonly name = 'Phaser';
     readonly description = 'Classic phaser with 2-10 all-pass stages';
     readonly color = '#00BCD4';  // Cyan like SpinCAD

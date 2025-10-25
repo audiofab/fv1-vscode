@@ -8,7 +8,7 @@ import { CodeGenContext } from '../../types/Block.js';
 
 export class Mixer2Block extends BaseBlock {
     readonly type = 'math.mixer2';
-    readonly category = 'Math';
+    readonly category = 'Utility';
     readonly name = 'Mixer (2→1)';
     readonly description = 'Mix two audio signals with independent gain';
     readonly color = '#FFEB3B';  // Yellow like SpinCAD

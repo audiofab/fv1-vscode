@@ -7,7 +7,7 @@ import { CodeGenContext } from '../../../types/Block.js';
 
 export class DelayBlock extends BaseBlock {
     readonly type = 'fx.delay';
-    readonly category = 'Effects';
+    readonly category = 'Delay';
     readonly name = 'Delay';
     readonly description = 'Simple delay with feedback';
     readonly color = '#4CAF50';

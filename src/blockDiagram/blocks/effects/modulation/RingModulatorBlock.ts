@@ -11,7 +11,7 @@ import { CodeGenContext } from '../../../types/Block.js';
 
 export class RingModulatorBlock extends BaseBlock {
     readonly type = 'fx.ringmod';
-    readonly category = 'Effects';
+    readonly category = 'Modulation';
     readonly name = 'Ring Modulator';
     readonly description = 'Ring modulation with internal oscillator';
     readonly color = '#00BCD4';  // Cyan

@@ -450,6 +450,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                 onAddBlock={addBlock}
                 isCollapsed={isPaletteCollapsed}
                 onToggleCollapse={() => setIsPaletteCollapsed(!isPaletteCollapsed)}
+                vscode={vscode}
             />
             
             <div 

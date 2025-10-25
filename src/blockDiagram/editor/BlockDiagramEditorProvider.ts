@@ -78,6 +78,12 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                         type: 'blockMetadata',
                         metadata: blockRegistry.getAllMetadata()
                     });
+                    // Send saved palette state
+                    const savedState = this.context.workspaceState.get<string[]>('blockDiagram.expandedCategories', []);
+                    webviewPanel.webview.postMessage({
+                        type: 'paletteState',
+                        expandedCategories: savedState
+                    });
                     return;
                     
                 case 'update':
@@ -93,6 +99,11 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                         type: 'blockMetadata',
                         metadata: blockRegistry.getAllMetadata()
                     });
+                    return;
+                    
+                case 'savePaletteState':
+                    // Save the expanded categories to workspace state
+                    await this.context.workspaceState.update('blockDiagram.expandedCategories', e.expandedCategories);
                     return;
                     
                 case 'error':
@@ -241,6 +252,10 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             width: 250px;
         }
         
+        .palette-category-section {
+            /* Container for each category and its blocks */
+        }
+        
         .palette-category {
             padding: 8px 12px;
             font-weight: bold;
@@ -248,10 +263,30 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             text-transform: uppercase;
             color: var(--vscode-descriptionForeground);
             border-top: 1px solid var(--vscode-panel-border);
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            transition: background-color 0.1s;
         }
         
-        .palette-category:first-child {
+        .palette-category:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+        
+        .palette-category-section:first-child .palette-category {
             border-top: none;
+        }
+        
+        .category-toggle-icon {
+            display: inline-block;
+            width: 16px;
+            margin-right: 4px;
+            font-size: 10px;
+        }
+        
+        .palette-category-blocks {
+            /* Container for blocks within a category */
         }
         
         .palette-block {
