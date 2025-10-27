@@ -10,7 +10,6 @@ import { Connection } from '../../../types/Connection';
 import { BlockMetadata } from '../../../types/Block';
 import { BlockComponent } from './BlockComponent';
 import { ConnectionComponent } from './ConnectionComponent';
-import { Toolbar } from './Toolbar';
 import { BlockPalette } from './BlockPalette';
 import { PropertyPanel } from './PropertyPanel';
 import { v4 as uuidv4 } from 'uuid';
@@ -323,8 +322,8 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             setSelectedBlockId(null);
             setSelectedConnectionId(null);
             
-            // Only pan with middle mouse or space+drag
-            if (e.evt.button === 1 || e.evt.shiftKey) {
+            // Pan with left mouse button on empty canvas, or middle mouse, or shift+drag
+            if (e.evt.button === 0 || e.evt.button === 1 || e.evt.shiftKey) {
                 setIsDragging(true);
                 setDragStart({ x: e.evt.clientX - pan.x, y: e.evt.clientY - pan.y });
             }
@@ -431,14 +430,6 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
     
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-            <Toolbar
-                stats={{
-                    blocks: graph.blocks.length,
-                    connections: graph.connections.length,
-                    zoom: Math.round(zoom * 100)
-                }}
-            />
-            
             <BlockPalette
                 metadata={blockMetadata}
                 onAddBlock={addBlock}
@@ -523,6 +514,10 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                     onClose={() => setSelectedBlockId(null)}
                 />
             )}
+            
+            <div className="footer">
+                Blocks: {graph.blocks.length} | Connections: {graph.connections.length} | Zoom: {Math.round(zoom * 100)}%
+            </div>
         </div>
     );
 };

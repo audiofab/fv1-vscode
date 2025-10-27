@@ -155,48 +155,29 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             height: 100%;
         }
         
-        /* Toolbar styles */
-        .toolbar {
+        /* Footer styles */
+        .footer {
             position: absolute;
-            top: 0;
+            bottom: 0;
             left: 0;
             right: 0;
-            height: 48px;
-            background-color: var(--vscode-sideBar-background);
-            border-bottom: 1px solid var(--vscode-panel-border);
+            height: 24px;
+            background-color: var(--vscode-statusBar-background);
+            border-top: 1px solid var(--vscode-panel-border);
             display: flex;
             align-items: center;
             padding: 0 12px;
-            gap: 8px;
+            font-size: 11px;
+            color: var(--vscode-statusBar-foreground);
             z-index: 1000;
-        }
-        
-        .toolbar button {
-            background-color: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            padding: 6px 12px;
-            cursor: pointer;
-            border-radius: 2px;
-            font-size: 13px;
-        }
-        
-        .toolbar button:hover {
-            background-color: var(--vscode-button-hoverBackground);
-        }
-        
-        .toolbar .stats {
-            margin-left: auto;
-            font-size: 12px;
-            color: var(--vscode-descriptionForeground);
         }
         
         /* Block palette styles */
         .palette {
             position: absolute;
             left: 0;
-            top: 48px;
-            bottom: 0;
+            top: 0;
+            bottom: 24px;
             width: 250px;
             background-color: var(--vscode-sideBar-background);
             border-right: 1px solid var(--vscode-panel-border);
@@ -310,9 +291,9 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
         .canvas-container {
             position: absolute;
             left: 250px;
-            top: 48px;
+            top: 0;
             right: 0;
-            bottom: 0;
+            bottom: 24px;
             overflow: hidden;
             transition: left 0.2s ease;
         }
@@ -325,8 +306,8 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
         .property-panel {
             position: absolute;
             right: 0;
-            top: 48px;
-            bottom: 0;
+            top: 0;
+            bottom: 24px;
             width: 300px;
             background-color: var(--vscode-sideBar-background);
             border-left: 1px solid var(--vscode-panel-border);

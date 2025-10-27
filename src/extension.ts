@@ -750,33 +750,49 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const compileBlockDiagramCmd = vscode.commands.registerCommand('fv1.compileBlockDiagram', async () => {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
+        // Get the active tab (works for both text editors and custom editors)
+        const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+        if (!activeTab || !activeTab.input) {
             vscode.window.showErrorMessage('No active editor');
             return;
         }
         
-        const document = editor.document;
-        if (!document.fileName.endsWith('.spndiagram')) {
+        // Get the URI from the active tab
+        let fileUri: vscode.Uri | undefined;
+        const input = activeTab.input as any;
+        if (input.uri) {
+            fileUri = input.uri;
+        } else if (vscode.window.activeTextEditor) {
+            fileUri = vscode.window.activeTextEditor.document.uri;
+        }
+        
+        if (!fileUri) {
+            vscode.window.showErrorMessage('Could not determine active file');
+            return;
+        }
+        
+        const filePath = fileUri.fsPath;
+        if (!filePath.endsWith('.spndiagram')) {
             vscode.window.showErrorMessage('Active file is not a block diagram (.spndiagram)');
             return;
         }
         
-        // Save the document if it has unsaved changes
-        if (document.isDirty) {
+        // Try to save the document if it's a text document
+        const document = vscode.workspace.textDocuments.find(doc => doc.uri.fsPath === filePath);
+        if (document && document.isDirty) {
             const saved = await document.save();
             if (!saved) {
                 vscode.window.showErrorMessage('Failed to save document. Compilation aborted.');
                 return;
             }
-            outputWindow(outputChannel, `[INFO] 💾 Saved ${path.basename(document.fileName)}`);
+            outputWindow(outputChannel, `[INFO] 💾 Saved ${path.basename(filePath)}`);
         }
         
         try {
-            outputWindow(outputChannel, `[INFO] 🔧 Compiling block diagram ${path.basename(document.fileName)}...`);
+            outputWindow(outputChannel, `[INFO] 🔧 Compiling block diagram ${path.basename(filePath)}...`);
             
             // Read and parse the block diagram
-            const content = fs.readFileSync(document.fileName, 'utf8');
+            const content = fs.readFileSync(filePath, 'utf8');
             const graph: BlockGraph = JSON.parse(content);
             
             // Compile the graph
@@ -785,7 +801,7 @@ export function activate(context: vscode.ExtensionContext) {
             
             if (result.success && result.assembly) {
                 // Create .spn file path
-                const spnPath = document.fileName.replace('.spndiagram', '.spn');
+                const spnPath = filePath.replace('.spndiagram', '.spn');
                 
                 // Write assembly to .spn file
                 fs.writeFileSync(spnPath, result.assembly, 'utf8');
