@@ -1,5 +1,7 @@
 /**
- * 4-Input Mixer - ported from SpinCAD Mixer4_1CADBlock
+ * 4-Input Mixer block
+ * Translated from SpinCAD's Mixer_4_to_1CADBlock.java
+ * Mix four audio signals with independent gain control (dB)
  */
 
 import { BaseBlock } from '../base/BaseBlock.js';
@@ -8,9 +10,9 @@ import { CodeGenContext } from '../../types/Block.js';
 export class Mixer4Block extends BaseBlock {
     readonly type = 'math.mixer4';
     readonly category = 'Utility';
-    readonly name = 'Mixer (4→1)';
-    readonly description = 'Mix four audio signals';
-    readonly color = '#FFEB3B';  // Yellow like SpinCAD
+    readonly name = 'Mixer 4:1';
+    readonly description = 'Mix four audio signals with independent gain';
+    readonly color = '#2468f2';
     readonly width = 170;
     
     constructor() {
@@ -18,13 +20,13 @@ export class Mixer4Block extends BaseBlock {
         
         this._inputs = [
             { id: 'in1', name: 'Input 1', type: 'audio', required: false },
-            { id: 'level1_ctrl', name: 'Level 1', type: 'control', required: false },
             { id: 'in2', name: 'Input 2', type: 'audio', required: false },
-            { id: 'level2_ctrl', name: 'Level 2', type: 'control', required: false },
             { id: 'in3', name: 'Input 3', type: 'audio', required: false },
-            { id: 'level3_ctrl', name: 'Level 3', type: 'control', required: false },
             { id: 'in4', name: 'Input 4', type: 'audio', required: false },
-            { id: 'level4_ctrl', name: 'Level 4', type: 'control', required: false }
+            { id: 'level1', name: 'Level 1', type: 'control', required: false },
+            { id: 'level2', name: 'Level 2', type: 'control', required: false },
+            { id: 'level3', name: 'Level 3', type: 'control', required: false },
+            { id: 'level4', name: 'Level 4', type: 'control', required: false }
         ];
         
         this._outputs = [
@@ -34,43 +36,71 @@ export class Mixer4Block extends BaseBlock {
         this._parameters = [
             {
                 id: 'gain1',
-                name: 'Gain 1',
+                name: 'Input Gain 1',
                 type: 'number',
-                default: 0.25,
-                min: 0.0,
+                default: 1.0,
+                min: 0.125,
                 max: 1.0,
                 step: 0.01,
-                description: 'Gain for input 1'
+                displayMin: -18,
+                displayMax: 0,
+                displayStep: 1,
+                displayDecimals: 0,
+                displayUnit: 'dB',
+                toDisplay: (linear: number) => 20 * Math.log10(linear),
+                fromDisplay: (dB: number) => Math.pow(10.0, dB / 20.0),
+                description: 'Input 1 gain in decibels'
             },
             {
                 id: 'gain2',
-                name: 'Gain 2',
+                name: 'Input Gain 2',
                 type: 'number',
-                default: 0.25,
-                min: 0.0,
+                default: 1.0,
+                min: 0.125,
                 max: 1.0,
                 step: 0.01,
-                description: 'Gain for input 2'
+                displayMin: -18,
+                displayMax: 0,
+                displayStep: 1,
+                displayDecimals: 0,
+                displayUnit: 'dB',
+                toDisplay: (linear: number) => 20 * Math.log10(linear),
+                fromDisplay: (dB: number) => Math.pow(10.0, dB / 20.0),
+                description: 'Input 2 gain in decibels'
             },
             {
                 id: 'gain3',
-                name: 'Gain 3',
+                name: 'Input Gain 3',
                 type: 'number',
-                default: 0.25,
-                min: 0.0,
+                default: 1.0,
+                min: 0.125,
                 max: 1.0,
                 step: 0.01,
-                description: 'Gain for input 3'
+                displayMin: -18,
+                displayMax: 0,
+                displayStep: 1,
+                displayDecimals: 0,
+                displayUnit: 'dB',
+                toDisplay: (linear: number) => 20 * Math.log10(linear),
+                fromDisplay: (dB: number) => Math.pow(10.0, dB / 20.0),
+                description: 'Input 3 gain in decibels'
             },
             {
                 id: 'gain4',
-                name: 'Gain 4',
+                name: 'Input Gain 4',
                 type: 'number',
-                default: 0.25,
-                min: 0.0,
+                default: 1.0,
+                min: 0.125,
                 max: 1.0,
                 step: 0.01,
-                description: 'Gain for input 4'
+                displayMin: -18,
+                displayMax: 0,
+                displayStep: 1,
+                displayDecimals: 0,
+                displayUnit: 'dB',
+                toDisplay: (linear: number) => 20 * Math.log10(linear),
+                fromDisplay: (dB: number) => Math.pow(10.0, dB / 20.0),
+                description: 'Input 4 gain in decibels'
             }
         ];
         
@@ -79,51 +109,71 @@ export class Mixer4Block extends BaseBlock {
     
     generateCode(ctx: CodeGenContext): string[] {
         const code: string[] = [];
+        
+        const input1Reg = ctx.getInputRegister(this.type, 'in1');
+        const input2Reg = ctx.getInputRegister(this.type, 'in2');
+        const input3Reg = ctx.getInputRegister(this.type, 'in3');
+        const input4Reg = ctx.getInputRegister(this.type, 'in4');
+        const level1Reg = ctx.getInputRegister(this.type, 'level1');
+        const level2Reg = ctx.getInputRegister(this.type, 'level2');
+        const level3Reg = ctx.getInputRegister(this.type, 'level3');
+        const level4Reg = ctx.getInputRegister(this.type, 'level4');
+        
         const outputReg = ctx.allocateRegister(this.type, 'out');
-        const zero = ctx.getStandardConstant(0.0);
-        const one = ctx.getStandardConstant(1.0);
         
-        const preserveAcc = ctx.shouldPreserveAccumulator(this.type, 'out');
-        const clearValue = preserveAcc ? one : zero;
+        const gain1 = this.getParameterValue(ctx, this.type, 'gain1', 1.0);
+        const gain2 = this.getParameterValue(ctx, this.type, 'gain2', 1.0);
+        const gain3 = this.getParameterValue(ctx, this.type, 'gain3', 1.0);
+        const gain4 = this.getParameterValue(ctx, this.type, 'gain4', 1.0);
         
-        code.push('; Mixer 4→1');
+        code.push('; Mixer 4:1');
+        code.push('');
         
-        let hasPreviousInput = false;
-        
-        // Process each input
-        for (let i = 1; i <= 4; i++) {
-            const inputReg = ctx.getInputRegister(this.type, `in${i}`);
-            const levelCtrlReg = ctx.getInputRegister(this.type, `level${i}_ctrl`);
-            const gain = this.getParameterValue(ctx, this.type, `gain${i}`, 0.25);
-            
-            if (inputReg) {
-                const gainConst = ctx.getStandardConstant(gain);
-                code.push(`rdax ${inputReg}, ${gainConst}  ; Input ${i}`);
-                
-                if (levelCtrlReg) {
-                    code.push(`mulx ${levelCtrlReg}  ; Modulate by CV`);
-                }
-                
-                if (!hasPreviousInput) {
-                    // First input - store it
-                    code.push(`wrax ${outputReg}, ${zero}`);
-                    hasPreviousInput = true;
-                } else {
-                    // Subsequent inputs - add to accumulator
-                    code.push(`rdax ${outputReg}, ${one}  ; Add previous inputs`);
-                    code.push(`wrax ${outputReg}, ${zero}`);
-                }
+        if (input1Reg) {
+            code.push(`rdax ${input1Reg}, ${this.formatS15(gain1)}`);
+            if (level1Reg) {
+                code.push(`mulx ${level1Reg}`);
             }
+            code.push(`wrax ${outputReg}, 0`);
         }
         
-        // If no inputs connected, output silence
-        if (!hasPreviousInput) {
-            code.push(`clr`);
-            code.push(`wrax ${outputReg}, ${zero}`);
-        } else if (preserveAcc) {
-            // Update last wrax to preserve accumulator
-            const lastWraxIndex = code.length - 1;
-            code[lastWraxIndex] = `wrax ${outputReg}, ${clearValue}`;
+        if (input2Reg) {
+            code.push(`rdax ${input2Reg}, ${this.formatS15(gain2)}`);
+            if (level2Reg) {
+                code.push(`mulx ${level2Reg}`);
+            }
+            if (input1Reg) {
+                code.push(`rdax ${outputReg}, 1.0`);
+            }
+            code.push(`wrax ${outputReg}, 0`);
+        }
+        
+        if (input3Reg) {
+            code.push(`rdax ${input3Reg}, ${this.formatS15(gain3)}`);
+            if (level3Reg) {
+                code.push(`mulx ${level3Reg}`);
+            }
+            if (input1Reg) {
+                code.push(`rdax ${outputReg}, 1.0`);
+            } else if (input2Reg) {
+                code.push(`rdax ${outputReg}, 1.0`);
+            }
+            code.push(`wrax ${outputReg}, 0`);
+        }
+        
+        if (input4Reg) {
+            code.push(`rdax ${input4Reg}, ${this.formatS15(gain4)}`);
+            if (level4Reg) {
+                code.push(`mulx ${level4Reg}`);
+            }
+            if (input1Reg) {
+                code.push(`rdax ${outputReg}, 1.0`);
+            } else if (input2Reg) {
+                code.push(`rdax ${outputReg}, 1.0`);
+            } else if (input3Reg) {
+                code.push(`rdax ${outputReg}, 1.0`);
+            }
+            code.push(`wrax ${outputReg}, 0`);
         }
         
         code.push('');

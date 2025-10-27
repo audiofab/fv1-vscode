@@ -512,6 +512,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                     metadata={blockMetadata.find(m => m.type === selectedBlock.type)}
                     onUpdate={(updates) => updateBlock(selectedBlock.id, updates)}
                     onClose={() => setSelectedBlockId(null)}
+                    vscode={vscode}
                 />
             )}
             

@@ -1,6 +1,7 @@
 /**
- * 2-Input Mixer block - ported from SpinCAD
- * Mix two audio signals with independent gain control
+ * 2-Input Mixer block
+ * Translated from SpinCAD's Mixer_2_to_1CADBlock.java
+ * Mix two audio signals with independent gain control (dB)
  */
 
 import { BaseBlock } from '../base/BaseBlock.js';
@@ -9,9 +10,9 @@ import { CodeGenContext } from '../../types/Block.js';
 export class Mixer2Block extends BaseBlock {
     readonly type = 'math.mixer2';
     readonly category = 'Utility';
-    readonly name = 'Mixer (2→1)';
+    readonly name = 'Mixer 2:1';
     readonly description = 'Mix two audio signals with independent gain';
-    readonly color = '#FFEB3B';  // Yellow like SpinCAD
+    readonly color = '#2468f2';  // SpinCAD color
     readonly width = 170;
     
     constructor() {
@@ -19,9 +20,9 @@ export class Mixer2Block extends BaseBlock {
         
         this._inputs = [
             { id: 'in1', name: 'Input 1', type: 'audio', required: false },
-            { id: 'level1_ctrl', name: 'Level 1 CV', type: 'control', required: false },
             { id: 'in2', name: 'Input 2', type: 'audio', required: false },
-            { id: 'level2_ctrl', name: 'Level 2 CV', type: 'control', required: false }
+            { id: 'level1', name: 'Level 1', type: 'control', required: false },
+            { id: 'level2', name: 'Level 2', type: 'control', required: false }
         ];
         
         this._outputs = [
@@ -31,85 +32,94 @@ export class Mixer2Block extends BaseBlock {
         this._parameters = [
             {
                 id: 'gain1',
-                name: 'Gain 1',
+                name: 'Input Gain 1',
                 type: 'number',
-                default: 0.5,
-                min: 0.0,
-                max: 1.0,
+                // Code values (what generateCode uses)
+                default: 1.0,  // Linear gain = 0dB
+                min: 0.125,    // -18dB
+                max: 1.0,      // 0dB
                 step: 0.01,
-                description: 'Base gain for input 1 (0.0 to 1.0)'
+                // Display values (what UI shows)
+                displayMin: -18,
+                displayMax: 0,
+                displayStep: 1,
+                displayDecimals: 0,
+                displayUnit: 'dB',
+                // Conversion functions
+                toDisplay: (linear: number) => 20 * Math.log10(linear),
+                fromDisplay: (dB: number) => Math.pow(10.0, dB / 20.0),
+                description: 'Input 1 gain in decibels'
             },
             {
                 id: 'gain2',
-                name: 'Gain 2',
+                name: 'Input Gain 2',
                 type: 'number',
-                default: 0.5,
-                min: 0.0,
-                max: 1.0,
+                // Code values
+                default: 1.0,  // Linear gain = 0dB
+                min: 0.125,    // -18dB
+                max: 1.0,      // 0dB
                 step: 0.01,
-                description: 'Base gain for input 2 (0.0 to 1.0)'
+                // Display values
+                displayMin: -18,
+                displayMax: 0,
+                displayStep: 1,
+                displayDecimals: 0,
+                displayUnit: 'dB',
+                // Conversion functions
+                toDisplay: (linear: number) => 20 * Math.log10(linear),
+                fromDisplay: (dB: number) => Math.pow(10.0, dB / 20.0),
+                description: 'Input 2 gain in decibels'
             }
         ];
         
-        // Auto-calculate height based on port count
         this.autoCalculateHeight();
     }
     
     generateCode(ctx: CodeGenContext): string[] {
         const code: string[] = [];
+        
+        // Get input registers
         const input1Reg = ctx.getInputRegister(this.type, 'in1');
         const input2Reg = ctx.getInputRegister(this.type, 'in2');
-        const level1CtrlReg = ctx.getInputRegister(this.type, 'level1_ctrl');
-        const level2CtrlReg = ctx.getInputRegister(this.type, 'level2_ctrl');
+        const level1Reg = ctx.getInputRegister(this.type, 'level1');
+        const level2Reg = ctx.getInputRegister(this.type, 'level2');
+        
+        // Allocate output register
         const outputReg = ctx.allocateRegister(this.type, 'out');
-        const gain1 = this.getParameterValue(ctx, this.type, 'gain1', 0.5);
-        const gain2 = this.getParameterValue(ctx, this.type, 'gain2', 0.5);
-        const zero = ctx.getStandardConstant(0.0);
-        const one = ctx.getStandardConstant(1.0);
         
-        // Check if we should preserve accumulator for next block
-        const preserveAcc = ctx.shouldPreserveAccumulator(this.type, 'out');
-        const clearValue = preserveAcc ? one : zero;
+        // Get parameters (already in linear gain, no conversion needed)
+        const gain1 = this.getParameterValue(ctx, this.type, 'gain1', 1.0);
+        const gain2 = this.getParameterValue(ctx, this.type, 'gain2', 1.0);
         
-        code.push('; Mixer 2→1');
+        code.push(`; Mixer 2:1`);
+        code.push('');
         
-        let hasInput1 = false;
-        
-        // Handle input 1
+        // Process Input 1
         if (input1Reg) {
-            const gain1Const = ctx.getStandardConstant(gain1);
-            code.push(`rdax ${input1Reg}, ${gain1Const}  ; Input 1`);
-            if (level1CtrlReg) {
-                code.push(`mulx ${level1CtrlReg}  ; Modulate by CV`);
-            }
-            code.push(`wrax ${outputReg}, ${zero}  ; Store input 1`);
-            hasInput1 = true;
-        }
-        
-        // Handle input 2
-        if (input2Reg) {
-            const gain2Const = ctx.getStandardConstant(gain2);
-            code.push(`rdax ${input2Reg}, ${gain2Const}  ; Input 2`);
-            if (level2CtrlReg) {
-                code.push(`mulx ${level2CtrlReg}  ; Modulate by CV`);
+            code.push(`rdax ${input1Reg}, ${this.formatS15(gain1)}`);
+            if (level1Reg) {
+                code.push(`mulx ${level1Reg}`);
             }
             
-            if (hasInput1) {
-                // Add to previously stored input 1
-                code.push(`rdax ${outputReg}, ${one}  ; Add input 1`);
+            // If both inputs and level 2 connected, need to save temporarily
+            if (input2Reg && level2Reg) {
+                code.push(`wrax ${outputReg}, 0`);
             }
-            code.push(`wrax ${outputReg}, ${clearValue}`);
-        } else if (hasInput1 && preserveAcc) {
-            // Need to update the clearValue for input 1 if no input 2
-            code[code.length - 2] = `wrax ${outputReg}, ${clearValue}  ; Store input 1`;
         }
         
-        if (!input1Reg && !input2Reg) {
-            // No inputs connected - output silence
-            code.push(`clr`);
-            code.push(`wrax ${outputReg}, ${zero}`);
+        // Process Input 2
+        if (input2Reg) {
+            code.push(`rdax ${input2Reg}, ${this.formatS15(gain2)}`);
+            if (level2Reg) {
+                code.push(`mulx ${level2Reg}`);
+                // If input 1 was processed, add it back
+                if (input1Reg) {
+                    code.push(`rdax ${outputReg}, 1.0`);
+                }
+            }
         }
         
+        code.push(`wrax ${outputReg}, 0`);
         code.push('');
         
         return code;

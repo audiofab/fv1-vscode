@@ -170,9 +170,39 @@ export abstract class BaseBlock implements IBlockDefinition {
     }
     
     /**
+     * Convert a code value to display value for a specific parameter
+     */
+    getDisplayValue(parameterId: string, codeValue: number): number {
+        const param = this._parameters.find(p => p.id === parameterId);
+        if (!param) {
+            throw new Error(`Parameter '${parameterId}' not found in block '${this.type}'`);
+        }
+        
+        return param.toDisplay ? param.toDisplay(codeValue) : codeValue;
+    }
+    
+    /**
+     * Convert a display value to code value for a specific parameter
+     */
+    getCodeValue(parameterId: string, displayValue: number): number {
+        const param = this._parameters.find(p => p.id === parameterId);
+        if (!param) {
+            throw new Error(`Parameter '${parameterId}' not found in block '${this.type}'`);
+        }
+        
+        return param.fromDisplay ? param.fromDisplay(displayValue) : displayValue;
+    }
+    
+    /**
      * Get metadata about this block type
      */
     getMetadata(): BlockMetadata {
+        // Serialize parameters without conversion functions (they stay server-side)
+        const serializedParams = this.parameters.map(param => {
+            const { toDisplay, fromDisplay, ...serialized } = param;
+            return serialized;
+        });
+        
         return {
             type: this.type,
             category: this.category,
@@ -184,7 +214,7 @@ export abstract class BaseBlock implements IBlockDefinition {
             height: this.height,
             inputs: this.inputs,
             outputs: this.outputs,
-            parameters: this.parameters
+            parameters: serializedParams
         };
     }
     

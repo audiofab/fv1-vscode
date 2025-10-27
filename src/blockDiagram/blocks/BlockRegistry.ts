@@ -19,6 +19,7 @@ import { PingPongDelayBlock } from './effects/delay/PingPongDelayBlock.js';
 import { TapTempoBlock } from './effects/control/TapTempoBlock.js';
 import { PhaserBlock } from './effects/modulation/PhaserBlock.js';
 import { RingModulatorBlock } from './effects/modulation/RingModulatorBlock.js';
+import { ChorusBlock } from './effects/modulation/ChorusBlock.js';
 
 export class BlockRegistry {
     private blocks: Map<string, IBlockDefinition> = new Map();
@@ -55,6 +56,7 @@ export class BlockRegistry {
         // Effect blocks - Modulation
         this.register(new PhaserBlock());
         this.register(new RingModulatorBlock());
+        this.register(new ChorusBlock());
         
         // Effect blocks - Control
         this.register(new TapTempoBlock());

@@ -2,7 +2,7 @@
  * Property Panel Component - Shows and edits selected block properties
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Block, BlockMetadata } from '../../../../types/Block';
 
 interface PropertyPanelProps {
@@ -10,15 +10,64 @@ interface PropertyPanelProps {
     metadata?: BlockMetadata;
     onUpdate: (updates: Partial<Block>) => void;
     onClose: () => void;
+    vscode: any;
 }
 
 export const PropertyPanel: React.FC<PropertyPanelProps> = ({
     block,
     metadata,
     onUpdate,
-    onClose
+    onClose,
+    vscode
 }) => {
     if (!metadata) return null;
+    
+    // Track display values for all parameters
+    const [displayValues, setDisplayValues] = useState<Record<string, number>>({});
+    
+    // Convert code values to display values when block or metadata changes
+    useEffect(() => {
+        if (!metadata) return;
+        
+        const newDisplayValues: Record<string, number> = {};
+        
+        metadata.parameters.forEach(param => {
+            const codeValue = block.parameters[param.id] ?? param.default;
+            
+            if (param.type === 'number' && (param.displayMin !== undefined || param.toDisplay)) {
+                // Request conversion from extension
+                const requestId = `${block.id}_${param.id}_${Date.now()}`;
+                
+                const messageHandler = (event: MessageEvent) => {
+                    const message = event.data;
+                    if (message.type === 'convertToDisplayResponse' && message.requestId === requestId) {
+                        window.removeEventListener('message', messageHandler);
+                        if (!message.error) {
+                            setDisplayValues(prev => ({
+                                ...prev,
+                                [param.id]: message.displayValue
+                            }));
+                        }
+                    }
+                };
+                
+                window.addEventListener('message', messageHandler);
+                
+                vscode.postMessage({
+                    type: 'convertToDisplay',
+                    blockType: metadata.type,
+                    parameterId: param.id,
+                    codeValue,
+                    requestId
+                });
+            } else {
+                newDisplayValues[param.id] = codeValue;
+            }
+        });
+        
+        // Set initial values for non-converted parameters
+        setDisplayValues(prev => ({ ...prev, ...newDisplayValues }));
+    }, [block, metadata, vscode]);
     
     const handleParameterChange = (paramId: string, value: any) => {
         onUpdate({
@@ -26,6 +75,40 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                 ...block.parameters,
                 [paramId]: value
             }
+        });
+    };
+    
+    const handleDisplayValueChange = (paramId: string, newDisplayValue: number) => {
+        const param = metadata.parameters.find(p => p.id === paramId);
+        if (!param) return;
+        
+        // Update display value immediately for responsive UI
+        setDisplayValues(prev => ({
+            ...prev,
+            [paramId]: newDisplayValue
+        }));
+        
+        // Request conversion from extension
+        const requestId = `${block.id}_${paramId}_${Date.now()}`;
+        
+        const messageHandler = (event: MessageEvent) => {
+            const message = event.data;
+            if (message.type === 'convertToCodeResponse' && message.requestId === requestId) {
+                window.removeEventListener('message', messageHandler);
+                if (!message.error) {
+                    handleParameterChange(paramId, message.codeValue);
+                }
+            }
+        };
+        
+        window.addEventListener('message', messageHandler);
+        
+        vscode.postMessage({
+            type: 'convertToCode',
+            blockType: metadata.type,
+            parameterId: paramId,
+            displayValue: newDisplayValue,
+            requestId
         });
     };
     
@@ -40,13 +123,24 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                 <div>
                     <h4 style={{ marginBottom: '12px', fontSize: '12px' }}>Parameters</h4>
                     
-                    {metadata.parameters.map(param => {
-                        const value = block.parameters[param.id] ?? param.default;
+                    {metadata.parameters.map((param: any) => {
+                        // Get the display value from state (will be set by useEffect)
+                        const displayValue = displayValues[param.id] ?? (block.parameters[param.id] ?? param.default);
+                        
+                        // Use display range if available, otherwise use code range
+                        const minValue = param.displayMin ?? param.min;
+                        const maxValue = param.displayMax ?? param.max;
+                        const stepValue = param.displayStep ?? param.step;
                         
                         return (
                             <div key={param.id} className="property-group">
                                 <label className="property-label">
                                     {param.name}
+                                    {param.displayUnit && (
+                                        <span style={{ fontSize: '10px', fontWeight: 'normal', marginLeft: '4px' }}>
+                                            ({param.displayUnit})
+                                        </span>
+                                    )}
                                     {param.description && (
                                         <span style={{ display: 'block', fontSize: '10px', fontWeight: 'normal' }}>
                                             {param.description}
@@ -59,20 +153,34 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                                         <input
                                             type="number"
                                             className="property-input"
-                                            value={value}
-                                            min={param.min}
-                                            max={param.max}
-                                            step={param.step}
-                                            onChange={(e) => handleParameterChange(param.id, parseFloat(e.target.value))}
+                                            value={typeof displayValue === 'number' ? displayValue.toFixed(param.displayDecimals ?? 2) : displayValue}
+                                            min={minValue}
+                                            max={maxValue}
+                                            step={stepValue}
+                                            onChange={(e) => {
+                                                const newDisplayValue = parseFloat(e.target.value);
+                                                if (param.displayMin !== undefined || param.displayMax !== undefined) {
+                                                    handleDisplayValueChange(param.id, newDisplayValue);
+                                                } else {
+                                                    handleParameterChange(param.id, newDisplayValue);
+                                                }
+                                            }}
                                         />
                                         <input
                                             type="range"
                                             style={{ flex: 1 }}
-                                            value={value}
-                                            min={param.min}
-                                            max={param.max}
-                                            step={param.step}
-                                            onChange={(e) => handleParameterChange(param.id, parseFloat(e.target.value))}
+                                            value={displayValue}
+                                            min={minValue}
+                                            max={maxValue}
+                                            step={stepValue}
+                                            onChange={(e) => {
+                                                const newDisplayValue = parseFloat(e.target.value);
+                                                if (param.displayMin !== undefined || param.displayMax !== undefined) {
+                                                    handleDisplayValueChange(param.id, newDisplayValue);
+                                                } else {
+                                                    handleParameterChange(param.id, newDisplayValue);
+                                                }
+                                            }}
                                         />
                                     </div>
                                 )}
@@ -80,10 +188,10 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                                 {param.type === 'select' && (
                                     <select
                                         className="property-input"
-                                        value={value}
+                                        value={block.parameters[param.id] ?? param.default}
                                         onChange={(e) => handleParameterChange(param.id, e.target.value)}
                                     >
-                                        {param.options?.map(opt => (
+                                        {param.options?.map((opt: any) => (
                                             <option key={opt.value} value={opt.value}>
                                                 {opt.label}
                                             </option>
@@ -94,7 +202,7 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                                 {param.type === 'boolean' && (
                                     <input
                                         type="checkbox"
-                                        checked={value}
+                                        checked={block.parameters[param.id] ?? param.default}
                                         onChange={(e) => handleParameterChange(param.id, e.target.checked)}
                                     />
                                 )}

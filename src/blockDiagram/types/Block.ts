@@ -24,6 +24,15 @@ export interface BlockParameter {
     step?: number;
     options?: Array<{ label: string; value: any }>;
     description?: string;
+    // Display formatting for UI (slider shows these values)
+    displayMin?: number;
+    displayMax?: number;
+    displayStep?: number;
+    displayDecimals?: number;
+    displayUnit?: string;
+    // Conversion functions between display value and code value
+    toDisplay?: (codeValue: number) => number;
+    fromDisplay?: (displayValue: number) => number;
 }
 
 export interface BlockMetadata {
@@ -169,4 +178,20 @@ export interface IBlockDefinition {
      * Get metadata about this block type
      */
     getMetadata(): BlockMetadata;
+    
+    /**
+     * Convert a code value to display value for a specific parameter
+     * @param parameterId The parameter ID
+     * @param codeValue The code value to convert
+     * @returns The display value
+     */
+    getDisplayValue(parameterId: string, codeValue: number): number;
+    
+    /**
+     * Convert a display value to code value for a specific parameter
+     * @param parameterId The parameter ID
+     * @param displayValue The display value to convert
+     * @returns The code value
+     */
+    getCodeValue(parameterId: string, displayValue: number): number;
 }

@@ -97,6 +97,48 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                     });
                     return;
                     
+                case 'convertToDisplay':
+                    // Convert code value to display value for a parameter
+                    const blockDef = blockRegistry.getBlock(e.blockType);
+                    if (blockDef) {
+                        try {
+                            const displayValue = blockDef.getDisplayValue(e.parameterId, e.codeValue);
+                            webviewPanel.webview.postMessage({
+                                type: 'convertToDisplayResponse',
+                                requestId: e.requestId,
+                                displayValue
+                            });
+                        } catch (error) {
+                            webviewPanel.webview.postMessage({
+                                type: 'convertToDisplayResponse',
+                                requestId: e.requestId,
+                                error: error instanceof Error ? error.message : 'Unknown error'
+                            });
+                        }
+                    }
+                    return;
+                    
+                case 'convertToCode':
+                    // Convert display value to code value for a parameter
+                    const blockDefForCode = blockRegistry.getBlock(e.blockType);
+                    if (blockDefForCode) {
+                        try {
+                            const codeValue = blockDefForCode.getCodeValue(e.parameterId, e.displayValue);
+                            webviewPanel.webview.postMessage({
+                                type: 'convertToCodeResponse',
+                                requestId: e.requestId,
+                                codeValue
+                            });
+                        } catch (error) {
+                            webviewPanel.webview.postMessage({
+                                type: 'convertToCodeResponse',
+                                requestId: e.requestId,
+                                error: error instanceof Error ? error.message : 'Unknown error'
+                            });
+                        }
+                    }
+                    return;
+                
                 case 'savePaletteState':
                     // Save the expanded categories to workspace state
                     await this.context.workspaceState.update('blockDiagram.expandedCategories', e.expandedCategories);
