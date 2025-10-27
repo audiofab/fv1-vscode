@@ -108,6 +108,11 @@
         "category": "FV-1"
       },
       {
+        "command": "fv1.compileBlockDiagram",
+        "title": "Compile block diagram to assembly",
+        "category": "FV-1"
+      },
+      {
         "command": "fv1.programSpnBank",
         "title": "Program Bank",
         "category": "FV-1"
@@ -207,6 +212,10 @@
         {
           "command": "fv1.assembleToHex",
           "when": "resourceExtname == .spn"
+        },
+        {
+          "command": "fv1.compileBlockDiagram",
+          "when": "resourceExtname == .spndiagram"
         },
         {
           "command": "fv1.loadHexToEeprom",

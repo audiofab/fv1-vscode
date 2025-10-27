@@ -90,10 +90,6 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                     this.updateTextDocument(document, e.graph);
                     return;
                     
-                case 'compile':
-                    await this.compileGraph(document, e.graph);
-                    return;
-                    
                 case 'getBlockMetadata':
                     webviewPanel.webview.postMessage({
                         type: 'blockMetadata',

@@ -14,6 +14,9 @@ import { BlockDiagramEditorProvider } from './blockDiagram/editor/BlockDiagramEd
 import { FV1HoverProvider } from './fv1HoverProvider.js';
 import { FV1DefinitionProvider } from './fv1DefinitionProvider.js';
 import { FV1DocumentManager } from './fv1DocumentManager.js';
+import { GraphCompiler } from './blockDiagram/compiler/GraphCompiler.js';
+import { blockRegistry } from './blockDiagram/blocks/BlockRegistry.js';
+import { BlockGraph } from './blockDiagram/types/Graph.js';
 
 const FV1_EEPROM_SLOT_SIZE_BYTES = 512; // Each FV-1 slot is 512 bytes
 
@@ -22,6 +25,51 @@ async function outputWindow(outputChannel: vscode.OutputChannel, message: string
     const showOutputWindow: boolean | undefined = config.get<boolean>('autoShowOutputWindow');
     if (showOutputWindow ?? true) outputChannel.show(true);
     isLine ? outputChannel.appendLine(message) : outputChannel.append(message);
+}
+
+/**
+ * Compile a .spndiagram file to .spn assembly code
+ * Returns the assembly code as a string, or null if compilation failed
+ */
+async function compileBlockDiagram(diagramPath: string, outputChannel: vscode.OutputChannel): Promise<string | null> {
+    try {
+        outputWindow(outputChannel, `[INFO] 🔧 Compiling block diagram ${path.basename(diagramPath)}...`);
+        
+        // Read the .spndiagram file
+        const content = fs.readFileSync(diagramPath, 'utf8');
+        const graph: BlockGraph = JSON.parse(content);
+        
+        // Compile the graph to assembly
+        const compiler = new GraphCompiler(blockRegistry);
+        const result = compiler.compile(graph);
+        
+        if (result.success && result.assembly) {
+            const stats = result.statistics!;
+            outputWindow(outputChannel, 
+                `[SUCCESS] ✅ Block diagram compiled successfully - ` +
+                `Instructions: ${stats.instructionsUsed}/128, ` +
+                `Registers: ${stats.registersUsed}/32, ` +
+                `Memory: ${stats.memoryUsed}/32768`
+            );
+            
+            // Show warnings if any
+            if (result.warnings && result.warnings.length > 0) {
+                result.warnings.forEach(warn => 
+                    outputWindow(outputChannel, `[WARNING] ⚠ ${warn}`)
+                );
+            }
+            
+            return result.assembly;
+        } else {
+            const errors = result.errors || ['Unknown compilation error'];
+            outputWindow(outputChannel, `[ERROR] ❌ Block diagram compilation failed:`);
+            errors.forEach(err => outputWindow(outputChannel, `  • ${err}`));
+            return null;
+        }
+    } catch (e) {
+        outputWindow(outputChannel, `[ERROR] ❌ Failed to compile block diagram: ${e}`);
+        return null;
+    }
 }
 
 async function assembleFV1(outputChannel: vscode.OutputChannel, documentManager: FV1DocumentManager): Promise<FV1AssemblerResult | undefined> {
@@ -436,13 +484,13 @@ async function exportBankToHex(outputChannel: vscode.OutputChannel, item?: any):
             bankUri = pick.uri;
         }
 
-        // Save all dirty .spn files before assembling
-        const dirtySpnDocs = vscode.workspace.textDocuments.filter(doc => 
-            doc.isDirty && doc.fileName.endsWith('.spn')
+        // Save all dirty .spn and .spndiagram files before assembling
+        const dirtyDocs = vscode.workspace.textDocuments.filter(doc => 
+            doc.isDirty && (doc.fileName.endsWith('.spn') || doc.fileName.endsWith('.spndiagram'))
         );
-        if (dirtySpnDocs.length > 0) {
-            outputWindow(outputChannel, `[INFO] 💾 Saving ${dirtySpnDocs.length} unsaved .spn file(s)...`);
-            for (const doc of dirtySpnDocs) {
+        if (dirtyDocs.length > 0) {
+            outputWindow(outputChannel, `[INFO] 💾 Saving ${dirtyDocs.length} unsaved file(s)...`);
+            for (const doc of dirtyDocs) {
                 const saved = await doc.save();
                 if (!saved) {
                     vscode.window.showErrorMessage(`Failed to save ${path.basename(doc.fileName)}. Export aborted.`);
@@ -473,8 +521,22 @@ async function exportBankToHex(outputChannel: vscode.OutputChannel, item?: any):
                 continue;
             }
 
+            // Handle .spndiagram files - compile them first
+            let content: string;
+            const isBlockDiagram = fsPath.toLowerCase().endsWith('.spndiagram');
+            
+            if (isBlockDiagram) {
+                const assembly = await compileBlockDiagram(fsPath, outputChannel);
+                if (!assembly) {
+                    outputWindow(outputChannel, `[ERROR] ❌ Skipping slot ${slot.slot}: failed to compile block diagram ${path.basename(fsPath)}`);
+                    continue;
+                }
+                content = assembly;
+            } else {
+                content = fs.readFileSync(fsPath, 'utf8');
+            }
+
             // Assemble the program
-            const content = fs.readFileSync(fsPath, 'utf8');
             const assembler = new FV1Assembler({ 
                 fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true 
             });
@@ -687,17 +749,95 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    const compileBlockDiagramCmd = vscode.commands.registerCommand('fv1.compileBlockDiagram', async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showErrorMessage('No active editor');
+            return;
+        }
+        
+        const document = editor.document;
+        if (!document.fileName.endsWith('.spndiagram')) {
+            vscode.window.showErrorMessage('Active file is not a block diagram (.spndiagram)');
+            return;
+        }
+        
+        // Save the document if it has unsaved changes
+        if (document.isDirty) {
+            const saved = await document.save();
+            if (!saved) {
+                vscode.window.showErrorMessage('Failed to save document. Compilation aborted.');
+                return;
+            }
+            outputWindow(outputChannel, `[INFO] 💾 Saved ${path.basename(document.fileName)}`);
+        }
+        
+        try {
+            outputWindow(outputChannel, `[INFO] 🔧 Compiling block diagram ${path.basename(document.fileName)}...`);
+            
+            // Read and parse the block diagram
+            const content = fs.readFileSync(document.fileName, 'utf8');
+            const graph: BlockGraph = JSON.parse(content);
+            
+            // Compile the graph
+            const compiler = new GraphCompiler(blockRegistry);
+            const result = compiler.compile(graph);
+            
+            if (result.success && result.assembly) {
+                // Create .spn file path
+                const spnPath = document.fileName.replace('.spndiagram', '.spn');
+                
+                // Write assembly to .spn file
+                fs.writeFileSync(spnPath, result.assembly, 'utf8');
+                
+                // Show success message with statistics
+                const stats = result.statistics!;
+                const successMsg = 
+                    `✅ Compiled successfully! ` +
+                    `Instructions: ${stats.instructionsUsed}/128, ` +
+                    `Registers: ${stats.registersUsed}/32, ` +
+                    `Memory: ${stats.memoryUsed}/32768`;
+                
+                vscode.window.showInformationMessage(successMsg);
+                outputWindow(outputChannel, `[SUCCESS] ${successMsg}`);
+                
+                // Open the .spn file
+                const doc = await vscode.workspace.openTextDocument(spnPath);
+                await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+                
+                // Show warnings if any
+                if (result.warnings && result.warnings.length > 0) {
+                    result.warnings.forEach(warn => 
+                        outputWindow(outputChannel, `[WARNING] ⚠ ${warn}`)
+                    );
+                    vscode.window.showWarningMessage(`Warnings: ${result.warnings.join(', ')}`);
+                }
+            } else {
+                // Show errors
+                const errors = result.errors || ['Unknown compilation error'];
+                vscode.window.showErrorMessage(`Compilation failed: ${errors[0]}`);
+                outputWindow(outputChannel, `[ERROR] ❌ Block diagram compilation failed:`);
+                errors.forEach(err => outputWindow(outputChannel, `  • ${err}`));
+            }
+        } catch (error) {
+            const errorMsg = `Failed to compile block diagram: ${error}`;
+            vscode.window.showErrorMessage(errorMsg);
+            outputWindow(outputChannel, `[ERROR] ❌ ${errorMsg}`);
+            console.error('Error compiling block diagram:', error);
+        }
+    });
+
     const programAllCmd = vscode.commands.registerCommand('fv1.programSpnBank', async (item?: any) => {
         const files = item && item.resourceUri ? [item.resourceUri] : await vscode.workspace.findFiles('**/*.spnbank', '**/node_modules/**');
         if (!files || files.length === 0) { vscode.window.showErrorMessage('No .spnbank files found'); return; }
         
-        // Save all dirty .spn files before assembling
-        const dirtySpnDocs = vscode.workspace.textDocuments.filter(doc => 
-            doc.isDirty && doc.fileName.endsWith('.spn')
+        // Save all dirty .spn and .spndiagram files before assembling
+        const dirtyDocs = vscode.workspace.textDocuments.filter(doc => 
+            doc.isDirty && (doc.fileName.endsWith('.spn') || doc.fileName.endsWith('.spndiagram'))
         );
-        if (dirtySpnDocs.length > 0) {
-            outputWindow(outputChannel, `[INFO] 💾 Saving ${dirtySpnDocs.length} unsaved .spn file(s)...`);
-            for (const doc of dirtySpnDocs) {
+        if (dirtyDocs.length > 0) {
+            outputWindow(outputChannel, `[INFO] 💾 Saving ${dirtyDocs.length} unsaved file(s)...`);
+            for (const doc of dirtyDocs) {
                 const saved = await doc.save();
                 if (!saved) {
                     vscode.window.showErrorMessage(`Failed to save ${path.basename(doc.fileName)}. Programming aborted.`);
@@ -729,7 +869,22 @@ export function activate(context: vscode.ExtensionContext) {
                         continue; 
                     }
                     
-                    const content = fs.readFileSync(fsPath, 'utf8');
+                    // Handle .spndiagram files - compile them first
+                    let content: string;
+                    const isBlockDiagram = fsPath.toLowerCase().endsWith('.spndiagram');
+                    
+                    if (isBlockDiagram) {
+                        const assembly = await compileBlockDiagram(fsPath, outputChannel);
+                        if (!assembly) {
+                            outputWindow(outputChannel, `[ERROR] ❌ Skipping slot ${s.slot}: failed to compile block diagram ${path.basename(fsPath)}`);
+                            hasAssemblyErrors = true;
+                            continue;
+                        }
+                        content = assembly;
+                    } else {
+                        content = fs.readFileSync(fsPath, 'utf8');
+                    }
+                    
                     const assembler = new FV1Assembler({ fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true });
                     outputWindow(outputChannel, `[INFO] 🔧 Assembling slot ${s.slot}: ${path.basename(fsPath)}...`);
                     const result = assembler.assemble(content);
@@ -868,7 +1023,21 @@ export function activate(context: vscode.ExtensionContext) {
                 }
             }
             
-            const content = fs.readFileSync(fsPath, 'utf8');
+            // Handle .spndiagram files - compile them first
+            let content: string;
+            const isBlockDiagram = fsPath.toLowerCase().endsWith('.spndiagram');
+            
+            if (isBlockDiagram) {
+                const assembly = await compileBlockDiagram(fsPath, outputChannel);
+                if (!assembly) {
+                    vscode.window.showErrorMessage(`Failed to compile block diagram: ${path.basename(fsPath)}`);
+                    return;
+                }
+                content = assembly;
+            } else {
+                content = fs.readFileSync(fsPath, 'utf8');
+            }
+            
             const assembler = new FV1Assembler({ fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true });
             outputWindow(outputChannel, `[INFO] 🔧 Assembling ${path.basename(fsPath)} for slot ${slotNum}...`);
             const result = assembler.assemble(content);
@@ -911,6 +1080,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         createCmd,
         createBlockDiagramCmd,
+        compileBlockDiagramCmd,
         programAllCmd,
         unassignCmd,
         programThisSlotCmd,

@@ -113,9 +113,10 @@ export class SpnBankProvider implements vscode.TreeDataProvider<vscode.TreeItem>
     }).filter(u => !!u);
     if (uris.length === 0) return;
     const fileUri = uris[0];
-    // Restrict to .spn files only
-    if (!fileUri.fsPath.toLowerCase().endsWith('.spn')) {
-      vscode.window.showWarningMessage('Only .spn files can be assigned to slots');
+    // Restrict to .spn and .spndiagram files only
+    const lowerPath = fileUri.fsPath.toLowerCase();
+    if (!lowerPath.endsWith('.spn') && !lowerPath.endsWith('.spndiagram')) {
+      vscode.window.showWarningMessage('Only .spn and .spndiagram files can be assigned to slots');
       return;
     }
     const bankDir = path.dirname(bankUri.fsPath);

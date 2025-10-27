@@ -286,12 +286,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         };
         saveGraph(newGraph);
         setSelectedConnectionId(null);
-    }, [graph, saveGraph]);
-    
-    // Compile
-    const handleCompile = useCallback(() => {
-        vscode.postMessage({ type: 'compile', graph });
-    }, [vscode, graph]);
+    }, [selectedConnectionId, graph, saveGraph]);
     
     // Handle wheel (zoom)
     const handleWheel = useCallback((e: any) => {
@@ -437,7 +432,6 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
             <Toolbar
-                onCompile={handleCompile}
                 stats={{
                     blocks: graph.blocks.length,
                     connections: graph.connections.length,

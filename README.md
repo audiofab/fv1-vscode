@@ -42,7 +42,9 @@ The *Easy Spin Banks* view looks like the following:
 
 ![add_program](doc/add_program.png)
 
-You assign programs to slots by dragging them from the *File Explorer* onto a slot in a bank. The underlying `.spnbank` file is just a JSON file and is saved automatically in your workspace as you modify the bank in this view.
+You assign programs to slots by dragging them from the *File Explorer* onto a slot in a bank. You can drag either `.spn` assembly files or `.spndiagram` block diagram files. The underlying `.spnbank` file is just a JSON file and is saved automatically in your workspace as you modify the bank in this view.
+
+When you program a slot that contains a `.spndiagram` file, the extension automatically compiles it to assembly code before downloading it to the pedal.
 
 You can remove a program by selecting the *Unassign slot* button on the program slot and you can quickly program a single slot in a bank with the *Program this slot* button.
 
@@ -52,7 +54,7 @@ Once you have your bank configured as you like, you can program the entire bank 
 
 ![program_bank](doc/program_bank.png)
 
-When you back up your `.spnbank` file, make sure you include the `.spn` files it references as they are not bundled in any way. They are simply stored in the `.spnbank` file as relative pathnames.
+When you back up your `.spnbank` file, make sure you include the referenced files (`.spn` or `.spndiagram`) as they are not bundled. They are simply stored in the `.spnbank` file as relative pathnames.
 
 ## Settings
 
