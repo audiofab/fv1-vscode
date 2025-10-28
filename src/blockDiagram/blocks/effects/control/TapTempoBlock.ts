@@ -70,9 +70,9 @@ export class TapTempoBlock extends BaseBlock {
         const rampReg = ctx.allocateRegister(this.type, 'ramp');
         
         code.push(`; Tap Tempo Initialization`);
-        code.push(`or ${this.formatS15(4096 / 32768.0)}  ; Load RMP0 frequency`);
-        code.push(`wrax RMP0_RATE, ${this.formatS15(0.99)}  ; Set rate, load 0.99`);
-        code.push(`wrax ${latchReg}, ${this.formatS15(defaultTime / maxTime)}`);
+        code.push(`or ${this.formatS1_14(4096 / 32768.0)}  ; Load RMP0 frequency`);
+        code.push(`wrax RMP0_RATE, ${this.formatS1_14(0.99)}  ; Set rate, load 0.99`);
+        code.push(`wrax ${latchReg}, ${this.formatS1_14(defaultTime / maxTime)}`);
         code.push(`wrax ${rampReg}, 0`);
         
         return code;
@@ -108,12 +108,12 @@ export class TapTempoBlock extends BaseBlock {
         code.push(`sof 1.0, -0.5`);
         code.push(`skp neg, 4`);
         code.push(`ldax ${dbReg}`);
-        code.push(`sof 1.0, ${this.formatS15(count)}`);
+        code.push(`sof 1.0, ${this.formatS10(count)}`);
         code.push(`wrax ${dbReg}, 0`);
         code.push(`skp zro, 3`);
         code.push(`; DOWN:`);
         code.push(`ldax ${dbReg}`);
-        code.push(`sof 1.0, ${this.formatS15(-count)}`);
+        code.push(`sof 1.0, ${this.formatS10(-count)}`);
         code.push(`wrax ${dbReg}, 0`);
         code.push('');
         
@@ -150,7 +150,7 @@ export class TapTempoBlock extends BaseBlock {
         code.push(`wrax ${taptempoReg}, 0  ; Sample tempo`);
         code.push(`skp zro, 12`);
         code.push(`; LOW:`);
-        code.push(`sof 0.0, ${this.formatS15(rampRate)}`);
+        code.push(`sof 0.0, ${this.formatS10(rampRate)}`);
         code.push(`wrax RMP0_RATE, 0  ; Set ramp rate`);
         code.push(`cho rdal, RMP0  ; Read ramp value`);
         code.push(`sof -2.0, 0.999`);

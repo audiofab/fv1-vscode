@@ -81,12 +81,12 @@ export class RingModulatorBlock extends BaseBlock {
         
         // Generate carrier oscillator using quadrature method
         code.push(`; Quadrature Oscillator`);
-        code.push(`rdax ${sReg}, ${this.formatS15(lfo)}  ; Read s register`);
+        code.push(`rdax ${sReg}, ${this.formatS1_14(lfo)}  ; Read s register`);
         if (freqCtrlReg) {
             code.push(`mulx ${freqCtrlReg}  ; Modulate frequency`);
         }
         code.push(`rdax ${cReg}, 1.0  ; Integrate with c`);
-        code.push(`wrax ${cReg}, ${this.formatS15(-lfo)}  ; Write c, keep -lfo*c`);
+        code.push(`wrax ${cReg}, ${this.formatS1_14(-lfo)}  ; Write c, keep -lfo*c`);
         if (freqCtrlReg) {
             code.push(`mulx ${freqCtrlReg}  ; Modulate frequency`);
         }

@@ -73,6 +73,8 @@ async function compileBlockDiagram(diagramPath: string, outputChannel: vscode.Ou
 }
 
 async function assembleFV1(outputChannel: vscode.OutputChannel, documentManager: FV1DocumentManager): Promise<FV1AssemblerResult | undefined> {
+    const verbose: boolean = vscode.workspace.getConfiguration('fv1').get<boolean>('verbose') ?? false;
+
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
         vscode.window.showErrorMessage('No active editor');
@@ -114,6 +116,9 @@ async function assembleFV1(outputChannel: vscode.OutputChannel, documentManager:
 
     // Add success message if no errors
     if (!hasErrors && result.machineCode && result.machineCode.length > 0) {
+        if (verbose) {
+            outputWindow(outputChannel, FV1Assembler.formatMachineCode(result.machineCode));
+        }
         outputWindow(outputChannel, `[SUCCESS] ✅ Assembly completed successfully - ${path.basename(document.fileName)}`);
     } else if (hasErrors) {
         outputWindow(outputChannel, `[ERROR] ❌ Assembly failed with errors - ${path.basename(document.fileName)}`);

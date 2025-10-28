@@ -122,7 +122,7 @@ export class DelayBlock extends BaseBlock {
             code.push(`ldax ${timeCtrlReg}  ; Load CV (0.0 to 1.0)`);
             // Scale CV to delay memory offset (0 to maxDelaySamples-1)
             // CV=0 gives short delay, CV=1 gives max delay
-            code.push(`sof ${this.formatS15(maxDelaySamples / 32768.0)}, 0.0  ; Scale to sample count`);
+            code.push(`sof ${this.formatS1_14(maxDelaySamples / 32768.0)}, 0.0  ; Scale to sample count`);
             code.push(`wrax ADDR_PTR, 0.0  ; Load into address pointer`);
             code.push('');
         }

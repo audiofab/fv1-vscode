@@ -175,7 +175,7 @@ export class ChorusBlock extends BaseBlock {
             const x3 = x1 / this.NUMBER_6554000;
             
             code.push(`; LFO Width control input`);
-            code.push(`rdax ${widthInReg}, ${this.formatS15(x3)}`);
+            code.push(`rdax ${widthInReg}, ${this.formatS1_14(x3)}`);
             const rangeReg = lfoSel === 0 ? 'SIN0_RANGE' : 'SIN1_RANGE';
             code.push(`wrax ${rangeReg}, 0`);
             code.push('');
@@ -186,7 +186,7 @@ export class ChorusBlock extends BaseBlock {
             const temp1 = rate / this.RATE_MAX;
             
             code.push(`; LFO Rate control input`);
-            code.push(`rdax ${rateInReg}, ${this.formatS15(temp1)}`);
+            code.push(`rdax ${rateInReg}, ${this.formatS1_14(temp1)}`);
             const rateReg = lfoSel === 0 ? 'SIN0_RATE' : 'SIN1_RATE';
             code.push(`wrax ${rateReg}, 0`);
             code.push('');

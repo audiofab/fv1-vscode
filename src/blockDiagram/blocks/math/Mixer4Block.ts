@@ -130,7 +130,7 @@ export class Mixer4Block extends BaseBlock {
         code.push('');
         
         if (input1Reg) {
-            code.push(`rdax ${input1Reg}, ${this.formatS15(gain1)}`);
+            code.push(`rdax ${input1Reg}, ${this.formatS1_14(gain1)}`);
             if (level1Reg) {
                 code.push(`mulx ${level1Reg}`);
             }
@@ -138,7 +138,7 @@ export class Mixer4Block extends BaseBlock {
         }
         
         if (input2Reg) {
-            code.push(`rdax ${input2Reg}, ${this.formatS15(gain2)}`);
+            code.push(`rdax ${input2Reg}, ${this.formatS1_14(gain2)}`);
             if (level2Reg) {
                 code.push(`mulx ${level2Reg}`);
             }
@@ -149,7 +149,7 @@ export class Mixer4Block extends BaseBlock {
         }
         
         if (input3Reg) {
-            code.push(`rdax ${input3Reg}, ${this.formatS15(gain3)}`);
+            code.push(`rdax ${input3Reg}, ${this.formatS1_14(gain3)}`);
             if (level3Reg) {
                 code.push(`mulx ${level3Reg}`);
             }
@@ -162,7 +162,7 @@ export class Mixer4Block extends BaseBlock {
         }
         
         if (input4Reg) {
-            code.push(`rdax ${input4Reg}, ${this.formatS15(gain4)}`);
+            code.push(`rdax ${input4Reg}, ${this.formatS1_14(gain4)}`);
             if (level4Reg) {
                 code.push(`mulx ${level4Reg}`);
             }

@@ -122,7 +122,7 @@ export class MyEffectBlock extends BaseBlock {
         
         // Generate FV-1 assembly
         code.push('; My Effect Block');
-        code.push(`rdax ${inputReg}, ${this.formatS15(amount)}`);
+        code.push(`rdax ${inputReg}, ${this.formatS1_14(amount)}`);
         code.push(`wrax ${outputReg}, 0.0`);
         code.push('');
         

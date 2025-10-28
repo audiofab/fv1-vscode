@@ -96,7 +96,7 @@ export class Mixer2Block extends BaseBlock {
         
         // Process Input 1
         if (input1Reg) {
-            code.push(`rdax ${input1Reg}, ${this.formatS15(gain1)}`);
+            code.push(`rdax ${input1Reg}, ${this.formatS1_14(gain1)}`);
             if (level1Reg) {
                 code.push(`mulx ${level1Reg}`);
             }
@@ -109,7 +109,7 @@ export class Mixer2Block extends BaseBlock {
         
         // Process Input 2
         if (input2Reg) {
-            code.push(`rdax ${input2Reg}, ${this.formatS15(gain2)}`);
+            code.push(`rdax ${input2Reg}, ${this.formatS1_14(gain2)}`);
             if (level2Reg) {
                 code.push(`mulx ${level2Reg}`);
                 // If input 1 was processed, add it back

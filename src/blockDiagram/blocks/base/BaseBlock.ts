@@ -254,8 +254,27 @@ export abstract class BaseBlock implements IBlockDefinition {
     }
     
     /**
+     * Helper: Format a number as FV-1 S1.14 fixed point
+     * Used by most FV-1 instructions (RDAX, SOF, MULX, etc.)
+     * Range: -2.0 to 1.99993896484
+     */
+    protected formatS1_14(value: number): string {
+        // Clamp to valid range
+        value = Math.max(-2.0, Math.min(1.99993896484, value));
+        
+        // Format with appropriate precision
+        if (value === 0) return '0.0';
+        if (value === 1.0) return '1.0';
+        if (value === -1.0) return '-1.0';
+        if (value === -2.0) return '-2.0';
+        
+        return value.toFixed(8);
+    }
+    
+    /**
      * Helper: Format a number as FV-1 S.15 fixed point
-     * Range: -1.0 to 0.99996948242 (represented as -1.0 to 1.0 in code)
+     * Used only by CHO SOF instruction
+     * Range: -1.0 to 0.99996948242
      */
     protected formatS15(value: number): string {
         // Clamp to valid range
@@ -263,10 +282,43 @@ export abstract class BaseBlock implements IBlockDefinition {
         
         // Format with appropriate precision
         if (value === 0) return '0.0';
-        if (value === 1.0) return '1.0';
         if (value === -1.0) return '-1.0';
         
-        return value.toFixed(6);
+        return value.toFixed(8);
+    }
+    
+    /**
+     * Helper: Format a number as FV-1 S.10 fixed point
+     * Used by some FV-1 instructions
+     * Range: -1.0 to 0.9990234375
+     */
+    protected formatS10(value: number): string {
+        // Clamp to valid range
+        value = Math.max(-1.0, Math.min(0.9990234375, value));
+        
+        // Format with appropriate precision
+        if (value === 0) return '0.0';
+        if (value === -1.0) return '-1.0';
+        
+        return value.toFixed(8);
+    }
+    
+    /**
+     * Helper: Format a number as FV-1 S1.9 fixed point
+     * Used by some FV-1 instructions
+     * Range: -2.0 to 1.998046875
+     */
+    protected formatS1_9(value: number): string {
+        // Clamp to valid range
+        value = Math.max(-2.0, Math.min(1.998046875, value));
+        
+        // Format with appropriate precision
+        if (value === 0) return '0.0';
+        if (value === 1.0) return '1.0';
+        if (value === -1.0) return '-1.0';
+        if (value === -2.0) return '-2.0';
+        
+        return value.toFixed(8);
     }
     
     /**

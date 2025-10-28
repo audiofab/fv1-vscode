@@ -72,7 +72,7 @@ export class PhaserBlock extends BaseBlock {
         const code: string[] = [];
         
         code.push(`; Phaser Initialization`);
-        code.push(`or ${this.formatS15(32767 / 32768.0)}  ; Load SIN1 frequency`);
+        code.push(`or ${this.formatS1_14(32767 / 32768.0)}  ; Load SIN1 frequency`);
         code.push(`wrax SIN1_RATE, 0`);
         
         return code;
@@ -131,7 +131,7 @@ export class PhaserBlock extends BaseBlock {
         if (widthCtrlReg) {
             code.push(`rdax ${widthCtrlReg}, 1.0  ; Load width from CV`);
         } else {
-            code.push(`sof 0.0, ${this.formatS15(defaultWidth)}  ; Default width`);
+            code.push(`sof 0.0, ${this.formatS1_14(defaultWidth)}  ; Default width`);
         }
         const depthReg = ctx.getScratchRegister();
         code.push(`wrax ${depthReg}, 0.9`);
@@ -143,7 +143,7 @@ export class PhaserBlock extends BaseBlock {
             code.push(`mulx ${speedCtrlReg}`);
             code.push(`sof 0.83, 0.002`);
         } else {
-            code.push(`sof 0.0, ${this.formatS15(defaultSpeed)}  ; Default speed`);
+            code.push(`sof 0.0, ${this.formatS1_14(defaultSpeed)}  ; Default speed`);
         }
         code.push(`wrax SIN1_RATE, 0`);
         code.push('');
@@ -166,7 +166,7 @@ export class PhaserBlock extends BaseBlock {
         code.push(`rdax ${p1}, 1.0`);
         code.push(`wrax ${temp}, 1.0`);
         code.push(`mulx ${phaseReg}`);
-        code.push(`rdax ${inputReg}, ${this.formatS15(1.0 / 64.0)}`);
+        code.push(`rdax ${inputReg}, ${this.formatS1_14(1.0 / 64.0)}`);
         code.push(`wrax ${p1}, -1.0`);
         code.push(`mulx ${phaseReg}`);
         
