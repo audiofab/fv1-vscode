@@ -76,10 +76,24 @@ export const ConnectionComponent: React.FC<ConnectionComponentProps> = ({
         return null;
     }
     
-    // Calculate bezier control points
+    // Calculate bezier control points with guaranteed perpendicular segments
     const dx = toX - fromX;
-    const controlPoint1X = fromX + dx * 0.5;
-    const controlPoint2X = toX - dx * 0.5;
+    const dy = toY - fromY;
+    
+    // Guaranteed minimum perpendicular segment length (always visible)
+    // Use a larger minimum to ensure connections are always visible at ports
+    const minPerpendicularLength = 80; // Minimum 80 pixels horizontal from each port
+    
+    // For very close blocks, still maintain minimum distance
+    // For far blocks, can use a percentage-based approach
+    const perpendicularLength = Math.max(
+        minPerpendicularLength, 
+        Math.min(150, Math.abs(dx) * 0.4) // Max 150px, or 40% of distance
+    );
+    
+    // Control points create guaranteed horizontal segments at both ends
+    const controlPoint1X = fromX + perpendicularLength;
+    const controlPoint2X = toX - perpendicularLength;
     
     const points = [
         fromX, fromY,

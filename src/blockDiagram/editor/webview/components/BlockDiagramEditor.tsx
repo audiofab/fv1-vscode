@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Stage, Layer } from 'react-konva';
+import { Stage, Layer, Line } from 'react-konva';
 import { BlockGraph, createEmptyGraph } from '../../../types/Graph';
 import { Block } from '../../../types/Block';
 import { Connection } from '../../../types/Connection';
@@ -35,12 +35,17 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
     const [isPaletteCollapsed, setIsPaletteCollapsed] = useState(false);
     
     // Selection state
-    const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+    const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
     const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
     
     // Drag state
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    
+    // Lasso selection state
+    const [isLassoSelecting, setIsLassoSelecting] = useState(false);
+    const [lassoStart, setLassoStart] = useState<{ x: number; y: number } | null>(null);
+    const [lassoEnd, setLassoEnd] = useState<{ x: number; y: number } | null>(null);
     
     // Connection drawing state
     const [connectingFrom, setConnectingFrom] = useState<{ blockId: string; portId: string } | null>(null);
@@ -150,7 +155,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         };
         
         saveGraph(newGraph);
-        setSelectedBlockId(newBlock.id);
+        setSelectedBlockIds([newBlock.id]);
     }, [graph, blockMetadata, saveGraph]);
     
     // Update block
@@ -164,6 +169,49 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         saveGraph(newGraph);
     }, [graph, saveGraph]);
     
+    // Update multiple blocks (for multi-select drag)
+    const updateBlocks = useCallback((updates: Map<string, Partial<Block>>) => {
+        const newGraph = {
+            ...graph,
+            blocks: graph.blocks.map(b => {
+                const update = updates.get(b.id);
+                return update ? { ...b, ...update } : b;
+            })
+        };
+        saveGraph(newGraph);
+    }, [graph, saveGraph]);
+    
+    // Move block (handles multi-selection)
+    const moveBlock = useCallback((blockId: string, delta: { x: number; y: number }) => {
+        if (selectedBlockIds.includes(blockId) && selectedBlockIds.length > 1) {
+            // Multi-select: move all selected blocks together
+            const updates = new Map<string, Partial<Block>>();
+            selectedBlockIds.forEach(id => {
+                const block = graph.blocks.find(b => b.id === id);
+                if (block) {
+                    updates.set(id, {
+                        position: {
+                            x: block.position.x + delta.x,
+                            y: block.position.y + delta.y
+                        }
+                    });
+                }
+            });
+            updateBlocks(updates);
+        } else {
+            // Single block: just update this one
+            const block = graph.blocks.find(b => b.id === blockId);
+            if (block) {
+                updateBlock(blockId, {
+                    position: {
+                        x: block.position.x + delta.x,
+                        y: block.position.y + delta.y
+                    }
+                });
+            }
+        }
+    }, [selectedBlockIds, graph.blocks, updateBlock, updateBlocks]);
+    
     // Delete block
     const deleteBlock = useCallback((blockId: string) => {
         const newGraph = {
@@ -174,7 +222,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             )
         };
         saveGraph(newGraph);
-        setSelectedBlockId(null);
+        setSelectedBlockIds([]);
     }, [graph, saveGraph]);
     
     // Validate connection before adding
@@ -318,19 +366,39 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         const clickedOnEmpty = e.target === e.target.getStage();
         
         if (clickedOnEmpty) {
-            // Deselect everything
-            setSelectedBlockId(null);
+            const stage = stageRef.current;
+            if (!stage) return;
+            
+            const pointerPos = stage.getPointerPosition();
+            const canvasX = (pointerPos.x - pan.x) / zoom;
+            const canvasY = (pointerPos.y - pan.y) / zoom;
+            
+            // Deselect connections when clicking on empty canvas
             setSelectedConnectionId(null);
             
-            // Pan with left mouse button on empty canvas, or middle mouse, or shift+drag
-            if (e.evt.button === 0 || e.evt.button === 1 || e.evt.shiftKey) {
-                setIsDragging(true);
-                setDragStart({ x: e.evt.clientX - pan.x, y: e.evt.clientY - pan.y });
+            // Check if Ctrl is held - start lasso selection
+            if (e.evt.ctrlKey || e.evt.metaKey) {
+                // Don't deselect - we're adding to selection with lasso
+                setIsLassoSelecting(true);
+                setLassoStart({ x: canvasX, y: canvasY });
+                setLassoEnd({ x: canvasX, y: canvasY });
+            } else {
+                // Deselect all blocks
+                setSelectedBlockIds([]);
+                
+                // Pan with left mouse button on empty canvas, or middle mouse, or shift+drag
+                if (e.evt.button === 0 || e.evt.button === 1 || e.evt.shiftKey) {
+                    setIsDragging(true);
+                    setDragStart({ x: e.evt.clientX - pan.x, y: e.evt.clientY - pan.y });
+                }
             }
         }
-    }, [pan]);
+    }, [pan, zoom]);
     
     const handleCanvasMouseMove = useCallback((e: any) => {
+        const stage = stageRef.current;
+        if (!stage) return;
+        
         if (isDragging) {
             setPan({
                 x: e.evt.clientX - dragStart.x,
@@ -338,37 +406,87 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             });
         }
         
+        // Handle lasso selection
+        if (isLassoSelecting && lassoStart) {
+            const pointerPos = stage.getPointerPosition();
+            const canvasX = (pointerPos.x - pan.x) / zoom;
+            const canvasY = (pointerPos.y - pan.y) / zoom;
+            setLassoEnd({ x: canvasX, y: canvasY });
+        }
+        
         // Update connection preview - use stage coordinates adjusted for zoom/pan
         if (connectingFrom) {
-            const stage = stageRef.current;
-            if (stage) {
-                const pointerPos = stage.getPointerPosition();
-                if (pointerPos) {
-                    // Convert screen coordinates to canvas coordinates
-                    setConnectionPreview({
-                        x: (pointerPos.x - pan.x) / zoom,
-                        y: (pointerPos.y - pan.y) / zoom
-                    });
-                }
+            const pointerPos = stage.getPointerPosition();
+            if (pointerPos) {
+                // Convert screen coordinates to canvas coordinates
+                setConnectionPreview({
+                    x: (pointerPos.x - pan.x) / zoom,
+                    y: (pointerPos.y - pan.y) / zoom
+                });
             }
         }
-    }, [isDragging, dragStart, connectingFrom, pan, zoom]);
+    }, [isDragging, dragStart, connectingFrom, pan, zoom, isLassoSelecting, lassoStart]);
     
     const handleCanvasMouseUp = useCallback(() => {
         setIsDragging(false);
+        
+        // Complete lasso selection
+        if (isLassoSelecting && lassoStart && lassoEnd) {
+            // Calculate lasso bounding box
+            const minX = Math.min(lassoStart.x, lassoEnd.x);
+            const maxX = Math.max(lassoStart.x, lassoEnd.x);
+            const minY = Math.min(lassoStart.y, lassoEnd.y);
+            const maxY = Math.max(lassoStart.y, lassoEnd.y);
+            
+            // Find all blocks within lasso
+            const blocksInLasso = graph.blocks.filter(block => {
+                const metadata = blockMetadata.find(m => m.type === block.type);
+                const blockWidth = metadata?.width || 200;
+                const blockHeight = metadata?.height || 80;
+                
+                // Check if block overlaps with lasso rectangle
+                return (
+                    block.position.x < maxX &&
+                    block.position.x + blockWidth > minX &&
+                    block.position.y < maxY &&
+                    block.position.y + blockHeight > minY
+                );
+            }).map(b => b.id);
+            
+            // Add to existing selection (we're in Ctrl mode)
+            setSelectedBlockIds(prev => {
+                const newSelection = new Set([...prev, ...blocksInLasso]);
+                return Array.from(newSelection);
+            });
+            
+            setIsLassoSelecting(false);
+            setLassoStart(null);
+            setLassoEnd(null);
+        }
+        
         // Don't clear connecting state here - let it be cancelled by Escape or completing connection
-    }, []);
+    }, [isLassoSelecting, lassoStart, lassoEnd, graph.blocks, blockMetadata]);
     
     // Handle block selection
-    const handleBlockSelect = useCallback((blockId: string) => {
-        setSelectedBlockId(blockId);
+    const handleBlockSelect = useCallback((blockId: string, ctrlKey: boolean) => {
+        if (ctrlKey) {
+            // Ctrl+Click: toggle block in selection
+            setSelectedBlockIds(prev => 
+                prev.includes(blockId)
+                    ? prev.filter(id => id !== blockId)
+                    : [...prev, blockId]
+            );
+        } else {
+            // Regular click: select only this block
+            setSelectedBlockIds([blockId]);
+        }
         setSelectedConnectionId(null);
     }, []);
     
     // Handle connection selection
     const handleConnectionSelect = useCallback((connectionId: string) => {
         setSelectedConnectionId(connectionId);
-        setSelectedBlockId(null);
+        setSelectedBlockIds([]);
     }, []);
     
     // Handle port click (start connection)
@@ -390,22 +508,26 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Delete' || e.key === 'Backspace') {
-                if (selectedBlockId) {
-                    deleteBlock(selectedBlockId);
+                if (selectedBlockIds.length > 0) {
+                    // Delete all selected blocks
+                    selectedBlockIds.forEach(blockId => deleteBlock(blockId));
                 } else if (selectedConnectionId) {
                     deleteConnection(selectedConnectionId);
                 }
             } else if (e.key === 'Escape') {
-                setSelectedBlockId(null);
+                setSelectedBlockIds([]);
                 setSelectedConnectionId(null);
                 setConnectingFrom(null);
                 setConnectionPreview(null);
+                setIsLassoSelecting(false);
+                setLassoStart(null);
+                setLassoEnd(null);
             }
         };
         
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedBlockId, selectedConnectionId, deleteBlock, deleteConnection]);
+    }, [selectedBlockIds, selectedConnectionId, deleteBlock, deleteConnection]);
     
     // Handle drag and drop from palette
     const handleCanvasDrop = useCallback((e: React.DragEvent) => {
@@ -423,9 +545,9 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         e.preventDefault(); // Allow drop
     }, []);
     
-    // Get selected block
-    const selectedBlock = selectedBlockId 
-        ? graph.blocks.find(b => b.id === selectedBlockId) 
+    // Get selected block (only show properties if exactly one block selected)
+    const selectedBlock = selectedBlockIds.length === 1
+        ? graph.blocks.find(b => b.id === selectedBlockIds[0])
         : null;
     
     return (
@@ -490,15 +612,32 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                             />
                         )}
                         
+                        {/* Render lasso selection rectangle */}
+                        {isLassoSelecting && lassoStart && lassoEnd && (
+                            <Line
+                                points={[
+                                    lassoStart.x, lassoStart.y,
+                                    lassoEnd.x, lassoStart.y,
+                                    lassoEnd.x, lassoEnd.y,
+                                    lassoStart.x, lassoEnd.y,
+                                    lassoStart.x, lassoStart.y
+                                ]}
+                                stroke="#4A90E2"
+                                strokeWidth={1}
+                                dash={[5, 5]}
+                                listening={false}
+                            />
+                        )}
+                        
                         {/* Render blocks */}
                         {graph.blocks.map(block => (
                             <BlockComponent
                                 key={block.id}
                                 block={block}
                                 metadata={blockMetadata.find(m => m.type === block.type)}
-                                isSelected={block.id === selectedBlockId}
-                                onSelect={() => handleBlockSelect(block.id)}
-                                onMove={(newPos) => updateBlock(block.id, { position: newPos })}
+                                isSelected={selectedBlockIds.includes(block.id)}
+                                onSelect={(ctrlKey) => handleBlockSelect(block.id, ctrlKey)}
+                                onMove={(delta) => moveBlock(block.id, delta)}
                                 onPortClick={handlePortClick}
                             />
                         ))}
@@ -511,13 +650,13 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                     block={selectedBlock}
                     metadata={blockMetadata.find(m => m.type === selectedBlock.type)}
                     onUpdate={(updates) => updateBlock(selectedBlock.id, updates)}
-                    onClose={() => setSelectedBlockId(null)}
+                    onClose={() => setSelectedBlockIds([])}
                     vscode={vscode}
                 />
             )}
             
             <div className="footer">
-                Blocks: {graph.blocks.length} | Connections: {graph.connections.length} | Zoom: {Math.round(zoom * 100)}%
+                Blocks: {graph.blocks.length} | Connections: {graph.connections.length} | Zoom: {Math.round(zoom * 100)}% | Selected: {selectedBlockIds.length}
             </div>
         </div>
     );

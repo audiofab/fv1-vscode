@@ -2,7 +2,7 @@
  * Block Component - Renders a single block on the canvas
  */
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { Group, Rect, Text, Circle } from 'react-konva';
 import { Block, BlockMetadata } from '../../../../types/Block';
 
@@ -10,8 +10,8 @@ interface BlockComponentProps {
     block: Block;
     metadata?: BlockMetadata;
     isSelected: boolean;
-    onSelect: () => void;
-    onMove: (position: { x: number; y: number }) => void;
+    onSelect: (ctrlKey: boolean) => void;
+    onMove: (delta: { x: number; y: number }) => void;
     onPortClick: (blockId: string, portId: string, isOutput: boolean) => void;
 }
 
@@ -31,26 +31,47 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
     const portRadius = 6;
     const portSpacing = 20;
     
+    // Track last position to calculate delta
+    const lastPosRef = useRef({ x: block.position.x, y: block.position.y });
+    
     return (
         <Group
             x={block.position.x}
             y={block.position.y}
             draggable
+            onDragStart={() => {
+                // Reset tracking position at start of drag
+                lastPosRef.current = { x: block.position.x, y: block.position.y };
+            }}
             onDragMove={(e) => {
-                // Update position during drag for real-time connection updates
-                onMove({
-                    x: e.target.x(),
-                    y: e.target.y()
-                });
+                // Calculate delta from last position
+                const newX = e.target.x();
+                const newY = e.target.y();
+                const delta = {
+                    x: newX - lastPosRef.current.x,
+                    y: newY - lastPosRef.current.y
+                };
+                lastPosRef.current = { x: newX, y: newY };
+                onMove(delta);
             }}
             onDragEnd={(e) => {
-                onMove({
-                    x: e.target.x(),
-                    y: e.target.y()
-                });
+                // Final delta calculation
+                const newX = e.target.x();
+                const newY = e.target.y();
+                const delta = {
+                    x: newX - lastPosRef.current.x,
+                    y: newY - lastPosRef.current.y
+                };
+                if (delta.x !== 0 || delta.y !== 0) {
+                    onMove(delta);
+                }
             }}
-            onClick={onSelect}
-            onTap={onSelect}
+            onClick={(e) => {
+                onSelect(e.evt.ctrlKey || e.evt.metaKey);
+            }}
+            onTap={(e) => {
+                onSelect(false); // Touch doesn't have ctrl key
+            }}
         >
             {/* Main block rectangle */}
             <Rect
