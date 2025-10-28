@@ -393,6 +393,80 @@ export abstract class BaseBlock implements IBlockDefinition {
     }
     
     /**
+     * LOGFREQ: Convert frequency in Hz to filter coefficient for RDFX/WRLX/WRHX
+     * Used for single-pole filters (low-pass, high-pass, shelving)
+     * SpinCAD formula: coefficient = 1 - e^(-2π * frequency / sampleRate)
+     * This is the one-pole exponential filter coefficient
+     * @param hz Frequency in Hz
+     * @returns Filter coefficient (0.0 to ~1.0)
+     */
+    protected hzToFilterCoeff(hz: number): number {
+        const omega = 2.0 * Math.PI * hz / this.getSampleRate();
+        return 1.0 - Math.pow(Math.E, -omega);
+    }
+    
+    /**
+     * LOGFREQ: Convert filter coefficient back to frequency in Hz
+     * Inverse of hzToFilterCoeff
+     * SpinCAD formula: frequency = -(ln(1 - coefficient)) * sampleRate / (2π)
+     * @param coeff Filter coefficient (0.0 to ~1.0)
+     * @returns Frequency in Hz
+     */
+    protected filterCoeffToHz(coeff: number): number {
+        return -(Math.log(1.0 - coeff)) * this.getSampleRate() / (2.0 * Math.PI);
+    }
+    
+    /**
+     * LOGFREQ2: Convert frequency in Hz to SVF filter coefficient
+     * Used for two-pole State Variable Filters
+     * SpinCAD formula: coefficient = 2 * sin(π * frequency / sampleRate)
+     * @param hz Frequency in Hz
+     * @returns Filter coefficient (0.0 to ~2.0)
+     */
+    protected hzToSvfCoeff(hz: number): number {
+        return 2.0 * Math.sin(Math.PI * hz / this.getSampleRate());
+    }
+    
+    /**
+     * LOGFREQ2: Convert SVF filter coefficient back to frequency in Hz
+     * Inverse of hzToSvfCoeff
+     * SpinCAD formula: frequency = asin(coefficient / 2) * sampleRate / π
+     * @param coeff Filter coefficient (0.0 to ~2.0)
+     * @returns Frequency in Hz
+     */
+    protected svfCoeffToHz(coeff: number): number {
+        return Math.asin(coeff / 2.0) * this.getSampleRate() / Math.PI;
+    }
+    
+    /**
+     * FILTTOTIME: Convert rise time in seconds to filter coefficient
+     * SpinCAD formula: freq = 0.35/time, then coefficient = 1 - e^(-2π * freq / Fs)
+     * Used for envelope followers and smoothing filters
+     * @param timeSeconds Rise time in seconds
+     * @returns Filter coefficient (0.0 to ~1.0), or -1.0 if time is 0
+     */
+    protected timeToFilterCoeff(timeSeconds: number): number {
+        if (timeSeconds === 0.0) {
+            return -1.0;
+        }
+        const freq = 0.35 / timeSeconds;
+        const omega = 2.0 * Math.PI * freq / this.getSampleRate();
+        return 1.0 - Math.pow(Math.E, -omega);
+    }
+    
+    /**
+     * FILTTOTIME: Convert filter coefficient to rise time in seconds
+     * Inverse of timeToFilterCoeff
+     * SpinCAD formula: freq = -(ln(1 - coeff)) * Fs / (2π), then time = 0.35/freq
+     * @param coeff Filter coefficient (0.0 to ~1.0)
+     * @returns Rise time in seconds
+     */
+    protected filterCoeffToTime(coeff: number): number {
+        const freq = -(Math.log(1.0 - coeff)) * this.getSampleRate() / (2.0 * Math.PI);
+        return 0.35 / freq;
+    }
+    
+    /**
      * Helper: Generate a unique label for this block
      */
     protected generateLabel(blockId: string, suffix: string): string {

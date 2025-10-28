@@ -16,10 +16,12 @@ import { Mixer4Block } from './math/Mixer4Block.js';
 import { GainBoostBlock } from './math/GainBoostBlock.js';
 import { DelayBlock } from './effects/delay/DelayBlock.js';
 import { PingPongDelayBlock } from './effects/delay/PingPongDelayBlock.js';
+import { TripleTapDelayBlock } from './effects/delay/TripleTapDelayBlock.js';
 import { TapTempoBlock } from './effects/control/TapTempoBlock.js';
 import { PhaserBlock } from './effects/modulation/PhaserBlock.js';
 import { RingModulatorBlock } from './effects/modulation/RingModulatorBlock.js';
 import { ChorusBlock } from './effects/modulation/ChorusBlock.js';
+import { LowPassFilterBlock } from './effects/filter/LowPassFilterBlock.js';
 
 export class BlockRegistry {
     private blocks: Map<string, IBlockDefinition> = new Map();
@@ -52,11 +54,15 @@ export class BlockRegistry {
         // Effect blocks - Delay
         this.register(new DelayBlock());
         this.register(new PingPongDelayBlock());
+        this.register(new TripleTapDelayBlock());
         
         // Effect blocks - Modulation
         this.register(new PhaserBlock());
         this.register(new RingModulatorBlock());
         this.register(new ChorusBlock());
+        
+        // Effect blocks - Filter
+        this.register(new LowPassFilterBlock());
         
         // Effect blocks - Control
         this.register(new TapTempoBlock());
