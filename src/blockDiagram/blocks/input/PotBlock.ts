@@ -37,6 +37,13 @@ export class PotBlock extends BaseBlock {
                 description: 'Which potentiometer to read'
             },
             {
+                id: 'speedup',
+                name: 'Enable Speedup Filter',
+                type: 'boolean',
+                default: true,
+                description: 'Apply high-shelf filter to improve pot response time (recommended)'
+            },
+            {
                 id: 'invert',
                 name: 'Invert',
                 type: 'boolean',
@@ -66,10 +73,8 @@ export class PotBlock extends BaseBlock {
         const code: string[] = [];
         const outputReg = ctx.allocateRegister(this.type, 'out');
         const potNumber = this.getParameterValue<number>(ctx, this.type, 'potNumber', 0);
+        const speedup = this.getParameterValue<boolean>(ctx, this.type, 'speedup', true);
         const invert = this.getParameterValue<boolean>(ctx, this.type, 'invert', false);
-        
-        // Get a scratch register for filtering
-        const filterReg0 = ctx.getScratchRegister();
         
         const potName = `POT${potNumber}`;
         const one = ctx.getStandardConstant(1.0);
@@ -81,17 +86,38 @@ export class PotBlock extends BaseBlock {
         const clearValue = preserveAcc ? one : zero;
         
         code.push(`; Potentiometer ${potNumber}`);
-        code.push('; POT filtering a-la-SpinCAD');
-        code.push(`rdax ${potName}, ${one}`);
-        code.push(`rdfx ${filterReg0}, kpotflt`);
-        code.push(`wrhx ${filterReg0}, kpothx`);
-        code.push(`rdax ${outputReg}, kpotmix`);
         
-        if (invert) {
-            code.push(`sof ${negOne}, ${one}  ; Invert`);
+        if (speedup) {
+            // Apply high-shelf filter for faster pot response
+            // This filter compensates for the slow POT register updates (every 32 samples)
+            // by boosting high frequencies (changes), making the pot feel more responsive
+            
+            const filterReg = ctx.getScratchRegister();  // Stores filtered value
+            const fastpotReg = outputReg;                // Reuse output register
+            
+            code.push(`; POT speedup: high-shelf filter boosts changes for faster response`);
+            code.push(`rdax ${potName}, ${one}              ; Read pot value`);
+            code.push(`rdfx ${filterReg}, kpotflt          ; High-pass: isolate changes (coefficient=0.001)`);
+            code.push(`wrhx ${filterReg}, kpothx           ; High-shelf: attenuate lows by 0.25x (coef=-0.75)`);
+            code.push(`rdax ${fastpotReg}, kpotmix         ; Add 0.75x of previous output`);
+            
+            if (invert) {
+                code.push(`sof ${negOne}, ${one}            ; Invert (1.0 - value)`);
+            }
+            
+            code.push(`wrax ${fastpotReg}, ${clearValue}   ; Store and optionally keep in ACC`);
+        } else {
+            // Direct pot reading without filtering
+            code.push(`; POT direct read (no speedup filter)`);
+            code.push(`rdax ${potName}, ${one}              ; Read pot value`);
+            
+            if (invert) {
+                code.push(`sof ${negOne}, ${one}            ; Invert (1.0 - value)`);
+            }
+            
+            code.push(`wrax ${outputReg}, ${clearValue}     ; Store and optionally keep in ACC`);
         }
         
-        code.push(`wrax ${outputReg}, ${clearValue}  ; Write to output`);
         code.push('');
         
         return code;
