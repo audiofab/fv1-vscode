@@ -46,8 +46,8 @@ export class Mixer2Block extends BaseBlock {
                 displayDecimals: 0,
                 displayUnit: 'dB',
                 // Conversion functions
-                toDisplay: (linear: number) => 20 * Math.log10(linear),
-                fromDisplay: (dB: number) => Math.pow(10.0, dB / 20.0),
+                toDisplay: BaseBlock.linearToDb,
+                fromDisplay: BaseBlock.dbToLinear,
                 description: 'Input 1 gain in decibels'
             },
             {
@@ -66,8 +66,8 @@ export class Mixer2Block extends BaseBlock {
                 displayDecimals: 0,
                 displayUnit: 'dB',
                 // Conversion functions
-                toDisplay: (linear: number) => 20 * Math.log10(linear),
-                fromDisplay: (dB: number) => Math.pow(10.0, dB / 20.0),
+                toDisplay: BaseBlock.linearToDb,
+                fromDisplay: BaseBlock.dbToLinear,
                 description: 'Input 2 gain in decibels'
             }
         ];

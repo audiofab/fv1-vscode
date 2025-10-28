@@ -51,14 +51,14 @@ export class ChorusBlock extends BaseBlock {
                 max: 2048,
                 step: 1,
                 // Display values (milliseconds)
-                displayMin: 3.906,   // 128 / 32.768
-                displayMax: 62.5,    // 2048 / 32.768
+                displayMin: this.samplesToMs(128),
+                displayMax: this.samplesToMs(2048),
                 displayStep: 0.1,
                 displayDecimals: 1,
                 displayUnit: 'ms',
-                // Conversion functions (sample rate = 32.768 kHz)
-                toDisplay: (samples: number) => samples / 32.768,
-                fromDisplay: (ms: number) => Math.round(ms * 32.768),
+                // Conversion functions
+                toDisplay: (samples: number) => this.samplesToMs(samples),
+                fromDisplay: (ms: number) => this.msToSamples(ms),
                 description: 'Delay buffer length'
             },
             {
@@ -83,16 +83,15 @@ export class ChorusBlock extends BaseBlock {
                 step: 1,
                 // Display values (Hz)
                 displayMin: 0.0,
-                displayMax: this.RATE_MAX * this.getSampleRate() / 2**17 / 2.0 / Math.PI,
+                displayMax: this.lfoRateToHz(this.RATE_MAX),
                 displayStep: 0.01,
                 displayDecimals: 2,
                 displayUnit: 'Hz',
                 // Conversion functions (from AN-001)
-                // f = Kf * Fs / (2**17 * 2*pi) = Kf / 8*pi if Fs is 32768
-                // Kf = 2**17 * (2*pi*f/Fs) = 8*pi*f if Fs is 32768
-                // 
-                toDisplay: (rate: number) => rate * this.getSampleRate() / 2**17 / 2.0 / Math.PI,
-                fromDisplay: (hz: number) => Math.round(hz * 2**17 / this.getSampleRate() * 2.0 * Math.PI),
+                // f = Kf * Fs / (2^17 * 2*pi)
+                // Kf = 2^17 * (2*pi*f / Fs)
+                toDisplay: (rate: number) => this.lfoRateToHz(rate),
+                fromDisplay: (hz: number) => this.hzToLfoRate(hz),
                 description: 'Base LFO speed'
             },
             {

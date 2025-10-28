@@ -39,6 +39,40 @@ import {
  * - All delay-based effects that allocate memory
  */
 export abstract class BaseBlock implements IBlockDefinition {
+    // Constants
+    static readonly DEFAULT_SAMPLE_RATE = 32768;
+    static readonly MAX_DELAY_MEMORY = 32768;
+    
+    // =========================================================================
+    // Static Conversion Functions (SpinCAD-compatible)
+    // For explicit sample rate when needed, otherwise use instance methods
+    // =========================================================================
+    
+    /**
+     * DBLEVEL: Convert linear gain (0.0-1.0) to decibels
+     * SpinCAD formula: 20 * log10(linear)
+     * @param linear Linear gain value (0.0 to 1.0)
+     * @returns Gain in decibels (dB)
+     */
+    static linearToDb(linear: number): number {
+        if (linear <= 0) return -Infinity;
+        return 20 * Math.log10(linear);
+    }
+    
+    /**
+     * DBLEVEL: Convert decibels to linear gain (0.0-1.0)
+     * SpinCAD formula: 10^(dB/20)
+     * @param dB Gain in decibels
+     * @returns Linear gain value (0.0 to 1.0)
+     */
+    static dbToLinear(dB: number): number {
+        return Math.pow(10.0, dB / 20.0);
+    }
+    
+    // =========================================================================
+    // Instance Properties
+    // =========================================================================
+    
     // Metadata (must be set by subclasses)
     abstract readonly type: string;
     abstract readonly category: string;
@@ -50,18 +84,6 @@ export abstract class BaseBlock implements IBlockDefinition {
     readonly icon?: string;
     readonly width: number = 200;
     private _height: number = 100;
-    
-    // Global FV-1 constants
-    /**
-     * FV-1 sample rate in Hz
-     * Default: 32768 Hz (can be overridden via getSampleRate())
-     */
-    protected static readonly DEFAULT_SAMPLE_RATE: number = 32768;
-    
-    /**
-     * FV-1 total delay memory size in samples
-     */
-    protected static readonly MAX_DELAY_MEMORY: number = 32768;
     
     // I/O definition (use protected to allow subclass initialization)
     protected _inputs: BlockPort[] = [];
@@ -278,6 +300,44 @@ export abstract class BaseBlock implements IBlockDefinition {
      */
     protected samplesToTime(samples: number): number {
         return samples / this.getSampleRate();
+    }
+    
+    /**
+     * LENGTHTOTIME: Convert samples to milliseconds (uses getSampleRate())
+     * @param samples Number of delay samples
+     * @returns Time in milliseconds
+     */
+    protected samplesToMs(samples: number): number {
+        return (samples / this.getSampleRate()) * 1000;
+    }
+    
+    /**
+     * LENGTHTOTIME: Convert milliseconds to samples (uses getSampleRate())
+     * @param ms Time in milliseconds
+     * @returns Number of delay samples (rounded)
+     */
+    protected msToSamples(ms: number): number {
+        return Math.round((ms / 1000) * this.getSampleRate());
+    }
+    
+    /**
+     * SINLFOFREQ: Convert LFO rate value to frequency in Hz (uses getSampleRate())
+     * FV-1 AN-001 formula: f = Kf * Fs / (2^17 * 2*pi)
+     * @param rate LFO rate value (0-32767, typically 0-511 for SIN LFO)
+     * @returns Frequency in Hz
+     */
+    protected lfoRateToHz(rate: number): number {
+        return rate * this.getSampleRate() / (2**17 * 2.0 * Math.PI);
+    }
+    
+    /**
+     * SINLFOFREQ: Convert frequency in Hz to LFO rate value (uses getSampleRate())
+     * FV-1 AN-001 formula: Kf = 2^17 * (2*pi*f / Fs)
+     * @param hz Frequency in Hz
+     * @returns LFO rate value (0-32767, rounded)
+     */
+    protected hzToLfoRate(hz: number): number {
+        return Math.round(hz * 2**17 / this.getSampleRate() * 2.0 * Math.PI);
     }
     
     /**
