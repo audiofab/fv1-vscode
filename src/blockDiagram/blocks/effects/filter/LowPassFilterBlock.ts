@@ -61,6 +61,12 @@ export class LowPassFilterBlock extends BaseBlock {
         // Get frequency parameter and convert to coefficient
         const frequencyHz = this.getParameterValue(ctx, this.type, 'frequency', 800);
         const freqCoeff = this.hzToFilterCoeff(frequencyHz);
+        
+        // Check if we should preserve accumulator for next block
+        const one = ctx.getStandardConstant(1.0);
+        const zero = ctx.getStandardConstant(0.0);
+        const preserveAcc = ctx.shouldPreserveAccumulator(this.type, 'out');
+        const clearValue = preserveAcc ? one : zero;
 
         code.push(`; LPF 1P - ${frequencyHz.toFixed(0)} Hz`);
 
@@ -78,7 +84,7 @@ export class LowPassFilterBlock extends BaseBlock {
             code.push(`rdfx ${lpfReg}, ${this.formatS1_14(freqCoeff)}`);
         }
 
-        code.push(`wrax ${lpfReg}, 0`);
+        code.push(`wrax ${lpfReg}, ${clearValue}`);
 
         return code;
     }

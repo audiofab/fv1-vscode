@@ -156,40 +156,43 @@ export class TripleTapDelayBlock extends BaseBlock {
         ];
 
         taps.forEach((tap, index) => {
-            const outputReg = ctx.allocateRegister(this.type, tap.id);
-            if (outputReg) {
-                const tapNum = index + 1;
-                code.push(``);
-                code.push(`; Tap ${tapNum} - ${(tap.ratio * 100).toFixed(0)}% of delay`);
-                
-                // Load 0.5 in S1.14 format (0x7FFF00 >> 8 = 0x7FFF)
-                // This is the base value for ADDR_PTR calculation
-                code.push(`clr`);
-                code.push(`or $7FFF00`);
-                
-                // If delay time CV is connected, multiply by it
-                if (tap.ctrl) {
-                    code.push(`mulx ${tap.ctrl}`);
-                }
-                
-                // Calculate scale and offset for this tap
-                // SpinCAD formula: scale = (0.95 * ratio * length) / 32768
-                //                  offset = (delayOffset + 0.05 * ratio * length) / 32768
-                const scale = (0.95 * tap.ratio * delayLength) / 32768.0;
-                const offset = (delayOffset + (0.05 * tap.ratio * delayLength)) / 32768.0;
-                
-                // SOF: Scale and offset - this calculates the delay address
-                code.push(`sof ${this.formatS1_14(scale)}, ${this.formatS1_14(offset)}`);
-                
-                // Write to ADDR_PTR register to set read address
-                code.push(`wrax ADDR_PTR, 0`);
-                
-                // Read from delay at calculated address with interpolation
-                code.push(`rmpa ${this.formatS1_14(1.0)}`);
-                
-                // Store in output register
-                code.push(`wrax ${outputReg}, 0.0`);
+            // OPTIMIZATION: Only generate code for connected outputs
+            if (!ctx.isOutputConnected(this.type, tap.id)) {
+                return; // Skip this tap - it's not connected
             }
+            
+            const outputReg = ctx.allocateRegister(this.type, tap.id);
+            const tapNum = index + 1;
+            code.push(``);
+            code.push(`; Tap ${tapNum} - ${(tap.ratio * 100).toFixed(0)}% of delay`);
+            
+            // Load 0.5 in S1.14 format (0x7FFF00 >> 8 = 0x7FFF)
+            // This is the base value for ADDR_PTR calculation
+            code.push(`clr`);
+            code.push(`or $7FFF00`);
+            
+            // If delay time CV is connected, multiply by it
+            if (tap.ctrl) {
+                code.push(`mulx ${tap.ctrl}`);
+            }
+            
+            // Calculate scale and offset for this tap
+            // SpinCAD formula: scale = (0.95 * ratio * length) / 32768
+            //                  offset = (delayOffset + 0.05 * ratio * length) / 32768
+            const scale = (0.95 * tap.ratio * delayLength) / 32768.0;
+            const offset = (delayOffset + (0.05 * tap.ratio * delayLength)) / 32768.0;
+            
+            // SOF: Scale and offset - this calculates the delay address
+            code.push(`sof ${this.formatS1_14(scale)}, ${this.formatS1_14(offset)}`);
+            
+            // Write to ADDR_PTR register to set read address
+            code.push(`wrax ADDR_PTR, 0`);
+            
+            // Read from delay at calculated address with interpolation
+            code.push(`rmpa ${this.formatS1_14(1.0)}`);
+            
+            // Store in output register
+            code.push(`wrax ${outputReg}, 0.0`);
         });
 
         return code;

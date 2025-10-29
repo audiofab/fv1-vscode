@@ -117,6 +117,20 @@ export class CodeGenerationContext implements CodeGenContext {
     }
     
     /**
+     * Check if an output port is connected to anything
+     * Used to skip generating code for unused outputs (optimization)
+     */
+    isOutputConnected(blockIdOrType: string, portId: string): boolean {
+        // If blockIdOrType looks like a type (contains '.'), use current block ID
+        const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
+        
+        // Check if any connection uses this output
+        return this.graph.connections.some(
+            conn => conn.from.blockId === blockId && conn.from.portId === portId
+        );
+    }
+    
+    /**
      * Get the register that feeds a block's input port
      * Returns null if input is not connected (for optional inputs like CV)
      */
@@ -209,15 +223,68 @@ export class CodeGenerationContext implements CodeGenContext {
         const typeParts = block.type.split('.');
         const baseName = typeParts[typeParts.length - 1]; // Get last part (e.g., "adcl", "gain")
         
-        // If there are multiple blocks of the same type, add a number
-        const sameTypeBlocks = this.graph.blocks.filter(b => b.type === block.type);
+        // Special case for POT blocks: use the potNumber parameter
         let suffix = '';
-        if (sameTypeBlocks.length > 1) {
+        if (block.type === 'input.pot') {
+            if (block.parameters && block.parameters.potNumber !== undefined && block.parameters.potNumber !== null) {
+                suffix = `${block.parameters.potNumber}`;
+            } else {
+                // POT block without potNumber parameter - use index as fallback
+                const sameTypeBlocks = this.graph.blocks.filter(b => b.type === block.type);
+                const index = sameTypeBlocks.findIndex(b => b.id === blockId);
+                suffix = `${index}`;
+            }
+        } else if (this.graph.blocks.filter(b => b.type === block.type).length > 1) {
+            // If there are multiple blocks of the same type, add a number
+            const sameTypeBlocks = this.graph.blocks.filter(b => b.type === block.type);
             const index = sameTypeBlocks.findIndex(b => b.id === blockId);
             suffix = `${index + 1}`;
         }
         
         return this.sanitizeIdentifier(`${baseName}${suffix}_${portId}`);
+    }
+    
+    /**
+     * Pre-allocate registers for feedback connections
+     * This ensures that when a block tries to read from a feedback input,
+     * the register already exists (even though it will be written later in execution order)
+     * @param feedbackConnectionIds Set of connection IDs that are feedback paths
+     */
+    preallocateFeedbackRegisters(feedbackConnectionIds: Set<string>): void {
+        // Build a set of all blocks involved in feedback paths
+        const feedbackBlocks = new Set<string>();
+        
+        for (const connection of this.graph.connections) {
+            if (feedbackConnectionIds.has(connection.id)) {
+                // Mark both source and destination as feedback-related
+                feedbackBlocks.add(connection.from.blockId);
+                feedbackBlocks.add(connection.to.blockId);
+            }
+        }
+        
+        // Pre-allocate registers for ALL outputs of feedback-related blocks
+        // This ensures registers exist regardless of execution order
+        for (const blockId of feedbackBlocks) {
+            const block = this.graph.blocks.find(b => b.id === blockId);
+            if (!block) continue;
+            
+            // Find all connections FROM this block
+            for (const connection of this.graph.connections) {
+                if (connection.from.blockId === blockId) {
+                    const sourcePortId = connection.from.portId;
+                    
+                    // Check if not already allocated
+                    const existing = this.registerAllocations.find(
+                        alloc => alloc.blockId === blockId && alloc.portId === sourcePortId
+                    );
+                    
+                    if (!existing) {
+                        // Allocate the register now
+                        this.allocateRegister(blockId, sourcePortId);
+                    }
+                }
+            }
+        }
     }
     
     /**

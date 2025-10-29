@@ -63,8 +63,19 @@ export class GraphCompiler {
         
         const executionOrder = sortResult.order!;
         
+        // Add warning if feedback connections were detected
+        if (sortResult.feedbackConnections && sortResult.feedbackConnections.size > 0) {
+            warnings.push(`Detected ${sortResult.feedbackConnections.size} feedback connection(s). ` +
+                         `These create valid feedback loops (e.g., delay → filter → back to delay).`);
+        }
+        
         // 3. Create code generation context
         const context = new CodeGenerationContext(graph);
+        
+        // 3a. Pre-allocate registers for all connected outputs
+        // This is necessary for feedback loops where blocks may read from outputs
+        // that haven't been generated yet in the execution order
+        this.preallocateAllOutputs(graph, context);
         
         // 4. FIRST PASS: Collect EQU declarations and initialization code from all blocks
         const equDeclarations: string[] = [];
@@ -482,5 +493,27 @@ export class GraphCompiler {
             errors: errors.length > 0 ? errors : undefined,
             warnings: warnings.length > 0 ? warnings : undefined
         };
+    }
+    
+    /**
+     * Pre-allocate registers for all connected outputs
+     * This ensures registers exist before any code generation, which is necessary
+     * for feedback loops where blocks may need to read from outputs that haven't
+     * been generated yet in the execution order
+     */
+    private preallocateAllOutputs(graph: BlockGraph, context: CodeGenerationContext): void {
+        // Find all unique output ports that are connected
+        const connectedOutputs = new Set<string>();
+        
+        for (const connection of graph.connections) {
+            const key = `${connection.from.blockId}:${connection.from.portId}`;
+            connectedOutputs.add(key);
+        }
+        
+        // Allocate a register for each connected output
+        for (const key of connectedOutputs) {
+            const [blockId, portId] = key.split(':');
+            context.allocateRegister(blockId, portId);
+        }
     }
 }

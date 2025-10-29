@@ -63,6 +63,9 @@ export interface ValidationResult {
 }
 
 export interface CodeGenContext {
+    // Check if an output port is connected (optimization to skip generating unused outputs)
+    isOutputConnected(blockId: string, portId: string): boolean;
+    
     // Get the register assigned to a block's input port
     getInputRegister(blockId: string, portId: string): string;
     

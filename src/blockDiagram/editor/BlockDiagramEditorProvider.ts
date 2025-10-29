@@ -465,9 +465,27 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                 `Memory: ${stats.memoryUsed}/32768`
             );
             
-            // Open the .spn file
+            // Open the .spn file (or bring existing editor to front)
             const doc = await vscode.workspace.openTextDocument(spnPath);
-            await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+            
+            // Check if file is already open in an editor
+            const existingEditor = vscode.window.visibleTextEditors.find(
+                editor => editor.document.uri.toString() === doc.uri.toString()
+            );
+            
+            if (existingEditor) {
+                // File already open - bring that editor to the front
+                await vscode.window.showTextDocument(doc, { 
+                    preview: false, 
+                    viewColumn: existingEditor.viewColumn 
+                });
+            } else {
+                // File not open - open beside current editor
+                await vscode.window.showTextDocument(doc, { 
+                    preview: false, 
+                    viewColumn: vscode.ViewColumn.Beside 
+                });
+            }
             
             // Show warnings if any
             if (result.warnings && result.warnings.length > 0) {

@@ -69,14 +69,13 @@ export class VolumeBlock extends BaseBlock {
             // CV-controlled volume
             code.push(`; Volume modulated by ${levelCtrlReg}`);
             
-            // Load input if not already in accumulator
-            if (!inputForwarded) {
+            // Always load the audio input explicitly
+            // (We can't rely on accumulator forwarding when we have two inputs)
+            if (Math.abs(linearGain - 1.0) > 0.00001) {
                 const gainConst = ctx.getStandardConstant(linearGain);
-                code.push(`rdax ${inputReg}, ${gainConst}`);
-            } else if (Math.abs(linearGain - 1.0) > 0.00001) {
-                // Input already in ACC, apply base level
-                const gainConst = ctx.getStandardConstant(linearGain);
-                code.push(`sof ${gainConst}, 0  ; Apply base level`);
+                code.push(`rdax ${inputReg}, ${gainConst}  ; Load audio and apply base level`);
+            } else {
+                code.push(`rdax ${inputReg}, ${one}  ; Load audio`);
             }
             
             // Multiply by control voltage
