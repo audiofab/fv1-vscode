@@ -68,19 +68,12 @@ export class PhaserBlock extends BaseBlock {
         this.autoCalculateHeight();
     }
     
-    getInitCode(ctx: CodeGenContext): string[] {
-        const code: string[] = [];
-        
-        code.push(`; Phaser Initialization`);
-        code.push(`or ${this.formatS1_14(32767 / 32768.0)}  ; Load SIN1 frequency`);
-        code.push(`wrax SIN1_RATE, 0`);
-        
-        return code;
-    }
-    
-    generateCode(ctx: CodeGenContext): string[] {
-        const code: string[] = [];
-        const stages = Math.floor(this.getParameterValue(ctx, this.type, 'stages', 4));
+    generateCode(ctx: CodeGenContext): void {
+        // Initialize LFO
+        ctx.pushInitCode(`; Phaser Initialization`);
+        ctx.pushInitCode(`or ${this.formatS1_14(32767 / 32768.0)}  ; Load SIN1 frequency`);
+        ctx.pushInitCode(`wrax SIN1_RATE, 0`);
+                const stages = Math.floor(this.getParameterValue(ctx, this.type, 'stages', 4));
         const defaultSpeed = this.getParameterValue(ctx, this.type, 'speed', 0.5);
         const defaultWidth = this.getParameterValue(ctx, this.type, 'width', 0.5);
         
@@ -90,9 +83,7 @@ export class PhaserBlock extends BaseBlock {
         const phaseCtrlReg = ctx.getInputRegister(this.type, 'phase_ctrl');
         
         if (!inputReg) {
-            code.push(`; Phaser (no input connected)`);
-            return code;
-        }
+            ctx.pushMainCode(`; Phaser (no input connected)`);        }
         
         // Allocate registers for all-pass stages
         const pout = ctx.allocateRegister(this.type, 'mix');
@@ -123,100 +114,97 @@ export class PhaserBlock extends BaseBlock {
         const bypassReg = ctx.getScratchRegister();
         const phaseReg = ctx.getScratchRegister();
         
-        code.push(`; Phaser (${stages} stages = ${stages * 2} all-pass filters)`);
-        code.push('');
+        ctx.pushMainCode(`; Phaser (${stages} stages = ${stages * 2} all-pass filters)`);
+        ctx.pushMainCode('');
         
         // LFO control
-        code.push(`; LFO Control`);
+        ctx.pushMainCode(`; LFO Control`);
         if (widthCtrlReg) {
-            code.push(`rdax ${widthCtrlReg}, 1.0  ; Load width from CV`);
+            ctx.pushMainCode(`rdax ${widthCtrlReg}, 1.0  ; Load width from CV`);
         } else {
-            code.push(`sof 0.0, ${this.formatS1_14(defaultWidth)}  ; Default width`);
+            ctx.pushMainCode(`sof 0.0, ${this.formatS1_14(defaultWidth)}  ; Default width`);
         }
         const depthReg = ctx.getScratchRegister();
-        code.push(`wrax ${depthReg}, 0.9`);
-        code.push(`wrax ${bypassReg}, 0`);
-        code.push('');
+        ctx.pushMainCode(`wrax ${depthReg}, 0.9`);
+        ctx.pushMainCode(`wrax ${bypassReg}, 0`);
+        ctx.pushMainCode('');
         
         if (speedCtrlReg) {
-            code.push(`rdax ${speedCtrlReg}, 1.0  ; Load speed from CV`);
-            code.push(`mulx ${speedCtrlReg}`);
-            code.push(`sof 0.83, 0.002`);
+            ctx.pushMainCode(`rdax ${speedCtrlReg}, 1.0  ; Load speed from CV`);
+            ctx.pushMainCode(`mulx ${speedCtrlReg}`);
+            ctx.pushMainCode(`sof 0.83, 0.002`);
         } else {
-            code.push(`sof 0.0, ${this.formatS1_14(defaultSpeed)}  ; Default speed`);
+            ctx.pushMainCode(`sof 0.0, ${this.formatS1_14(defaultSpeed)}  ; Default speed`);
         }
-        code.push(`wrax SIN1_RATE, 0`);
-        code.push('');
+        ctx.pushMainCode(`wrax SIN1_RATE, 0`);
+        ctx.pushMainCode('');
         
         // Generate phase control value
-        code.push(`; Generate phase control from LFO`);
-        code.push(`cho rdal, SIN1  ; Read SIN LFO`);
-        code.push(`sof 0.5, 0.5  ; Scale to 0-1`);
-        code.push(`log 0.5, 0  ; Logarithmic curve`);
-        code.push(`exp 1.0, 0  ; Exponential curve`);
-        code.push(`sof 1.0, -0.5`);
-        code.push(`sof 1.999, 0`);
-        code.push(`mulx ${depthReg}  ; Apply depth`);
-        code.push(`sof 0.15, 0.83  ; Scale to 0.8-0.95 range`);
-        code.push(`wrax ${phaseReg}, 0`);
-        code.push('');
+        ctx.pushMainCode(`; Generate phase control from LFO`);
+        ctx.pushMainCode(`cho rdal, SIN1  ; Read SIN LFO`);
+        ctx.pushMainCode(`sof 0.5, 0.5  ; Scale to 0-1`);
+        ctx.pushMainCode(`log 0.5, 0  ; Logarithmic curve`);
+        ctx.pushMainCode(`exp 1.0, 0  ; Exponential curve`);
+        ctx.pushMainCode(`sof 1.0, -0.5`);
+        ctx.pushMainCode(`sof 1.999, 0`);
+        ctx.pushMainCode(`mulx ${depthReg}  ; Apply depth`);
+        ctx.pushMainCode(`sof 0.15, 0.83  ; Scale to 0.8-0.95 range`);
+        ctx.pushMainCode(`wrax ${phaseReg}, 0`);
+        ctx.pushMainCode('');
         
         // Phase shifter cascade
-        code.push(`; All-pass filter cascade`);
-        code.push(`rdax ${p1}, 1.0`);
-        code.push(`wrax ${temp}, 1.0`);
-        code.push(`mulx ${phaseReg}`);
-        code.push(`rdax ${inputReg}, ${this.formatS1_14(1.0 / 64.0)}`);
-        code.push(`wrax ${p1}, -1.0`);
-        code.push(`mulx ${phaseReg}`);
+        ctx.pushMainCode(`; All-pass filter cascade`);
+        ctx.pushMainCode(`rdax ${p1}, 1.0`);
+        ctx.pushMainCode(`wrax ${temp}, 1.0`);
+        ctx.pushMainCode(`mulx ${phaseReg}`);
+        ctx.pushMainCode(`rdax ${inputReg}, ${this.formatS1_14(1.0 / 64.0)}`);
+        ctx.pushMainCode(`wrax ${p1}, -1.0`);
+        ctx.pushMainCode(`mulx ${phaseReg}`);
         
         // Stage 1 (always present)
-        this.generatePhaseShiftStage(code, p2, phaseReg, temp, temp1);
+        this.generatePhaseShiftStage(ctx, p2, phaseReg, temp, temp1);
         
         // Stages 2-5 (conditional)
         if (stages > 1) {
-            this.generatePhaseShiftStage(code, p3, phaseReg, temp, temp1);
-            this.generatePhaseShiftStage(code, p4, phaseReg, temp, temp1);
+            this.generatePhaseShiftStage(ctx, p3, phaseReg, temp, temp1);
+            this.generatePhaseShiftStage(ctx, p4, phaseReg, temp, temp1);
         }
         if (stages > 2) {
-            this.generatePhaseShiftStage(code, p5, phaseReg, temp, temp1);
-            this.generatePhaseShiftStage(code, p6, phaseReg, temp, temp1);
+            this.generatePhaseShiftStage(ctx, p5, phaseReg, temp, temp1);
+            this.generatePhaseShiftStage(ctx, p6, phaseReg, temp, temp1);
         }
         if (stages > 3) {
-            this.generatePhaseShiftStage(code, p7, phaseReg, temp, temp1);
-            this.generatePhaseShiftStage(code, p8, phaseReg, temp, temp1);
+            this.generatePhaseShiftStage(ctx, p7, phaseReg, temp, temp1);
+            this.generatePhaseShiftStage(ctx, p8, phaseReg, temp, temp1);
         }
         if (stages > 4) {
-            this.generatePhaseShiftStage(code, p9, phaseReg, temp, temp1);
-            this.generatePhaseShiftStage(code, p10, phaseReg, temp, temp1);
+            this.generatePhaseShiftStage(ctx, p9, phaseReg, temp, temp1);
+            this.generatePhaseShiftStage(ctx, p10, phaseReg, temp, temp1);
         }
         
-        code.push(`rdax ${temp}, 1.0`);
+        ctx.pushMainCode(`rdax ${temp}, 1.0`);
         
         // Apply gain boost (compensate for phase shift attenuation)
-        code.push(`; Boost output (6 stages of -2 gain = 64x)`);
+        ctx.pushMainCode(`; Boost output (6 stages of -2 gain = 64x)`);
         for (let i = 0; i < 6; i++) {
-            code.push(`sof -2.0, 0`);
+            ctx.pushMainCode(`sof -2.0, 0`);
         }
-        code.push('');
+        ctx.pushMainCode('');
         
-        code.push(`wrax ${wetReg}, 1.0  ; Save wet signal`);
-        code.push(`mulx ${bypassReg}  ; Apply bypass`);
-        code.push(`rdax ${inputReg}, 1.0  ; Mix with dry`);
-        code.push(`wrax ${pout}, 0`);
-        code.push('');
-        
-        return code;
-    }
+        ctx.pushMainCode(`wrax ${wetReg}, 1.0  ; Save wet signal`);
+        ctx.pushMainCode(`mulx ${bypassReg}  ; Apply bypass`);
+        ctx.pushMainCode(`rdax ${inputReg}, 1.0  ; Mix with dry`);
+        ctx.pushMainCode(`wrax ${pout}, 0`);
+        ctx.pushMainCode('');    }
     
-    private generatePhaseShiftStage(code: string[], delayReg: string, phaseReg: string, temp: string, temp1: string): void {
-        code.push(`rdax ${temp}, 1.0`);
-        code.push(`wrax ${temp1}, 0`);
-        code.push(`rdax ${delayReg}, 1.0`);
-        code.push(`wrax ${temp}, 1.0`);
-        code.push(`mulx ${phaseReg}`);
-        code.push(`rdax ${temp1}, 1.0`);
-        code.push(`wrax ${delayReg}, -1.0`);
-        code.push(`mulx ${phaseReg}`);
+    private generatePhaseShiftStage(ctx: CodeGenContext, delayReg: string, phaseReg: string, temp: string, temp1: string): void {
+        ctx.pushMainCode(`rdax ${temp}, 1.0`);
+        ctx.pushMainCode(`wrax ${temp1}, 0`);
+        ctx.pushMainCode(`rdax ${delayReg}, 1.0`);
+        ctx.pushMainCode(`wrax ${temp}, 1.0`);
+        ctx.pushMainCode(`mulx ${phaseReg}`);
+        ctx.pushMainCode(`rdax ${temp1}, 1.0`);
+        ctx.pushMainCode(`wrax ${delayReg}, -1.0`);
+        ctx.pushMainCode(`mulx ${phaseReg}`);
     }
 }

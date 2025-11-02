@@ -139,25 +139,10 @@ export abstract class BaseBlock implements IBlockDefinition {
     
     /**
      * Generate FV-1 assembly code for this block
-     * Must be implemented by subclasses
+     * Blocks should push code to appropriate sections using ctx.pushInitCode(), 
+     * ctx.pushInputCode(), ctx.pushMainCode(), or ctx.pushOutputCode()
      */
-    abstract generateCode(ctx: CodeGenContext): string[];
-    
-    /**
-     * Get EQU declarations for constants used by this block (optional)
-     * Default implementation returns empty array
-     */
-    getEquDeclarations?(ctx: CodeGenContext): string[] {
-        return [];
-    }
-    
-    /**
-     * Get initialization code to run once at startup (optional)
-     * Default implementation returns empty array
-     */
-    getInitCode?(ctx: CodeGenContext): string[] {
-        return [];
-    }
+    abstract generateCode(ctx: CodeGenContext): void;
     
     /**
      * Validate this block's configuration and connections

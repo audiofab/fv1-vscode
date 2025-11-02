@@ -39,33 +39,23 @@ export class DACRBlock extends BaseBlock {
         this.autoCalculateHeight();
     }
     
-    generateCode(ctx: CodeGenContext): string[] {
-        const code: string[] = [];
+    generateCode(ctx: CodeGenContext): void {
         const inputReg = ctx.getInputRegister(this.type, 'in');
         const gain = this.getParameterValue(ctx, this.type, 'gain', 1.0);
-        const one = ctx.getStandardConstant(1.0);
-        const zero = ctx.getStandardConstant(0.0);
         
-        // Check if input is already in accumulator (optimization)
-        const inputForwarded = ctx.isAccumulatorForwarded(this.type, 'in');
+        // Push DAC write to output section
+        ctx.pushOutputCode('; Right DAC Output');
         
-        code.push('; Right DAC Output');
-        
-        // Load input if not already in accumulator
-        if (!inputForwarded) {
-            code.push(`rdax ${inputReg}, ${one}`);
-        }
+        // Load input
+        ctx.pushOutputCode(`rdax\t${inputReg},\t1.0`);
         
         // Apply gain using SOF (only if gain != 1.0)
         if (Math.abs(gain - 1.0) > 0.00001) {
-            const gainConst = ctx.getStandardConstant(gain);
-            code.push(`sof ${gainConst}, 0`);
+            ctx.pushOutputCode(`sof\t${this.formatS15(gain)},\t0.0`);
         }
         
-        code.push(`wrax DACR, ${zero}`);
-        code.push('');
-        
-        return code;
+        ctx.pushOutputCode(`wrax\tDACR,\t0.0`);
+        ctx.pushOutputCode('');
     }
     
     validate(ctx: ValidationContext): ValidationResult {

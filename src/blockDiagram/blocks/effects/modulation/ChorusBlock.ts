@@ -122,15 +122,11 @@ export class ChorusBlock extends BaseBlock {
         this.autoCalculateHeight();
     }
     
-    generateCode(ctx: CodeGenContext): string[] {
-        const code: string[] = [];
-        
-        // Get input register - if not connected, return early
+    generateCode(ctx: CodeGenContext): void {
+                // Get input register - if not connected, return early
         const inputReg = ctx.getInputRegister(this.type, 'in');
         if (!inputReg) {
-            code.push(`; Chorus (no input connected)`);
-            return code;
-        }
+            ctx.pushMainCode(`; Chorus (no input connected)`);        }
         
         // Get control input registers (may be undefined if not connected)
         const rateInReg = ctx.getInputRegister(this.type, 'lfo_rate');
@@ -157,68 +153,65 @@ export class ChorusBlock extends BaseBlock {
         const delayOffset = memory.address;
         const memoryName = memory.name;
         
-        code.push(`; Chorus`);
-        code.push('');
+        ctx.pushMainCode(`; Chorus`);
+        ctx.pushMainCode('');
         
         // Initialize LFO (skip if already running)
         // Note: SpinCAD uses hardcoded values (50, 64) here, not the parameter values
         const lfoNum = lfoSel === 0 ? 'SIN0' : 'SIN1';
-        code.push(`; Initialize ${lfoNum} (once at startup)`);
-        code.push(`skp run, chorus_${this.sanitizeLabelForAsm(this.type)}_running`);
-        code.push(`wlds ${lfoNum}, 50, 64`);
-        code.push(`chorus_${this.sanitizeLabelForAsm(this.type)}_running:`);
-        code.push('');
+        ctx.pushInitCode(`; Initialize ${lfoNum} (once at startup)`);
+        ctx.pushInitCode(`skp run, chorus_${this.sanitizeLabelForAsm(this.type)}_running`);
+        ctx.pushInitCode(`wlds ${lfoNum}, 50, 64`);
+        ctx.pushInitCode(`chorus_${this.sanitizeLabelForAsm(this.type)}_running:`);
+        ctx.pushInitCode('');
         
         // Handle LFO width control input if connected
         if (widthInReg) {
             const x1 = delayLength * width;
             const x3 = x1 / this.NUMBER_6554000;
             
-            code.push(`; LFO Width control input`);
-            code.push(`rdax ${widthInReg}, ${this.formatS1_14(x3)}`);
+            ctx.pushMainCode(`; LFO Width control input`);
+            ctx.pushMainCode(`rdax ${widthInReg}, ${this.formatS1_14(x3)}`);
             const rangeReg = lfoSel === 0 ? 'SIN0_RANGE' : 'SIN1_RANGE';
-            code.push(`wrax ${rangeReg}, 0`);
-            code.push('');
+            ctx.pushMainCode(`wrax ${rangeReg}, 0`);
+            ctx.pushMainCode('');
         }
         
         // Handle LFO rate control input if connected
         if (rateInReg) {
             const temp1 = rate / this.RATE_MAX;
             
-            code.push(`; LFO Rate control input`);
-            code.push(`rdax ${rateInReg}, ${this.formatS1_14(temp1)}`);
+            ctx.pushMainCode(`; LFO Rate control input`);
+            ctx.pushMainCode(`rdax ${rateInReg}, ${this.formatS1_14(temp1)}`);
             const rateReg = lfoSel === 0 ? 'SIN0_RATE' : 'SIN1_RATE';
-            code.push(`wrax ${rateReg}, 0`);
-            code.push('');
+            ctx.pushMainCode(`wrax ${rateReg}, 0`);
+            ctx.pushMainCode('');
         }
         
         // Process audio through delay
-        code.push(`; Write input to delay line`);
-        code.push(`ldax ${inputReg}`);
-        code.push(`wra ${memoryName}, 0`);
-        code.push('');
+        ctx.pushMainCode(`; Write input to delay line`);
+        ctx.pushMainCode(`ldax ${inputReg}`);
+        ctx.pushMainCode(`wra ${memoryName}, 0`);
+        ctx.pushMainCode('');
         
         // Read chorus tap with LFO modulation
         // Careful to not put center point too close to the end or beginning
         const chorusCenter = Math.floor(delayOffset + (0.9 * tap1Center * delayLength) + 0.05 * delayLength);
         
-        code.push(`; Read modulated tap (interpolated)`);
-        code.push(`; Chorus center at ${chorusCenter}`);
+        ctx.pushMainCode(`; Read modulated tap (interpolated)`);
+        ctx.pushMainCode(`; Chorus center at ${chorusCenter}`);
         
         // CHO RDA instructions for interpolated delay reading
         // First read: SIN|REG|COMPC for fractional interpolation
         const flag1 = lfoSel === 0 ? 'SIN0' : 'SIN1';
-        code.push(`cho rda, ${flag1}, SIN | REG | COMPC, ${chorusCenter}`);
+        ctx.pushMainCode(`cho rda, ${flag1}, SIN | REG | COMPC, ${chorusCenter}`);
         
         // Second read: SIN flag for next sample
-        code.push(`cho rda, ${flag1}, SIN, ${chorusCenter + 1}`);
-        code.push('');
+        ctx.pushMainCode(`cho rda, ${flag1}, SIN, ${chorusCenter + 1}`);
+        ctx.pushMainCode('');
         
-        code.push(`wrax ${outputReg}, 0`);
-        code.push('');
-        
-        return code;
-    }
+        ctx.pushMainCode(`wrax ${outputReg}, 0`);
+        ctx.pushMainCode('');    }
     
     /**
      * Sanitize type identifier for use in assembly labels

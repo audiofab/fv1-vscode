@@ -14,6 +14,10 @@ export class PotBlock extends BaseBlock {
     readonly color = '#4CAF50';
     readonly width = 150;
     
+    get height(): number {
+        return 80;
+    }
+    
     constructor() {
         super();
         
@@ -51,75 +55,46 @@ export class PotBlock extends BaseBlock {
                 description: 'Invert the pot value (1.0 - value)'
             }
         ];
-        
-        // Auto-calculate height based on port count
-        this.autoCalculateHeight();
     }
     
-    getEquDeclarations(ctx: CodeGenContext): string[] {
-        const equs: string[] = [];
-        
-        // Register filter constants as EQUs if not already registered
-        if (!ctx.hasEqu('kpotflt')) {
-            ctx.registerEqu('kpotflt', '0.001');
-            ctx.registerEqu('kpothx', '-0.75');
-            ctx.registerEqu('kpotmix', '0.75');
-        }
-        
-        return equs;
-    }
-    
-    generateCode(ctx: CodeGenContext): string[] {
-        const code: string[] = [];
+    generateCode(ctx: CodeGenContext): void {
         const outputReg = ctx.allocateRegister(this.type, 'out');
         const potNumber = this.getParameterValue<number>(ctx, this.type, 'potNumber', 0);
         const speedup = this.getParameterValue<boolean>(ctx, this.type, 'speedup', true);
         const invert = this.getParameterValue<boolean>(ctx, this.type, 'invert', false);
         
         const potName = `POT${potNumber}`;
-        const one = ctx.getStandardConstant(1.0);
-        const negOne = ctx.getStandardConstant(-1.0);
-        const zero = ctx.getStandardConstant(0.0);
         
-        // Check if we should preserve accumulator for next block
-        const preserveAcc = ctx.shouldPreserveAccumulator(this.type, 'out');
-        const clearValue = preserveAcc ? one : zero;
-        
-        code.push(`; Potentiometer ${potNumber}`);
+        // Push POT read to input section
+        ctx.pushInputCode(`; Potentiometer ${potNumber}`);
         
         if (speedup) {
             // Apply high-shelf filter for faster pot response
-            // This filter compensates for the slow POT register updates (every 32 samples)
-            // by boosting high frequencies (changes), making the pot feel more responsive
-            
             const filterReg = ctx.getScratchRegister();  // Stores filtered value
-            const fastpotReg = outputReg;                // Reuse output register
             
-            code.push(`; POT speedup: high-shelf filter boosts changes for faster response`);
-            code.push(`rdax ${potName}, ${one}              ; Read pot value`);
-            code.push(`rdfx ${filterReg}, kpotflt          ; High-pass: isolate changes (coefficient=0.001)`);
-            code.push(`wrhx ${filterReg}, kpothx           ; High-shelf: attenuate lows by 0.25x (coef=-0.75)`);
-            code.push(`rdax ${fastpotReg}, kpotmix         ; Add 0.75x of previous output`);
+            ctx.pushInputCode(`; POT filtering a-la-SpinCAD`);
+            ctx.pushInputCode(`rdax\t${potName},\t1.0`);
+            ctx.pushInputCode(`rdfx\t${filterReg},\t0.001`);
+            ctx.pushInputCode(`wrhx\t${filterReg},\t-0.75`);
+            ctx.pushInputCode(`rdax\t${outputReg},\t0.75`);
             
             if (invert) {
-                code.push(`sof ${negOne}, ${one}            ; Invert (1.0 - value)`);
+                ctx.pushInputCode('sof\t-1.0,\t1.0\t; Invert');
             }
             
-            code.push(`wrax ${fastpotReg}, ${clearValue}   ; Store and optionally keep in ACC`);
+            ctx.pushInputCode(`wrax\t${outputReg},\t0.0\t; Write to output`);
         } else {
             // Direct pot reading without filtering
-            code.push(`; POT direct read (no speedup filter)`);
-            code.push(`rdax ${potName}, ${one}              ; Read pot value`);
+            ctx.pushInputCode(`; POT direct read (no speedup filter)`);
+            ctx.pushInputCode(`rdax\t${potName},\t1.0`);
             
             if (invert) {
-                code.push(`sof ${negOne}, ${one}            ; Invert (1.0 - value)`);
+                ctx.pushInputCode('sof\t-1.0,\t1.0\t; Invert');
             }
             
-            code.push(`wrax ${outputReg}, ${clearValue}     ; Store and optionally keep in ACC`);
+            ctx.pushInputCode(`wrax\t${outputReg},\t0.0`);
         }
         
-        code.push('');
-        
-        return code;
+        ctx.pushInputCode('');
     }
 }

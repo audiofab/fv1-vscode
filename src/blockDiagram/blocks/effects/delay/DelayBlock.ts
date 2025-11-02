@@ -74,10 +74,8 @@ export class DelayBlock extends BaseBlock {
         this.autoCalculateHeight();
     }
     
-    generateCode(ctx: CodeGenContext): string[] {
-        const code: string[] = [];
-        
-        // Get base parameters
+    generateCode(ctx: CodeGenContext): void {
+                // Get base parameters
         const maxDelayTimeRequested = this.getParameterValue(ctx, this.type, 'maxDelayTime', 1.0);
         const baseDelayTime = this.getParameterValue(ctx, this.type, 'delayTime', 0.5);
         const baseFeedback = this.getParameterValue(ctx, this.type, 'feedback', 0.5);
@@ -89,8 +87,8 @@ export class DelayBlock extends BaseBlock {
         
         // Warn if clamped
         if (maxDelayTimeRequested > absoluteMaxDelay) {
-            code.push(`; WARNING: Requested delay time ${maxDelayTimeRequested}s exceeds maximum ${absoluteMaxDelay.toFixed(3)}s`);
-            code.push(`;          at sample rate ${this.getSampleRate()} Hz. Clamped to ${absoluteMaxDelay.toFixed(3)}s`);
+            ctx.pushMainCode(`; WARNING: Requested delay time ${maxDelayTimeRequested}s exceeds maximum ${absoluteMaxDelay.toFixed(3)}s`);
+            ctx.pushMainCode(`;          at sample rate ${this.getSampleRate()} Hz. Clamped to ${absoluteMaxDelay.toFixed(3)}s`);
         }
         
         // Check if control inputs are connected
@@ -108,84 +106,79 @@ export class DelayBlock extends BaseBlock {
         const delayMem = ctx.allocateMemory(this.type, maxDelaySamples);
         
         // Generate code
-        code.push(`; Delay Effect (${baseDelayTime}s base, max ${maxDelayTime}s @ ${this.getSampleRate()} Hz)`);
-        code.push(`; Memory: ${delayMem.name} @ ${delayMem.address} (${maxDelaySamples} samples)`);
-        if (timeCtrlReg) code.push(`; Time modulated by ${timeCtrlReg}`);
-        if (fbCtrlReg) code.push(`; Feedback modulated by ${fbCtrlReg}`);
-        if (mixCtrlReg) code.push(`; Mix modulated by ${mixCtrlReg}`);
-        code.push('');
+        ctx.pushMainCode(`; Delay Effect (${baseDelayTime}s base, max ${maxDelayTime}s @ ${this.getSampleRate()} Hz)`);
+        ctx.pushMainCode(`; Memory: ${delayMem.name} @ ${delayMem.address} (${maxDelaySamples} samples)`);
+        if (timeCtrlReg) ctx.pushMainCode(`; Time modulated by ${timeCtrlReg}`);
+        if (fbCtrlReg) ctx.pushMainCode(`; Feedback modulated by ${fbCtrlReg}`);
+        if (mixCtrlReg) ctx.pushMainCode(`; Mix modulated by ${mixCtrlReg}`);
+        ctx.pushMainCode('');
         
         // Setup for variable delay using RMPA if CV-controlled
         if (timeCtrlReg) {
             // Calculate delay offset from CV value and load into ADDR_PTR
-            code.push(`; Calculate delay offset from CV`);
-            code.push(`ldax ${timeCtrlReg}  ; Load CV (0.0 to 1.0)`);
+            ctx.pushMainCode(`; Calculate delay offset from CV`);
+            ctx.pushMainCode(`ldax ${timeCtrlReg}  ; Load CV (0.0 to 1.0)`);
             // Scale CV to delay memory offset (0 to maxDelaySamples-1)
             // CV=0 gives short delay, CV=1 gives max delay
-            code.push(`sof ${this.formatS1_14(maxDelaySamples / 32768.0)}, 0.0  ; Scale to sample count`);
-            code.push(`wrax ADDR_PTR, 0.0  ; Load into address pointer`);
-            code.push('');
+            ctx.pushMainCode(`sof ${this.formatS1_14(maxDelaySamples / 32768.0)}, 0.0  ; Scale to sample count`);
+            ctx.pushMainCode(`wrax ADDR_PTR, 0.0  ; Load into address pointer`);
+            ctx.pushMainCode('');
         }
         
-        const one = ctx.getStandardConstant(1.0);
-        const zero = ctx.getStandardConstant(0.0);
-        const half = ctx.getStandardConstant(0.5);
+                        const half = ctx.getStandardConstant(0.5);
         
         // Read input signal into accumulator  
-        code.push(`rdax ${inputReg}, ${one}`);
+        ctx.pushMainCode(`rdax ${inputReg}, 1.0`);
         
         // Read delayed signal
         if (timeCtrlReg) {
             // Use RMPA to read from variable position set by ADDR_PTR
-            code.push(`; Variable delay read using RMPA`);
-            code.push(`rmpa ${one}  ; Read from delay[ADDR_PTR], coefficient 1.0`);
+            ctx.pushMainCode(`; Variable delay read using RMPA`);
+            ctx.pushMainCode(`rmpa 1.0  ; Read from delay[ADDR_PTR], coefficient 1.0`);
         } else {
             // Fixed delay - read from calculated offset
             const offset = maxDelaySamples - baseDelaySamples;
             if (offset > 0) {
-                code.push(`rda ${delayMem.name} + ${offset}, ${one}`);
+                ctx.pushMainCode(`rda ${delayMem.name} + ${offset}, 1.0`);
             } else {
-                code.push(`rda ${delayMem.name}#, ${one}`);
+                ctx.pushMainCode(`rda ${delayMem.name}#, 1.0`);
             }
         }
         
         // Apply mix (wet level)
         if (mixCtrlReg) {
-            code.push(`mulx ${mixCtrlReg}  ; Apply wet mix from CV`);
+            ctx.pushMainCode(`mulx ${mixCtrlReg}  ; Apply wet mix from CV`);
         } else {
             const mixConst = ctx.getStandardConstant(baseMix);
-            code.push(`sof ${mixConst}, ${zero}  ; Apply wet mix`);
+            ctx.pushMainCode(`sof ${mixConst}, 0.0  ; Apply wet mix`);
         }
         
         // Save wet signal temporarily and write to delay line
         const wetReg = ctx.getScratchRegister();
-        code.push(`wrax ${wetReg}, ${one}  ; Save wet, keep in ACC`);
+        ctx.pushMainCode(`wrax ${wetReg}, 1.0  ; Save wet, keep in ACC`);
         
         // Add input for feedback and write to delay line
-        code.push(`rdax ${inputReg}, ${one}`);
+        ctx.pushMainCode(`rdax ${inputReg}, 1.0`);
         if (fbCtrlReg) {
-            code.push(`mulx ${fbCtrlReg}  ; Apply feedback from CV`);
+            ctx.pushMainCode(`mulx ${fbCtrlReg}  ; Apply feedback from CV`);
         } else {
             const fbConst = ctx.getStandardConstant(baseFeedback);
-            code.push(`sof ${fbConst}, ${zero}  ; Apply feedback`);
+            ctx.pushMainCode(`sof ${fbConst}, 0.0  ; Apply feedback`);
         }
-        code.push(`wra ${delayMem.name}, ${zero}  ; Write to delay line`);
+        ctx.pushMainCode(`wra ${delayMem.name}, 0.0  ; Write to delay line`);
         
         // Mix dry and wet signals
-        code.push(`rdax ${wetReg}, ${one}  ; Get wet signal`);
+        ctx.pushMainCode(`rdax ${wetReg}, 1.0  ; Get wet signal`);
         if (mixCtrlReg) {
             // Dry is complex with CV - simplified approach
-            code.push(`rdax ${inputReg}, ${half}  ; Add some dry signal`);
+            ctx.pushMainCode(`rdax ${inputReg}, ${half}  ; Add some dry signal`);
         } else {
             const dryGain = 1.0 - baseMix;
             const dryConst = ctx.getStandardConstant(dryGain);
-            code.push(`rdax ${inputReg}, ${dryConst}  ; Add dry signal`);
+            ctx.pushMainCode(`rdax ${inputReg}, ${dryConst}  ; Add dry signal`);
         }
         
         // Write output
-        code.push(`wrax ${outputReg}, ${zero}`);
-        code.push('');
-        
-        return code;
-    }
+        ctx.pushMainCode(`wrax ${outputReg}, 0.0`);
+        ctx.pushMainCode('');    }
 }

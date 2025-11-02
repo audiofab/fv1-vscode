@@ -98,15 +98,11 @@ export class TripleTapDelayBlock extends BaseBlock {
         this.autoCalculateHeight();
     }
 
-    generateCode(ctx: CodeGenContext): string[] {
-        const code: string[] = [];
-
-        // Get input register
+    generateCode(ctx: CodeGenContext): void {
+                // Get input register
         const inputReg = ctx.getInputRegister(this.type, 'in');
         if (!inputReg) {
-            code.push(`; ThreeTap (no input connected)`);
-            return code;
-        }
+            ctx.pushMainCode(`; ThreeTap (no input connected)`);        }
 
         // Get optional inputs
         const feedbackReg = ctx.getInputRegister(this.type, 'feedback');
@@ -131,22 +127,22 @@ export class TripleTapDelayBlock extends BaseBlock {
         const memory = ctx.allocateMemory(this.type, delayLength);
         const delayOffset = memory.address;
 
-        code.push(`; ThreeTap - ${this.samplesToMs(delayLength).toFixed(1)}ms`);
-        code.push(`; Taps at ${(tap1Ratio * 100).toFixed(0)}%, ${(tap2Ratio * 100).toFixed(0)}%, ${(tap3Ratio * 100).toFixed(0)}%`);
+        ctx.pushMainCode(`; ThreeTap - ${this.samplesToMs(delayLength).toFixed(1)}ms`);
+        ctx.pushMainCode(`; Taps at ${(tap1Ratio * 100).toFixed(0)}%, ${(tap2Ratio * 100).toFixed(0)}%, ${(tap3Ratio * 100).toFixed(0)}%`);
 
         // Write input + feedback to delay line
         if (feedbackReg) {
-            code.push(`; Add feedback to input`);
-            code.push(`rdax ${feedbackReg}, ${this.formatS1_14(fbkGain)}`);
+            ctx.pushMainCode(`; Add feedback to input`);
+            ctx.pushMainCode(`rdax ${feedbackReg}, ${this.formatS1_14(fbkGain)}`);
             
             // If feedback gain CV is connected, modulate it
             if (fbkCtrl) {
-                code.push(`mulx ${fbkCtrl}`);
+                ctx.pushMainCode(`mulx ${fbkCtrl}`);
             }
         }
 
-        code.push(`rdax ${inputReg}, ${this.formatS1_14(inputGain)}`);
-        code.push(`wra ${memory.name}, 0.0`);
+        ctx.pushMainCode(`rdax ${inputReg}, ${this.formatS1_14(inputGain)}`);
+        ctx.pushMainCode(`wra ${memory.name}, 0.0`);
 
         // Generate code for each connected tap output
         const taps = [
@@ -163,17 +159,17 @@ export class TripleTapDelayBlock extends BaseBlock {
             
             const outputReg = ctx.allocateRegister(this.type, tap.id);
             const tapNum = index + 1;
-            code.push(``);
-            code.push(`; Tap ${tapNum} - ${(tap.ratio * 100).toFixed(0)}% of delay`);
+            ctx.pushMainCode(``);
+            ctx.pushMainCode(`; Tap ${tapNum} - ${(tap.ratio * 100).toFixed(0)}% of delay`);
             
             // Load 0.5 in S1.14 format (0x7FFF00 >> 8 = 0x7FFF)
             // This is the base value for ADDR_PTR calculation
-            code.push(`clr`);
-            code.push(`or $7FFF00`);
+            ctx.pushMainCode(`clr`);
+            ctx.pushMainCode(`or $7FFF00`);
             
             // If delay time CV is connected, multiply by it
             if (tap.ctrl) {
-                code.push(`mulx ${tap.ctrl}`);
+                ctx.pushMainCode(`mulx ${tap.ctrl}`);
             }
             
             // Calculate scale and offset for this tap
@@ -183,18 +179,15 @@ export class TripleTapDelayBlock extends BaseBlock {
             const offset = (delayOffset + (0.05 * tap.ratio * delayLength)) / 32768.0;
             
             // SOF: Scale and offset - this calculates the delay address
-            code.push(`sof ${this.formatS1_14(scale)}, ${this.formatS1_14(offset)}`);
+            ctx.pushMainCode(`sof ${this.formatS1_14(scale)}, ${this.formatS1_14(offset)}`);
             
             // Write to ADDR_PTR register to set read address
-            code.push(`wrax ADDR_PTR, 0`);
+            ctx.pushMainCode(`wrax ADDR_PTR, 0`);
             
             // Read from delay at calculated address with interpolation
-            code.push(`rmpa ${this.formatS1_14(1.0)}`);
+            ctx.pushMainCode(`rmpa ${this.formatS1_14(1.0)}`);
             
             // Store in output register
-            code.push(`wrax ${outputReg}, 0.0`);
-        });
-
-        return code;
-    }
+            ctx.pushMainCode(`wrax ${outputReg}, 0.0`);
+        });    }
 }

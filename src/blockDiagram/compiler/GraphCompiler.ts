@@ -72,15 +72,13 @@ export class GraphCompiler {
         // 3. Create code generation context
         const context = new CodeGenerationContext(graph);
         
-        // 3a. Pre-allocate registers for all connected outputs
+        // 4. Pre-allocate registers for all connected outputs
         // This is necessary for feedback loops where blocks may read from outputs
         // that haven't been generated yet in the execution order
         this.preallocateAllOutputs(graph, context);
         
-        // 4. FIRST PASS: Collect EQU declarations and initialization code from all blocks
-        const equDeclarations: string[] = [];
-        const initCode: string[] = [];
-        
+        // 5. Generate code for each block in execution order
+        // Blocks will push their code to appropriate sections (init, input, main, output)
         try {
             for (const blockId of executionOrder) {
                 const block = graph.blocks.find(b => b.id === blockId);
@@ -97,53 +95,8 @@ export class GraphCompiler {
                 // Set current block context
                 context.setCurrentBlock(blockId);
                 
-                // Collect EQU declarations if block provides them
-                if (definition.getEquDeclarations) {
-                    const blockEqus = definition.getEquDeclarations(context);
-                    equDeclarations.push(...blockEqus);
-                }
-                
-                // Collect initialization code if block provides it
-                if (definition.getInitCode) {
-                    const blockInit = definition.getInitCode(context);
-                    if (blockInit.length > 0) {
-                        initCode.push(`;  from ${block.type}`);
-                        initCode.push(...blockInit);
-                    }
-                }
-            }
-        } catch (error) {
-            return {
-                success: false,
-                errors: [`First pass (EQU/init collection) failed: ${error}`]
-            };
-        }
-        
-        // 5. SECOND PASS: Generate main code for each block
-        const bodyCode: string[] = [];
-        try {
-            for (const blockId of executionOrder) {
-                const block = graph.blocks.find(b => b.id === blockId);
-                if (!block) {
-                    continue;
-                }
-                
-                const definition = this.registry.getBlock(block.type);
-                if (!definition) {
-                    // Already reported in first pass
-                    continue;
-                }
-                
-                // Set current block context
-                context.setCurrentBlock(blockId);
-                
-                // Add block section header comment
-                const blockComment = this.generateBlockComment(block, context, graph);
-                bodyCode.push(...blockComment);
-                
-                // Generate block code
-                const blockCode = definition.generateCode(context);
-                bodyCode.push(...blockCode);
+                // Generate block code (blocks push to sections internally)
+                definition.generateCode(context);
                 
                 // Reset scratch registers for next block
                 context.resetScratchRegisters();
@@ -158,6 +111,9 @@ export class GraphCompiler {
         // 6. Assemble the final program with proper structure
         const codeLines: string[] = [];
         
+        // Get all code sections from context
+        const sections = context.getCodeSections();
+        
         // Section 1: Header comment
         codeLines.push(';================================================================================');
         codeLines.push(`; ${graph.metadata.name}`);
@@ -171,71 +127,46 @@ export class GraphCompiler {
         codeLines.push(';================================================================================');
         codeLines.push('');
         
-        // Section 2: EQU declarations
-        const contextEqus = context.getEquDeclarations();
-        const registerAliases = context.getRegisterAliases();
-        
-        if (equDeclarations.length > 0 || contextEqus.length > 0 || registerAliases.length > 0) {
-            codeLines.push('; EQU Declarations');
+        // Section 2: Initialization (EQU, MEM, SKP)
+        if (sections.init.length > 0) {
+            codeLines.push('; Initialization');
             codeLines.push(';--------------------------------------------------------------------------------');
-            
-            // Subsection 2a: Constants
-            if (equDeclarations.length > 0 || contextEqus.length > 0) {
-                codeLines.push('; Constants');
-                // Add block-specific EQUs first
-                equDeclarations.forEach(line => codeLines.push(line));
-                
-                // Add context EQUs (programmatically registered)
-                contextEqus.forEach(equ => {
-                    codeLines.push(`equ\t${equ.name}\t${equ.value}`);
-                });
-                codeLines.push('');
-            }
-            
-            // Subsection 2b: Register Aliases
-            if (registerAliases.length > 0) {
-                codeLines.push('; Register Aliases');
-                registerAliases.forEach(alias => {
-                    codeLines.push(`equ\t${alias.alias}\t${alias.register}`);
-                });
-                codeLines.push('');
-            }
-        }
-        
-        // Section 3: MEM declarations
-        const memoryBlocks = context.getMemoryBlocks();
-        if (memoryBlocks.length > 0) {
-            codeLines.push('; Memory Allocations');
-            codeLines.push(';--------------------------------------------------------------------------------');
-            for (const mem of memoryBlocks) {
-                codeLines.push(`mem\t${mem.name}\t${mem.size}`);
-            }
+            codeLines.push(...sections.init);
             codeLines.push('');
         }
         
-        // Section 4: Initialization code (runs once at startup)
-        if (initCode.length > 0) {
-            codeLines.push('; Initialization (runs once at startup)');
+        // Section 3: Input Section (ADC reads, POT reads)
+        if (sections.input.length > 0) {
+            codeLines.push('; Input Section');
             codeLines.push(';--------------------------------------------------------------------------------');
-            codeLines.push('skp\trun,\tstart');
-            codeLines.push(...initCode);
-            codeLines.push('start:');
+            codeLines.push(...sections.input);
             codeLines.push('');
         }
         
-        // Section 5: Main code body (runs every sample)
-        if (bodyCode.length > 0) {
+        // Section 4: Main Program
+        if (sections.main.length > 0) {
             codeLines.push('; Main Program');
             codeLines.push(';--------------------------------------------------------------------------------');
-            codeLines.push(...bodyCode);
+            codeLines.push(...sections.main);
+            codeLines.push('');
         }
         
-        // 6. Count instructions (rough estimate)
+        // Section 5: Output Section (DAC writes)
+        if (sections.output.length > 0) {
+            codeLines.push('; Output Section');
+            codeLines.push(';--------------------------------------------------------------------------------');
+            codeLines.push(...sections.output);
+            codeLines.push('');
+        }
+        
+        // 7. Count instructions (rough estimate)
         const instructions = codeLines.filter(line => {
             const trimmed = line.trim();
             return trimmed.length > 0 && 
                    !trimmed.startsWith(';') && 
-                   !trimmed.includes('equ');
+                   !trimmed.includes('equ') &&
+                   !trimmed.includes('mem') &&
+                   !trimmed.includes(':');  // Skip labels
         }).length;
         
         // Check instruction limit
@@ -251,7 +182,7 @@ export class GraphCompiler {
             );
         }
         
-        // 6. Build statistics
+        // 8. Build statistics
         const statistics: CompilationStatistics = {
             instructionsUsed: instructions,
             registersUsed: context.getUsedRegisterCount(),

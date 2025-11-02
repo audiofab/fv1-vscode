@@ -42,15 +42,11 @@ export class LowPassFilterBlock extends BaseBlock {
         this.autoCalculateHeight();
     }
 
-    generateCode(ctx: CodeGenContext): string[] {
-        const code: string[] = [];
-
-        // Get input register
+    generateCode(ctx: CodeGenContext): void {
+                // Get input register
         const inputReg = ctx.getInputRegister(this.type, 'in');
         if (!inputReg) {
-            code.push(`; LPF 1P (no input connected)`);
-            return code;
-        }
+            ctx.pushMainCode(`; LPF 1P (no input connected)`);        }
 
         // Get frequency control input (optional)
         const freqCtrlReg = ctx.getInputRegister(this.type, 'freq_ctrl');
@@ -63,29 +59,21 @@ export class LowPassFilterBlock extends BaseBlock {
         const freqCoeff = this.hzToFilterCoeff(frequencyHz);
         
         // Check if we should preserve accumulator for next block
-        const one = ctx.getStandardConstant(1.0);
-        const zero = ctx.getStandardConstant(0.0);
-        const preserveAcc = ctx.shouldPreserveAccumulator(this.type, 'out');
-        const clearValue = preserveAcc ? one : zero;
-
-        code.push(`; LPF 1P - ${frequencyHz.toFixed(0)} Hz`);
+                                        ctx.pushMainCode(`; LPF 1P - ${frequencyHz.toFixed(0)} Hz`);
 
         if (freqCtrlReg) {
             // If frequency control input is connected, use manual filtering
             // This allows real-time modulation of cutoff frequency
-            code.push(`; Frequency modulated by control input`);
-            code.push(`rdax ${inputReg}, ${this.formatS1_14(freqCoeff)}`);
-            code.push(`rdax ${lpfReg}, ${this.formatS1_14(-freqCoeff)}`);
-            code.push(`mulx ${freqCtrlReg}`);
-            code.push(`rdax ${lpfReg}, ${this.formatS1_14(1.0)}`);
+            ctx.pushMainCode(`; Frequency modulated by control input`);
+            ctx.pushMainCode(`rdax ${inputReg}, ${this.formatS1_14(freqCoeff)}`);
+            ctx.pushMainCode(`rdax ${lpfReg}, ${this.formatS1_14(-freqCoeff)}`);
+            ctx.pushMainCode(`mulx ${freqCtrlReg}`);
+            ctx.pushMainCode(`rdax ${lpfReg}, ${this.formatS1_14(1.0)}`);
         } else {
             // Use RDFX instruction for efficient filtering
-            code.push(`rdax ${inputReg}, ${this.formatS1_14(1.0)}`);
-            code.push(`rdfx ${lpfReg}, ${this.formatS1_14(freqCoeff)}`);
+            ctx.pushMainCode(`rdax ${inputReg}, ${this.formatS1_14(1.0)}`);
+            ctx.pushMainCode(`rdfx ${lpfReg}, ${this.formatS1_14(freqCoeff)}`);
         }
 
-        code.push(`wrax ${lpfReg}, ${clearValue}`);
-
-        return code;
-    }
+        ctx.pushMainCode(`wrax ${lpfReg}, 0.0`);    }
 }

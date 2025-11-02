@@ -35,9 +35,11 @@ export class CodeGenerationContext implements CodeGenContext {
     private nextMemoryAddress: number = 0;
     private currentBlockId: string | null = null;
     
-    // Accumulator forwarding optimization
-    // Maps "blockId:portId" to whether it should preserve accumulator (wrax reg, 1.0)
-    private accumulatorForwarding: Map<string, boolean> = new Map();
+    // Code sections
+    private initCode: string[] = [];    // EQU, MEM declarations, SKP logic
+    private inputCode: string[] = [];   // ADC reads, POT reads
+    private mainCode: string[] = [];    // Main processing logic
+    private outputCode: string[] = [];  // DAC writes
     
     // FV-1 hardware limits
     private readonly MAX_REGISTERS = 32;  // REG0-REG31
@@ -45,7 +47,6 @@ export class CodeGenerationContext implements CodeGenContext {
     
     constructor(graph: BlockGraph) {
         this.graph = graph;
-        this.analyzeAccumulatorForwarding();
     }
     
     /**
@@ -56,64 +57,90 @@ export class CodeGenerationContext implements CodeGenContext {
     }
     
     /**
-     * Analyze graph to determine which outputs can use accumulator forwarding
-     * An output can forward its accumulator value to the next block if:
-     * 1. It has exactly ONE consumer (one outgoing connection)
-     * 2. The consumer block processes it as its FIRST/PRIMARY input
+     * Push code to the initialization section
+     * For EQU/MEM declarations and SKP logic
      */
-    private analyzeAccumulatorForwarding(): void {
-        // For each connection, determine if accumulator forwarding is possible
-        for (const connection of this.graph.connections) {
-            const sourceKey = `${connection.from.blockId}:${connection.from.portId}`;
-            
-            // Count how many connections use this output
-            const consumersOfThisOutput = this.graph.connections.filter(
-                conn => conn.from.blockId === connection.from.blockId && 
-                        conn.from.portId === connection.from.portId
-            );
-            
-            // Only enable forwarding if there's exactly ONE consumer
-            if (consumersOfThisOutput.length === 1) {
-                // Check if this is the primary input of the consumer block
-                const targetBlock = this.graph.blocks.find(b => b.id === connection.to.blockId);
-                if (targetBlock) {
-                    // For now, we'll enable forwarding for any single-consumer output
-                    // In the future, we could add more sophisticated analysis
-                    this.accumulatorForwarding.set(sourceKey, true);
-                }
+    pushInitCode(...lines: string[]): void {
+        this.initCode.push(...lines);
+    }
+    
+    /**
+     * Push code to the input section
+     * For ADC reads and POT reads
+     */
+    pushInputCode(...lines: string[]): void {
+        this.inputCode.push(...lines);
+    }
+    
+    /**
+     * Push code to the main code section
+     * For main processing logic
+     */
+    pushMainCode(...lines: string[]): void {
+        this.mainCode.push(...lines);
+    }
+    
+    /**
+     * Push code to the output section
+     * For DAC writes
+     */
+    pushOutputCode(...lines: string[]): void {
+        this.outputCode.push(...lines);
+    }
+    
+    /**
+     * Get all code sections
+     * Also generates EQU and MEM declarations at the beginning of init section
+     */
+    getCodeSections(): {
+        init: string[];
+        input: string[];
+        main: string[];
+        output: string[];
+    } {
+        const init: string[] = [];
+        
+        // Add EQU declarations for constants
+        const equDecls = this.getEquDeclarations();
+        if (equDecls.length > 0) {
+            init.push('; Constants');
+            for (const equ of equDecls) {
+                init.push(`equ\t${equ.name}\t${equ.value}`);
             }
-        }
-    }
-    
-    /**
-     * Check if an output should preserve the accumulator value (use wrax reg, 1.0)
-     * This is used by blocks when storing their output
-     */
-    shouldPreserveAccumulator(blockIdOrType: string, portId: string): boolean {
-        const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
-        const key = `${blockId}:${portId}`;
-        return this.accumulatorForwarding.get(key) ?? false;
-    }
-    
-    /**
-     * Check if an input can skip loading from register (accumulator already has value)
-     * This is used by blocks when loading their inputs
-     */
-    isAccumulatorForwarded(blockIdOrType: string, portId: string): boolean {
-        const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
-        
-        // Find the connection feeding this input
-        const connection = this.graph.connections.find(
-            conn => conn.to.blockId === blockId && conn.to.portId === portId
-        );
-        
-        if (!connection) {
-            return false;
+            init.push('');
         }
         
-        // Check if the source output is set to forward its accumulator
-        const sourceKey = `${connection.from.blockId}:${connection.from.portId}`;
-        return this.accumulatorForwarding.get(sourceKey) ?? false;
+        // Add EQU declarations for register aliases
+        const aliases = this.getRegisterAliases();
+        if (aliases.length > 0) {
+            init.push('; Register Aliases');
+            for (const alias of aliases) {
+                init.push(`equ\t${alias.alias}\t${alias.register}`);
+            }
+            init.push('');
+        }
+        
+        // Add MEM declarations
+        const memBlocks = this.getMemoryBlocks();
+        if (memBlocks.length > 0) {
+            init.push('; Memory Allocations');
+            for (const mem of memBlocks) {
+                init.push(`mem\t${mem.name}\t${mem.size}`);
+            }
+            init.push('');
+        }
+        
+        // Add any custom init code from blocks
+        if (this.initCode.length > 0) {
+            init.push(...this.initCode);
+        }
+        
+        return {
+            init,
+            input: [...this.inputCode],
+            main: [...this.mainCode],
+            output: [...this.outputCode]
+        };
     }
     
     /**
@@ -505,10 +532,12 @@ export class CodeGenerationContext implements CodeGenContext {
         this.registerAllocations = [];
         this.memoryAllocations = [];
         this.equDeclarations = [];
+        this.initCode = [];
+        this.inputCode = [];
+        this.mainCode = [];
+        this.outputCode = [];
         this.nextRegister = 0;
         this.nextScratchRegister = 31;
         this.nextMemoryAddress = 0;
-        this.accumulatorForwarding.clear();
-        this.analyzeAccumulatorForwarding();
     }
 }

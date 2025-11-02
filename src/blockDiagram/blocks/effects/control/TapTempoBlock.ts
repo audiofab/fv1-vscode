@@ -60,8 +60,8 @@ export class TapTempoBlock extends BaseBlock {
         this.autoCalculateHeight();
     }
     
-    getInitCode(ctx: CodeGenContext): string[] {
-        const code: string[] = [];
+    generateCode(ctx: CodeGenContext): void {
+        // Initialize tap tempo
         const maxTime = this.getParameterValue(ctx, this.type, 'maxTime', 1.0);
         const defaultTime = this.getParameterValue(ctx, this.type, 'defaultTime', 0.33);
         
@@ -69,101 +69,91 @@ export class TapTempoBlock extends BaseBlock {
         const latchReg = ctx.allocateRegister(this.type, 'latch');
         const rampReg = ctx.allocateRegister(this.type, 'ramp');
         
-        code.push(`; Tap Tempo Initialization`);
-        code.push(`or ${this.formatS1_14(4096 / 32768.0)}  ; Load RMP0 frequency`);
-        code.push(`wrax RMP0_RATE, ${this.formatS1_14(0.99)}  ; Set rate, load 0.99`);
-        code.push(`wrax ${latchReg}, ${this.formatS1_14(defaultTime / maxTime)}`);
-        code.push(`wrax ${rampReg}, 0`);
+        ctx.pushInitCode(`; Tap Tempo Initialization`);
+        ctx.pushInitCode(`or ${this.formatS1_14(4096 / 32768.0)}  ; Load RMP0 frequency`);
+        ctx.pushInitCode(`wrax RMP0_RATE, ${this.formatS1_14(0.99)}  ; Set rate, load 0.99`);
+        ctx.pushInitCode(`wrax ${latchReg}, ${this.formatS1_14(defaultTime / maxTime)}`);
+        ctx.pushInitCode(`wrax ${rampReg}, 0`);
         
-        return code;
-    }
-    
-    generateCode(ctx: CodeGenContext): string[] {
-        const code: string[] = [];
-        const maxTime = this.getParameterValue(ctx, this.type, 'maxTime', 1.0);
+        // Generate main code
         const tapInputReg = ctx.getInputRegister(this.type, 'tap_in');
         
         if (!tapInputReg) {
-            code.push(`; Tap Tempo (no input connected)`);
-            return code;
+            ctx.pushMainCode(`; Tap Tempo (no input connected)`);
+            return;
         }
         
         // Allocate registers
         const dbReg = ctx.getScratchRegister();       // Debounce register
         const momReg = ctx.getScratchRegister();      // Momentary register
-        const latchReg = ctx.allocateRegister(this.type, 'latch');
-        const rampReg = ctx.allocateRegister(this.type, 'ramp');
         const taptempoReg = ctx.allocateRegister(this.type, 'taptempo');
         
         const rampRate = 1.0 / maxTime / 16.0;
         const count = 0.01;
         
-        code.push(`; Tap Tempo Control`);
-        code.push(`;   Switch input: ${tapInputReg}`);
-        code.push('');
+        ctx.pushMainCode(`; Tap Tempo Control`);
+        ctx.pushMainCode(`;   Switch input: ${tapInputReg}`);
+        ctx.pushMainCode('');
         
         // Switch debouncing and pot filtering workaround
-        code.push(`; Switch Debouncing`);
-        code.push(`ldax ${tapInputReg}  ; Load tap switch input`);
-        code.push(`sof 1.0, -0.5`);
-        code.push(`skp neg, 4`);
-        code.push(`ldax ${dbReg}`);
-        code.push(`sof 1.0, ${this.formatS10(count)}`);
-        code.push(`wrax ${dbReg}, 0`);
-        code.push(`skp zro, 3`);
-        code.push(`; DOWN:`);
-        code.push(`ldax ${dbReg}`);
-        code.push(`sof 1.0, ${this.formatS10(-count)}`);
-        code.push(`wrax ${dbReg}, 0`);
-        code.push('');
+        ctx.pushMainCode(`; Switch Debouncing`);
+        ctx.pushMainCode(`ldax ${tapInputReg}  ; Load tap switch input`);
+        ctx.pushMainCode(`sof 1.0, -0.5`);
+        ctx.pushMainCode(`skp neg, 4`);
+        ctx.pushMainCode(`ldax ${dbReg}`);
+        ctx.pushMainCode(`sof 1.0, ${this.formatS10(count)}`);
+        ctx.pushMainCode(`wrax ${dbReg}, 0`);
+        ctx.pushMainCode(`skp zro, 3`);
+        ctx.pushMainCode(`; DOWN:`);
+        ctx.pushMainCode(`ldax ${dbReg}`);
+        ctx.pushMainCode(`sof 1.0, ${this.formatS10(-count)}`);
+        ctx.pushMainCode(`wrax ${dbReg}, 0`);
+        ctx.pushMainCode('');
         
         // Latching switch - falling edge triggered flip-flop
         // Schmitt trigger action: <-0.9 is low, >0.9 is high, in-between ignored
-        code.push(`; Latching Switch (Schmitt Trigger)`);
-        code.push(`ldax ${dbReg}`);
-        code.push(`absa`);
-        code.push(`sof 1.0, -0.9`);
-        code.push(`skp neg, 13`);
-        code.push(`ldax ${dbReg}`);
-        code.push(`sof 1.0, -0.9`);
-        code.push(`skp neg, 3`);
-        code.push(`sof 0.0, 0.999`);
-        code.push(`wrax ${momReg}, 0`);
-        code.push(`skp zro, 7`);
-        code.push(`; LO:`);
-        code.push(`ldax ${momReg}`);
-        code.push(`skp neg, 5`);
-        code.push(`sof 0.0, -0.999`);
-        code.push(`wrax ${momReg}, 0`);
-        code.push(`ldax ${latchReg}`);
-        code.push(`sof -1.0, 0`);
-        code.push(`wrax ${latchReg}, 0`);
-        code.push('');
+        ctx.pushMainCode(`; Latching Switch (Schmitt Trigger)`);
+        ctx.pushMainCode(`ldax ${dbReg}`);
+        ctx.pushMainCode(`absa`);
+        ctx.pushMainCode(`sof 1.0, -0.9`);
+        ctx.pushMainCode(`skp neg, 13`);
+        ctx.pushMainCode(`ldax ${dbReg}`);
+        ctx.pushMainCode(`sof 1.0, -0.9`);
+        ctx.pushMainCode(`skp neg, 3`);
+        ctx.pushMainCode(`sof 0.0, 0.999`);
+        ctx.pushMainCode(`wrax ${momReg}, 0`);
+        ctx.pushMainCode(`skp zro, 7`);
+        ctx.pushMainCode(`; LO:`);
+        ctx.pushMainCode(`ldax ${momReg}`);
+        ctx.pushMainCode(`skp neg, 5`);
+        ctx.pushMainCode(`sof 0.0, -0.999`);
+        ctx.pushMainCode(`wrax ${momReg}, 0`);
+        ctx.pushMainCode(`ldax ${latchReg}`);
+        ctx.pushMainCode(`sof -1.0, 0`);
+        ctx.pushMainCode(`wrax ${latchReg}, 0`);
+        ctx.pushMainCode('');
         
         // Tap tempo - uses RMP0 as a 1 Hz rising ramp
         // Runs while latch is low, sampled and held when latch is high
-        code.push(`; Tap Tempo Processing`);
-        code.push(`ldax ${latchReg}`);
-        code.push(`skp neg, 4`);
-        code.push(`jam RMP0  ; Reset ramp`);
-        code.push(`ldax ${rampReg}`);
-        code.push(`wrax ${taptempoReg}, 0  ; Sample tempo`);
-        code.push(`skp zro, 12`);
-        code.push(`; LOW:`);
-        code.push(`sof 0.0, ${this.formatS10(rampRate)}`);
-        code.push(`wrax RMP0_RATE, 0  ; Set ramp rate`);
-        code.push(`cho rdal, RMP0  ; Read ramp value`);
-        code.push(`sof -2.0, 0.999`);
-        code.push(`sof 1.0, 0.001`);
-        code.push(`wrax ${rampReg}, 1.0`);
-        code.push(`sof 1.0, -0.999`);
-        code.push(`skp neg, 4`);
-        code.push(`ldax ${taptempoReg}`);
-        code.push(`wrax ${rampReg}, 0`);
-        code.push(`sof 0.0, 0.999`);
-        code.push(`wrax ${latchReg}, 0`);
-        code.push('');
-        
-        return code;
-    }
+        ctx.pushMainCode(`; Tap Tempo Processing`);
+        ctx.pushMainCode(`ldax ${latchReg}`);
+        ctx.pushMainCode(`skp neg, 4`);
+        ctx.pushMainCode(`jam RMP0  ; Reset ramp`);
+        ctx.pushMainCode(`ldax ${rampReg}`);
+        ctx.pushMainCode(`wrax ${taptempoReg}, 0  ; Sample tempo`);
+        ctx.pushMainCode(`skp zro, 12`);
+        ctx.pushMainCode(`; LOW:`);
+        ctx.pushMainCode(`sof 0.0, ${this.formatS10(rampRate)}`);
+        ctx.pushMainCode(`wrax RMP0_RATE, 0  ; Set ramp rate`);
+        ctx.pushMainCode(`cho rdal, RMP0  ; Read ramp value`);
+        ctx.pushMainCode(`sof -2.0, 0.999`);
+        ctx.pushMainCode(`sof 1.0, 0.001`);
+        ctx.pushMainCode(`wrax ${rampReg}, 1.0`);
+        ctx.pushMainCode(`sof 1.0, -0.999`);
+        ctx.pushMainCode(`skp neg, 4`);
+        ctx.pushMainCode(`ldax ${taptempoReg}`);
+        ctx.pushMainCode(`wrax ${rampReg}, 0`);
+        ctx.pushMainCode(`sof 0.0, 0.999`);
+        ctx.pushMainCode(`wrax ${latchReg}, 0`);
+        ctx.pushMainCode('');    }
 }

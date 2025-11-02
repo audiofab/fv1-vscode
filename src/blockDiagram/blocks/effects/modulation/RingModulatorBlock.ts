@@ -45,61 +45,52 @@ export class RingModulatorBlock extends BaseBlock {
         this.autoCalculateHeight();
     }
     
-    getInitCode(ctx: CodeGenContext): string[] {
-        const code: string[] = [];
+    generateCode(ctx: CodeGenContext): void {
+        // Initialize oscillator registers
         const sReg = ctx.getScratchRegister();
         const cReg = ctx.getScratchRegister();
         
-        code.push(`; Ring Mod Oscillator Init`);
-        code.push(`wrax ${sReg}, 0  ; Set s to 0`);
-        code.push(`sof 0, -1  ; Set acc to -1`);
-        code.push(`wrax ${cReg}, 0  ; Set c to -1`);
+        ctx.pushInitCode(`; Ring Mod Oscillator Init`);
+        ctx.pushInitCode(`wrax ${sReg}, 0  ; Set s to 0`);
+        ctx.pushInitCode(`sof 0, -1  ; Set acc to -1`);
+        ctx.pushInitCode(`wrax ${cReg}, 0  ; Set c to -1`);
         
-        return code;
-    }
-    
-    generateCode(ctx: CodeGenContext): string[] {
-        const code: string[] = [];
+        // Generate main code
         const lfo = this.getParameterValue(ctx, this.type, 'lfo', 0.02);
         
         const inputReg = ctx.getInputRegister(this.type, 'in');
         const freqCtrlReg = ctx.getInputRegister(this.type, 'freq_ctrl');
         
         if (!inputReg) {
-            code.push(`; Ring Modulator (no input connected)`);
-            return code;
+            ctx.pushMainCode(`; Ring Modulator (no input connected)`);
+            return;
         }
         
-        // Allocate registers for quadrature oscillator
-        const sReg = ctx.getScratchRegister();
-        const cReg = ctx.getScratchRegister();
+        // Use previously allocated registers for quadrature oscillator
         const outputReg = ctx.allocateRegister(this.type, 'out');
         
-        code.push(`; Ring Modulator`);
-        code.push(`; Quadrature oscillator (rate=${lfo})`);
-        code.push('');
+        ctx.pushMainCode(`; Ring Modulator`);
+        ctx.pushMainCode(`; Quadrature oscillator (rate=${lfo})`);
+        ctx.pushMainCode('');
         
         // Generate carrier oscillator using quadrature method
-        code.push(`; Quadrature Oscillator`);
-        code.push(`rdax ${sReg}, ${this.formatS1_14(lfo)}  ; Read s register`);
+        ctx.pushMainCode(`; Quadrature Oscillator`);
+        ctx.pushMainCode(`rdax ${sReg}, ${this.formatS1_14(lfo)}  ; Read s register`);
         if (freqCtrlReg) {
-            code.push(`mulx ${freqCtrlReg}  ; Modulate frequency`);
+            ctx.pushMainCode(`mulx ${freqCtrlReg}  ; Modulate frequency`);
         }
-        code.push(`rdax ${cReg}, 1.0  ; Integrate with c`);
-        code.push(`wrax ${cReg}, ${this.formatS1_14(-lfo)}  ; Write c, keep -lfo*c`);
+        ctx.pushMainCode(`rdax ${cReg}, 1.0  ; Integrate with c`);
+        ctx.pushMainCode(`wrax ${cReg}, ${this.formatS1_14(-lfo)}  ; Write c, keep -lfo*c`);
         if (freqCtrlReg) {
-            code.push(`mulx ${freqCtrlReg}  ; Modulate frequency`);
+            ctx.pushMainCode(`mulx ${freqCtrlReg}  ; Modulate frequency`);
         }
-        code.push(`rdax ${sReg}, 1.0  ; Integrate with s`);
-        code.push(`wrax ${sReg}, 1.0  ; Write s, keep in ACC`);
-        code.push('');
+        ctx.pushMainCode(`rdax ${sReg}, 1.0  ; Integrate with s`);
+        ctx.pushMainCode(`wrax ${sReg}, 1.0  ; Write s, keep in ACC`);
+        ctx.pushMainCode('');
         
         // Ring modulate: multiply input by oscillator
-        code.push(`; Ring Modulation`);
-        code.push(`mulx ${inputReg}  ; Multiply by input signal`);
-        code.push(`wrax ${outputReg}, 0`);
-        code.push('');
-        
-        return code;
-    }
+        ctx.pushMainCode(`; Ring Modulation`);
+        ctx.pushMainCode(`mulx ${inputReg}  ; Multiply by input signal`);
+        ctx.pushMainCode(`wrax ${outputReg}, 0`);
+        ctx.pushMainCode('');    }
 }

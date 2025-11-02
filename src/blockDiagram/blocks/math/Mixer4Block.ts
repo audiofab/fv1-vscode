@@ -107,10 +107,8 @@ export class Mixer4Block extends BaseBlock {
         this.autoCalculateHeight();
     }
     
-    generateCode(ctx: CodeGenContext): string[] {
-        const code: string[] = [];
-        
-        const input1Reg = ctx.getInputRegister(this.type, 'in1');
+    generateCode(ctx: CodeGenContext): void {
+                const input1Reg = ctx.getInputRegister(this.type, 'in1');
         const input2Reg = ctx.getInputRegister(this.type, 'in2');
         const input3Reg = ctx.getInputRegister(this.type, 'in3');
         const input4Reg = ctx.getInputRegister(this.type, 'in4');
@@ -126,58 +124,55 @@ export class Mixer4Block extends BaseBlock {
         const gain3 = this.getParameterValue(ctx, this.type, 'gain3', 1.0);
         const gain4 = this.getParameterValue(ctx, this.type, 'gain4', 1.0);
         
-        code.push('; Mixer 4:1');
-        code.push('');
+        ctx.pushMainCode('; Mixer 4:1');
+        ctx.pushMainCode('');
         
         if (input1Reg) {
-            code.push(`rdax ${input1Reg}, ${this.formatS1_14(gain1)}`);
+            ctx.pushMainCode(`rdax ${input1Reg}, ${this.formatS1_14(gain1)}`);
             if (level1Reg) {
-                code.push(`mulx ${level1Reg}`);
+                ctx.pushMainCode(`mulx ${level1Reg}`);
             }
-            code.push(`wrax ${outputReg}, 0`);
+            ctx.pushMainCode(`wrax ${outputReg}, 0`);
         }
         
         if (input2Reg) {
-            code.push(`rdax ${input2Reg}, ${this.formatS1_14(gain2)}`);
+            ctx.pushMainCode(`rdax ${input2Reg}, ${this.formatS1_14(gain2)}`);
             if (level2Reg) {
-                code.push(`mulx ${level2Reg}`);
+                ctx.pushMainCode(`mulx ${level2Reg}`);
             }
             if (input1Reg) {
-                code.push(`rdax ${outputReg}, 1.0`);
+                ctx.pushMainCode(`rdax ${outputReg}, 1.0`);
             }
-            code.push(`wrax ${outputReg}, 0`);
+            ctx.pushMainCode(`wrax ${outputReg}, 0`);
         }
         
         if (input3Reg) {
-            code.push(`rdax ${input3Reg}, ${this.formatS1_14(gain3)}`);
+            ctx.pushMainCode(`rdax ${input3Reg}, ${this.formatS1_14(gain3)}`);
             if (level3Reg) {
-                code.push(`mulx ${level3Reg}`);
+                ctx.pushMainCode(`mulx ${level3Reg}`);
             }
             if (input1Reg) {
-                code.push(`rdax ${outputReg}, 1.0`);
+                ctx.pushMainCode(`rdax ${outputReg}, 1.0`);
             } else if (input2Reg) {
-                code.push(`rdax ${outputReg}, 1.0`);
+                ctx.pushMainCode(`rdax ${outputReg}, 1.0`);
             }
-            code.push(`wrax ${outputReg}, 0`);
+            ctx.pushMainCode(`wrax ${outputReg}, 0`);
         }
         
         if (input4Reg) {
-            code.push(`rdax ${input4Reg}, ${this.formatS1_14(gain4)}`);
+            ctx.pushMainCode(`rdax ${input4Reg}, ${this.formatS1_14(gain4)}`);
             if (level4Reg) {
-                code.push(`mulx ${level4Reg}`);
+                ctx.pushMainCode(`mulx ${level4Reg}`);
             }
             if (input1Reg) {
-                code.push(`rdax ${outputReg}, 1.0`);
+                ctx.pushMainCode(`rdax ${outputReg}, 1.0`);
             } else if (input2Reg) {
-                code.push(`rdax ${outputReg}, 1.0`);
+                ctx.pushMainCode(`rdax ${outputReg}, 1.0`);
             } else if (input3Reg) {
-                code.push(`rdax ${outputReg}, 1.0`);
+                ctx.pushMainCode(`rdax ${outputReg}, 1.0`);
             }
-            code.push(`wrax ${outputReg}, 0`);
+            ctx.pushMainCode(`wrax ${outputReg}, 0`);
         }
         
-        code.push('');
-        
-        return code;
-    }
+        ctx.pushMainCode('');    }
 }

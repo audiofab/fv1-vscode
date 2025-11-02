@@ -80,12 +80,12 @@ export interface CodeGenContext {
     // Reset scratch register allocation (called after each block's code generation)
     resetScratchRegisters(): void;
     
-    // Accumulator forwarding optimization
-    // Check if output should preserve accumulator (use wrax reg, 1.0 instead of wrax reg, 0.0)
-    shouldPreserveAccumulator(blockId: string, portId: string): boolean;
-    
-    // Check if input value is already in accumulator (skip rdax instruction)
-    isAccumulatorForwarded(blockId: string, portId: string): boolean;
+    // Code section management
+    // Blocks can push code to different sections that are assembled in order
+    pushInitCode(...lines: string[]): void;      // EQU, MEM, SKP declarations
+    pushInputCode(...lines: string[]): void;     // ADC reads, POT reads
+    pushMainCode(...lines: string[]): void;      // Main processing logic
+    pushOutputCode(...lines: string[]): void;    // DAC writes
     
     // Allocate delay memory
     allocateMemory(blockId: string, size: number): { name: string; address: number; size: number };
@@ -150,25 +150,11 @@ export interface IBlockDefinition {
     
     /**
      * Generate FV-1 assembly code for this block
-     * @param ctx Code generation context providing resource allocation
-     * @returns Array of assembly code lines
+     * Blocks should push code to appropriate sections using ctx.pushInitCode(), 
+     * ctx.pushInputCode(), ctx.pushMainCode(), or ctx.pushOutputCode()
+     * @param ctx Code generation context providing resource allocation and code sections
      */
-    generateCode(ctx: CodeGenContext): string[];
-    
-    /**
-     * Get EQU declarations for constants used by this block (optional)
-     * @param ctx Code generation context
-     * @returns Array of EQU declaration lines (e.g., "equ\tkrt\t0.5")
-     */
-    getEquDeclarations?(ctx: CodeGenContext): string[];
-    
-    /**
-     * Get initialization code to run once at startup (optional)
-     * This code will be placed in a SKP block
-     * @param ctx Code generation context
-     * @returns Array of initialization code lines
-     */
-    getInitCode?(ctx: CodeGenContext): string[];
+    generateCode(ctx: CodeGenContext): void;
     
     /**
      * Validate this block's configuration and connections

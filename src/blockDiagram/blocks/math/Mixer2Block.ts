@@ -75,10 +75,8 @@ export class Mixer2Block extends BaseBlock {
         this.autoCalculateHeight();
     }
     
-    generateCode(ctx: CodeGenContext): string[] {
-        const code: string[] = [];
-        
-        // Get input registers
+    generateCode(ctx: CodeGenContext): void {
+                // Get input registers
         const input1Reg = ctx.getInputRegister(this.type, 'in1');
         const input2Reg = ctx.getInputRegister(this.type, 'in2');
         const level1Reg = ctx.getInputRegister(this.type, 'level1');
@@ -91,37 +89,34 @@ export class Mixer2Block extends BaseBlock {
         const gain1 = this.getParameterValue(ctx, this.type, 'gain1', 1.0);
         const gain2 = this.getParameterValue(ctx, this.type, 'gain2', 1.0);
         
-        code.push(`; Mixer 2:1`);
-        code.push('');
+        ctx.pushMainCode(`; Mixer 2:1`);
+        ctx.pushMainCode('');
         
         // Process Input 1
         if (input1Reg) {
-            code.push(`rdax ${input1Reg}, ${this.formatS1_14(gain1)}`);
+            ctx.pushMainCode(`rdax ${input1Reg}, ${this.formatS1_14(gain1)}`);
             if (level1Reg) {
-                code.push(`mulx ${level1Reg}`);
+                ctx.pushMainCode(`mulx ${level1Reg}`);
             }
             
             // If both inputs and level 2 connected, need to save temporarily
             if (input2Reg && level2Reg) {
-                code.push(`wrax ${outputReg}, 0`);
+                ctx.pushMainCode(`wrax ${outputReg}, 0`);
             }
         }
         
         // Process Input 2
         if (input2Reg) {
-            code.push(`rdax ${input2Reg}, ${this.formatS1_14(gain2)}`);
+            ctx.pushMainCode(`rdax ${input2Reg}, ${this.formatS1_14(gain2)}`);
             if (level2Reg) {
-                code.push(`mulx ${level2Reg}`);
+                ctx.pushMainCode(`mulx ${level2Reg}`);
                 // If input 1 was processed, add it back
                 if (input1Reg) {
-                    code.push(`rdax ${outputReg}, 1.0`);
+                    ctx.pushMainCode(`rdax ${outputReg}, 1.0`);
                 }
             }
         }
         
-        code.push(`wrax ${outputReg}, 0`);
-        code.push('');
-        
-        return code;
-    }
+        ctx.pushMainCode(`wrax ${outputReg}, 0`);
+        ctx.pushMainCode('');    }
 }

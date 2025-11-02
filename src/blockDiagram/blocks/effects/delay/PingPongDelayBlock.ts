@@ -96,10 +96,8 @@ export class PingPongDelayBlock extends BaseBlock {
         this.autoCalculateHeight();
     }
     
-    generateCode(ctx: CodeGenContext): string[] {
-        const code: string[] = [];
-        
-        // Get parameters
+    generateCode(ctx: CodeGenContext): void {
+                // Get parameters
         const lengthRequested = this.getParameterValue(ctx, this.type, 'length', 0.9);
         const tap0Level = this.getParameterValue(ctx, this.type, 'tap0Level', 0.65);
         const tap1Level = this.getParameterValue(ctx, this.type, 'tap1Level', 0.65);
@@ -115,14 +113,12 @@ export class PingPongDelayBlock extends BaseBlock {
         const gainCtrlReg = ctx.getInputRegister(this.type, 'delay_time');
         
         if (!inputReg) {
-            code.push(`; Ping Pong Delay (no input connected)`);
-            return code;
-        }
+            ctx.pushMainCode(`; Ping Pong Delay (no input connected)`);        }
         
         // Warn if clamped
         if (lengthRequested > absoluteMaxDelay) {
-            code.push(`; WARNING: Requested delay time ${lengthRequested}s exceeds maximum ${absoluteMaxDelay.toFixed(3)}s`);
-            code.push(`;          at sample rate ${this.getSampleRate()} Hz. Clamped to ${absoluteMaxDelay.toFixed(3)}s`);
+            ctx.pushMainCode(`; WARNING: Requested delay time ${lengthRequested}s exceeds maximum ${absoluteMaxDelay.toFixed(3)}s`);
+            ctx.pushMainCode(`;          at sample rate ${this.getSampleRate()} Hz. Clamped to ${absoluteMaxDelay.toFixed(3)}s`);
         }
         
         // Allocate memory and registers
@@ -136,45 +132,42 @@ export class PingPongDelayBlock extends BaseBlock {
         const tap0Offset = Math.floor(delaySamples * (4.0 / 8.0));  // 50% of max
         const tap1Offset = 0;  // End of delay line (100%)
         
-        code.push(`; Ping Pong Delay @ ${this.getSampleRate()} Hz`);
-        code.push(`; Memory: ${delayMem.name} @ ${delayMem.address} (${delaySamples} samples = ${length.toFixed(3)}s)`);
-        code.push(`; Taps: Left=${tap0Offset}, Right=${tap1Offset}`);
-        code.push('');
+        ctx.pushMainCode(`; Ping Pong Delay @ ${this.getSampleRate()} Hz`);
+        ctx.pushMainCode(`; Memory: ${delayMem.name} @ ${delayMem.address} (${delaySamples} samples = ${length.toFixed(3)}s)`);
+        ctx.pushMainCode(`; Taps: Left=${tap0Offset}, Right=${tap1Offset}`);
+        ctx.pushMainCode('');
         
         // Scale input by gain control or default
         if (gainCtrlReg) {
-            code.push(`rdax ${inputReg}, 1.0`);
-            code.push(`mulx ${gainCtrlReg}  ; Apply gain CV`);
+            ctx.pushMainCode(`rdax ${inputReg}, 1.0`);
+            ctx.pushMainCode(`mulx ${gainCtrlReg}  ; Apply gain CV`);
         } else {
             const gainConst = ctx.getStandardConstant(defaultGain);
-            code.push(`rdax ${inputReg}, ${gainConst}`);
+            ctx.pushMainCode(`rdax ${inputReg}, ${gainConst}`);
         }
         
         // Add feedback from right output
         const fbConst = ctx.getStandardConstant(fbLevel);
-        code.push(`rdax ${rightOutReg}, ${fbConst}  ; Add feedback from right tap`);
+        ctx.pushMainCode(`rdax ${rightOutReg}, ${fbConst}  ; Add feedback from right tap`);
         
         // Write to delay line
         const delayGainConst = ctx.getStandardConstant(delayGain);
-        code.push(`wra ${delayMem.name}, ${delayGainConst}  ; Write to delay line`);
-        code.push('');
+        ctx.pushMainCode(`wra ${delayMem.name}, ${delayGainConst}  ; Write to delay line`);
+        ctx.pushMainCode('');
         
         // Read left tap (50% position)
         const tap0Const = ctx.getStandardConstant(tap0Level);
         if (tap0Offset > 0) {
-            code.push(`rda ${delayMem.name} + ${tap0Offset}, ${tap0Const}  ; Read left tap`);
+            ctx.pushMainCode(`rda ${delayMem.name} + ${tap0Offset}, ${tap0Const}  ; Read left tap`);
         } else {
-            code.push(`rda ${delayMem.name}#, ${tap0Const}  ; Read left tap`);
+            ctx.pushMainCode(`rda ${delayMem.name}#, ${tap0Const}  ; Read left tap`);
         }
-        code.push(`wrax ${leftOutReg}, 0`);
-        code.push('');
+        ctx.pushMainCode(`wrax ${leftOutReg}, 0`);
+        ctx.pushMainCode('');
         
         // Read right tap (100% position = end of delay)
         const tap1Const = ctx.getStandardConstant(tap1Level);
-        code.push(`rda ${delayMem.name}#, ${tap1Const}  ; Read right tap (end)`);
-        code.push(`wrax ${rightOutReg}, 0`);
-        code.push('');
-        
-        return code;
-    }
+        ctx.pushMainCode(`rda ${delayMem.name}#, ${tap1Const}  ; Read right tap (end)`);
+        ctx.pushMainCode(`wrax ${rightOutReg}, 0`);
+        ctx.pushMainCode('');    }
 }
