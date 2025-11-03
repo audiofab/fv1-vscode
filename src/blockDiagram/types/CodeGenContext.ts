@@ -135,8 +135,6 @@ export class CodeGenerationContext implements CodeGenContext {
             init.push(...this.initCode);
         }
 
-        this.inputCode.push('clr    ; Clear accumulator');   // Clear accumulator at input end
-
         return {
             init,
             input: [...this.inputCode],
@@ -373,14 +371,16 @@ export class CodeGenerationContext implements CodeGenContext {
     getStandardConstant(value: number): string {
         // Map of common values to standard names
         const standardConstants: Map<number, string> = new Map([
+            [0.001, 'k_0_001'],
             [0.0, 'k_zero'],
-            [0.5, 'k_half'],
+            [0.5, 'k_0_5'],
             [1.0, 'k_one'],
             [-1.0, 'k_neg_one'],
-            [2.0, 'k_two'],
-            [-0.5, 'k_neg_half'],
-            [0.25, 'k_quarter'],
-            [0.75, 'k_three_quarters']
+            [-0.5, 'k_neg_0_5'],
+            [-0.25, 'k_neg_0_25'],
+            [0.25, 'k_0_25'],
+            [-0.75, 'k_neg_0_75'],
+            [0.75, 'k_0_75']
         ]);
         
         // Check if this is a standard constant

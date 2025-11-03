@@ -8,6 +8,7 @@ import { Block } from '../types/Block.js';
 import { BlockRegistry } from '../blocks/BlockRegistry.js';
 import { TopologicalSort } from './TopologicalSort.js';
 import { CodeGenerationContext } from '../types/CodeGenContext.js';
+import { CodeOptimizer } from './CodeOptimizer.js';
 
 export interface CompilationStatistics {
     instructionsUsed: number;
@@ -27,10 +28,12 @@ export interface CompilationResult {
 export class GraphCompiler {
     private registry: BlockRegistry;
     private topologicalSort: TopologicalSort;
+    private optimizer: CodeOptimizer;
     
     constructor(registry: BlockRegistry) {
         this.registry = registry;
         this.topologicalSort = new TopologicalSort();
+        this.optimizer = new CodeOptimizer();
     }
     
     /**
@@ -159,8 +162,11 @@ export class GraphCompiler {
             codeLines.push('');
         }
         
+        // Apply post-processing optimizations to the complete code
+        const optimizerResult = this.optimizer.optimize(codeLines);
+        
         // 7. Count instructions (rough estimate)
-        const instructions = codeLines.filter(line => {
+        const instructions = optimizerResult.code.filter(line => {
             const trimmed = line.trim();
             return trimmed.length > 0 && 
                    !trimmed.startsWith(';') && 
@@ -190,6 +196,14 @@ export class GraphCompiler {
             blocksProcessed: executionOrder.length
         };
         
+        // Add optimization info to warnings
+        if (optimizerResult.optimizationsApplied > 0) {
+            warnings.push(`Applied ${optimizerResult.optimizationsApplied} code optimization(s)`);
+            optimizerResult.details.forEach(detail => {
+                warnings.push(`  - ${detail}`);
+            });
+        }
+        
         // Return result
         if (errors.length > 0) {
             return {
@@ -201,7 +215,7 @@ export class GraphCompiler {
         
         return {
             success: true,
-            assembly: codeLines.join('\n'),
+            assembly: optimizerResult.code.join('\n'),
             statistics,
             warnings: warnings.length > 0 ? warnings : undefined
         };

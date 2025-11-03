@@ -78,8 +78,6 @@ export class Mixer2Block extends BaseBlock {
     generateCode(ctx: CodeGenContext): void {
         const zero = ctx.getStandardConstant(0.0);
         const one = ctx.getStandardConstant(1.0);
-        const half = ctx.getStandardConstant(0.5);
-        const negOne = ctx.getStandardConstant(-1.0);
 
                 // Get input registers
         const input1Reg = ctx.getInputRegister(this.type, 'in1');
@@ -106,7 +104,7 @@ export class Mixer2Block extends BaseBlock {
             
             // If both inputs and level 2 connected, need to save temporarily
             if (input2Reg && level2Reg) {
-                ctx.pushMainCode(`wrax ${outputReg}, 0`);
+                ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);
             }
         }
         
@@ -117,11 +115,11 @@ export class Mixer2Block extends BaseBlock {
                 ctx.pushMainCode(`mulx ${level2Reg}`);
                 // If input 1 was processed, add it back
                 if (input1Reg) {
-                    ctx.pushMainCode(`rdax ${outputReg}, 1.0`);
+                    ctx.pushMainCode(`rdax ${outputReg}, ${one}`);
                 }
             }
         }
         
-        ctx.pushMainCode(`wrax ${outputReg}, 0`);
+        ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);
         ctx.pushMainCode('');    }
 }

@@ -101,8 +101,6 @@ export class TripleTapDelayBlock extends BaseBlock {
     generateCode(ctx: CodeGenContext): void {
         const zero = ctx.getStandardConstant(0.0);
         const one = ctx.getStandardConstant(1.0);
-        const half = ctx.getStandardConstant(0.5);
-        const negOne = ctx.getStandardConstant(-1.0);
 
                 // Get input register
         const inputReg = ctx.getInputRegister(this.type, 'in');
@@ -147,7 +145,7 @@ export class TripleTapDelayBlock extends BaseBlock {
         }
 
         ctx.pushMainCode(`rdax ${inputReg}, ${this.formatS1_14(inputGain)}`);
-        ctx.pushMainCode(`wra ${memory.name}, 0.0`);
+        ctx.pushMainCode(`wra ${memory.name}, ${zero}`);
 
         // Generate code for each connected tap output
         const taps = [
@@ -187,10 +185,10 @@ export class TripleTapDelayBlock extends BaseBlock {
             ctx.pushMainCode(`sof ${this.formatS1_14(scale)}, ${this.formatS1_14(offset)}`);
             
             // Write to ADDR_PTR register to set read address
-            ctx.pushMainCode(`wrax ADDR_PTR, 0`);
+            ctx.pushMainCode(`wrax ADDR_PTR, ${zero}`);
             
             // Read from delay at calculated address with interpolation
-            ctx.pushMainCode(`rmpa ${this.formatS1_14(1.0)}`);
+            ctx.pushMainCode(`rmpa ${one}`);
             
             // Store in output register
             ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);

@@ -55,8 +55,8 @@ export class GainBoostBlock extends BaseBlock {
     generateCode(ctx: CodeGenContext): void {
         const zero = ctx.getStandardConstant(0.0);
         const one = ctx.getStandardConstant(1.0);
-        const half = ctx.getStandardConstant(0.5);
         const negOne = ctx.getStandardConstant(-1.0);
+        const negTwo = ctx.getStandardConstant(-2.0);
 
                 const inputReg = ctx.getInputRegister(this.type, 'in');
         const outputReg = ctx.allocateRegister(this.type, 'out');
@@ -69,19 +69,19 @@ export class GainBoostBlock extends BaseBlock {
         ctx.pushMainCode(`; Gain Boost: ${gainDB} dB`);
         
         // Load input
-        ctx.pushMainCode(`rdax ${inputReg}, 1.0`);
+        ctx.pushMainCode(`rdax ${inputReg}, ${one}`);
         
         // Apply cascaded SOF -2.0, 0 for each 6dB stage
         // Each SOF -2.0, 0 doubles the signal (6dB gain) but inverts phase
         for (let i = 0; i < gain; i++) {
-            ctx.pushMainCode(`sof -2.0, 0  ; +6dB gain stage ${i + 1}`);
+            ctx.pushMainCode(`sof ${negTwo}, ${zero}  ; +6dB gain stage ${i + 1}`);
         }
         
         // If odd number of stages, correct phase inversion
         if ((gain & 1) === 1) {
-            ctx.pushMainCode(`sof negOne, 0  ; Phase correction`);
+            ctx.pushMainCode(`sof ${negOne}, ${zero}  ; Phase correction`);
         }
         
-        ctx.pushMainCode(`wrax ${outputReg}, 0.0`);
+        ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);
         ctx.pushMainCode('');    }
 }

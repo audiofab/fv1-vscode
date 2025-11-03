@@ -91,10 +91,8 @@ export class Mixer3Block extends BaseBlock {
     generateCode(ctx: CodeGenContext): void {
         const zero = ctx.getStandardConstant(0.0);
         const one = ctx.getStandardConstant(1.0);
-        const half = ctx.getStandardConstant(0.5);
-        const negOne = ctx.getStandardConstant(-1.0);
 
-                const input1Reg = ctx.getInputRegister(this.type, 'in1');
+        const input1Reg = ctx.getInputRegister(this.type, 'in1');
         const input2Reg = ctx.getInputRegister(this.type, 'in2');
         const input3Reg = ctx.getInputRegister(this.type, 'in3');
         const level1Reg = ctx.getInputRegister(this.type, 'level1');
@@ -115,7 +113,7 @@ export class Mixer3Block extends BaseBlock {
             if (level1Reg) {
                 ctx.pushMainCode(`mulx ${level1Reg}`);
             }
-            ctx.pushMainCode(`wrax ${outputReg}, 0`);
+            ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);
         }
         
         if (input2Reg) {
@@ -124,9 +122,9 @@ export class Mixer3Block extends BaseBlock {
                 ctx.pushMainCode(`mulx ${level2Reg}`);
             }
             if (input1Reg) {
-                ctx.pushMainCode(`rdax ${outputReg}, 1.0`);
+                ctx.pushMainCode(`rdax ${outputReg}, ${one}`);
             }
-            ctx.pushMainCode(`wrax ${outputReg}, 0`);
+            ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);
         }
         
         if (input3Reg) {
@@ -135,11 +133,11 @@ export class Mixer3Block extends BaseBlock {
                 ctx.pushMainCode(`mulx ${level3Reg}`);
             }
             if (input1Reg) {
-                ctx.pushMainCode(`rdax ${outputReg}, 1.0`);
+                ctx.pushMainCode(`rdax ${outputReg}, ${one}`);
             } else if (input2Reg) {
-                ctx.pushMainCode(`rdax ${outputReg}, 1.0`);
+                ctx.pushMainCode(`rdax ${outputReg}, ${one}`);
             }
-            ctx.pushMainCode(`wrax ${outputReg}, 0`);
+            ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);
         }
         
         ctx.pushMainCode('');    }

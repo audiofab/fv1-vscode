@@ -178,7 +178,7 @@ export class ChorusBlock extends BaseBlock {
             ctx.pushMainCode(`; LFO Width control input`);
             ctx.pushMainCode(`rdax ${widthInReg}, ${this.formatS1_14(x3)}`);
             const rangeReg = lfoSel === 0 ? 'SIN0_RANGE' : 'SIN1_RANGE';
-            ctx.pushMainCode(`wrax ${rangeReg}, 0`);
+            ctx.pushMainCode(`wrax ${rangeReg}, ${zero}`);
             ctx.pushMainCode('');
         }
         
@@ -189,14 +189,14 @@ export class ChorusBlock extends BaseBlock {
             ctx.pushMainCode(`; LFO Rate control input`);
             ctx.pushMainCode(`rdax ${rateInReg}, ${this.formatS1_14(temp1)}`);
             const rateReg = lfoSel === 0 ? 'SIN0_RATE' : 'SIN1_RATE';
-            ctx.pushMainCode(`wrax ${rateReg}, 0`);
+            ctx.pushMainCode(`wrax ${rateReg}, ${zero}`);
             ctx.pushMainCode('');
         }
         
         // Process audio through delay
         ctx.pushMainCode(`; Write input to delay line`);
         ctx.pushMainCode(`ldax ${inputReg}`);
-        ctx.pushMainCode(`wra ${memoryName}, 0`);
+        ctx.pushMainCode(`wra ${memoryName}, ${zero}`);
         ctx.pushMainCode('');
         
         // Read chorus tap with LFO modulation
@@ -215,7 +215,7 @@ export class ChorusBlock extends BaseBlock {
         ctx.pushMainCode(`cho rda, ${flag1}, SIN, ${chorusCenter + 1}`);
         ctx.pushMainCode('');
         
-        ctx.pushMainCode(`wrax ${outputReg}, 0`);
+        ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);
         ctx.pushMainCode('');    }
     
     /**

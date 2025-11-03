@@ -14,10 +14,6 @@ export class PotBlock extends BaseBlock {
     readonly color = '#4CAF50';
     readonly width = 150;
     
-    get height(): number {
-        return 80;
-    }
-    
     constructor() {
         super();
         
@@ -70,17 +66,18 @@ export class PotBlock extends BaseBlock {
         const zero = ctx.getStandardConstant(0.0);
         const threeQuarters = ctx.getStandardConstant(0.75);
         const negThreeQuarters = ctx.getStandardConstant(-0.75);
+        const pointZeroZeroOne = ctx.getStandardConstant(0.001);
         
         // Push POT read to input section
         ctx.pushInputCode(`; Potentiometer ${potNumber}`);
         
         if (speedup) {
             // Apply high-shelf filter for faster pot response
-            const filterReg = ctx.getScratchRegister();  // Stores filtered value
+            const filterReg = ctx.allocateRegister(this.type, 'filter');
             
-            ctx.pushInputCode(`; POT filtering a-la-SpinCAD`);
+            ctx.pushInputCode(`; POT filtering`);
             ctx.pushInputCode(`rdax\t${potName},\t${one}`);
-            ctx.pushInputCode(`rdfx\t${filterReg},\t0.001`);
+            ctx.pushInputCode(`rdfx\t${filterReg},\t${pointZeroZeroOne}`);
             ctx.pushInputCode(`wrhx\t${filterReg},\t${negThreeQuarters}`);
             ctx.pushInputCode(`rdax\t${outputReg},\t${threeQuarters}`);
             

@@ -14,10 +14,6 @@ export class ADCRBlock extends BaseBlock {
     readonly color = '#2196F3';
     readonly width = 150;
     
-    get height(): number {
-        return 80;
-    }
-    
     constructor() {
         super();
         
