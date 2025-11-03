@@ -61,6 +61,11 @@ export class TapTempoBlock extends BaseBlock {
     }
     
     generateCode(ctx: CodeGenContext): void {
+        const zero = ctx.getStandardConstant(0.0);
+        const one = ctx.getStandardConstant(1.0);
+        const half = ctx.getStandardConstant(0.5);
+        const negOne = ctx.getStandardConstant(-1.0);
+
         // Initialize tap tempo
         const maxTime = this.getParameterValue(ctx, this.type, 'maxTime', 1.0);
         const defaultTime = this.getParameterValue(ctx, this.type, 'defaultTime', 0.33);
@@ -120,16 +125,16 @@ export class TapTempoBlock extends BaseBlock {
         ctx.pushMainCode(`ldax ${dbReg}`);
         ctx.pushMainCode(`sof 1.0, -0.9`);
         ctx.pushMainCode(`skp neg, 3`);
-        ctx.pushMainCode(`sof 0.0, 0.999`);
+        ctx.pushMainCode(`sof zero, 0.999`);
         ctx.pushMainCode(`wrax ${momReg}, 0`);
         ctx.pushMainCode(`skp zro, 7`);
         ctx.pushMainCode(`; LO:`);
         ctx.pushMainCode(`ldax ${momReg}`);
         ctx.pushMainCode(`skp neg, 5`);
-        ctx.pushMainCode(`sof 0.0, -0.999`);
+        ctx.pushMainCode(`sof zero, -0.999`);
         ctx.pushMainCode(`wrax ${momReg}, 0`);
         ctx.pushMainCode(`ldax ${latchReg}`);
-        ctx.pushMainCode(`sof -1.0, 0`);
+        ctx.pushMainCode(`sof negOne, 0`);
         ctx.pushMainCode(`wrax ${latchReg}, 0`);
         ctx.pushMainCode('');
         
@@ -143,17 +148,17 @@ export class TapTempoBlock extends BaseBlock {
         ctx.pushMainCode(`wrax ${taptempoReg}, 0  ; Sample tempo`);
         ctx.pushMainCode(`skp zro, 12`);
         ctx.pushMainCode(`; LOW:`);
-        ctx.pushMainCode(`sof 0.0, ${this.formatS10(rampRate)}`);
+        ctx.pushMainCode(`sof zero, ${this.formatS10(rampRate)}`);
         ctx.pushMainCode(`wrax RMP0_RATE, 0  ; Set ramp rate`);
         ctx.pushMainCode(`cho rdal, RMP0  ; Read ramp value`);
         ctx.pushMainCode(`sof -2.0, 0.999`);
-        ctx.pushMainCode(`sof 1.0, 0.001`);
+        ctx.pushMainCode(`sof 1.0, zero01`);
         ctx.pushMainCode(`wrax ${rampReg}, 1.0`);
         ctx.pushMainCode(`sof 1.0, -0.999`);
         ctx.pushMainCode(`skp neg, 4`);
         ctx.pushMainCode(`ldax ${taptempoReg}`);
         ctx.pushMainCode(`wrax ${rampReg}, 0`);
-        ctx.pushMainCode(`sof 0.0, 0.999`);
+        ctx.pushMainCode(`sof zero, 0.999`);
         ctx.pushMainCode(`wrax ${latchReg}, 0`);
         ctx.pushMainCode('');    }
 }

@@ -99,6 +99,11 @@ export class TripleTapDelayBlock extends BaseBlock {
     }
 
     generateCode(ctx: CodeGenContext): void {
+        const zero = ctx.getStandardConstant(0.0);
+        const one = ctx.getStandardConstant(1.0);
+        const half = ctx.getStandardConstant(0.5);
+        const negOne = ctx.getStandardConstant(-1.0);
+
                 // Get input register
         const inputReg = ctx.getInputRegister(this.type, 'in');
         if (!inputReg) {
@@ -188,6 +193,6 @@ export class TripleTapDelayBlock extends BaseBlock {
             ctx.pushMainCode(`rmpa ${this.formatS1_14(1.0)}`);
             
             // Store in output register
-            ctx.pushMainCode(`wrax ${outputReg}, 0.0`);
+            ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);
         });    }
 }

@@ -42,19 +42,22 @@ export class DACRBlock extends BaseBlock {
     generateCode(ctx: CodeGenContext): void {
         const inputReg = ctx.getInputRegister(this.type, 'in');
         const gain = this.getParameterValue(ctx, this.type, 'gain', 1.0);
+        const one = ctx.getStandardConstant(1.0);
+        const zero = ctx.getStandardConstant(0.0);
         
         // Push DAC write to output section
         ctx.pushOutputCode('; Right DAC Output');
         
         // Load input
-        ctx.pushOutputCode(`rdax\t${inputReg},\t1.0`);
+        ctx.pushOutputCode(`rdax\t${inputReg},\t${one}`);
         
         // Apply gain using SOF (only if gain != 1.0)
         if (Math.abs(gain - 1.0) > 0.00001) {
-            ctx.pushOutputCode(`sof\t${this.formatS15(gain)},\t0.0`);
+            const gainConst = ctx.getStandardConstant(gain);
+            ctx.pushOutputCode(`sof\t${gainConst},\t${zero}`);
         }
         
-        ctx.pushOutputCode(`wrax\tDACR,\t0.0`);
+        ctx.pushOutputCode(`wrax\tDACR,\t${zero}`);
         ctx.pushOutputCode('');
     }
     

@@ -134,7 +134,9 @@ export class CodeGenerationContext implements CodeGenContext {
         if (this.initCode.length > 0) {
             init.push(...this.initCode);
         }
-        
+
+        this.inputCode.push('clr    ; Clear accumulator');   // Clear accumulator at input end
+
         return {
             init,
             input: [...this.inputCode],

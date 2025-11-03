@@ -76,6 +76,11 @@ export class Mixer2Block extends BaseBlock {
     }
     
     generateCode(ctx: CodeGenContext): void {
+        const zero = ctx.getStandardConstant(0.0);
+        const one = ctx.getStandardConstant(1.0);
+        const half = ctx.getStandardConstant(0.5);
+        const negOne = ctx.getStandardConstant(-1.0);
+
                 // Get input registers
         const input1Reg = ctx.getInputRegister(this.type, 'in1');
         const input2Reg = ctx.getInputRegister(this.type, 'in2');

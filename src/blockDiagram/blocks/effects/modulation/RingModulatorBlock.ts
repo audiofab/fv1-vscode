@@ -46,6 +46,11 @@ export class RingModulatorBlock extends BaseBlock {
     }
     
     generateCode(ctx: CodeGenContext): void {
+        const zero = ctx.getStandardConstant(0.0);
+        const one = ctx.getStandardConstant(1.0);
+        const half = ctx.getStandardConstant(0.5);
+        const negOne = ctx.getStandardConstant(-1.0);
+
         // Initialize oscillator registers
         const sReg = ctx.getScratchRegister();
         const cReg = ctx.getScratchRegister();

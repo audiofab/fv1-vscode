@@ -55,6 +55,7 @@ export class PotBlock extends BaseBlock {
                 description: 'Invert the pot value (1.0 - value)'
             }
         ];
+        this.autoCalculateHeight();
     }
     
     generateCode(ctx: CodeGenContext): void {
@@ -64,6 +65,11 @@ export class PotBlock extends BaseBlock {
         const invert = this.getParameterValue<boolean>(ctx, this.type, 'invert', false);
         
         const potName = `POT${potNumber}`;
+        const one = ctx.getStandardConstant(1.0);
+        const negOne = ctx.getStandardConstant(-1.0);
+        const zero = ctx.getStandardConstant(0.0);
+        const threeQuarters = ctx.getStandardConstant(0.75);
+        const negThreeQuarters = ctx.getStandardConstant(-0.75);
         
         // Push POT read to input section
         ctx.pushInputCode(`; Potentiometer ${potNumber}`);
@@ -73,26 +79,26 @@ export class PotBlock extends BaseBlock {
             const filterReg = ctx.getScratchRegister();  // Stores filtered value
             
             ctx.pushInputCode(`; POT filtering a-la-SpinCAD`);
-            ctx.pushInputCode(`rdax\t${potName},\t1.0`);
+            ctx.pushInputCode(`rdax\t${potName},\t${one}`);
             ctx.pushInputCode(`rdfx\t${filterReg},\t0.001`);
-            ctx.pushInputCode(`wrhx\t${filterReg},\t-0.75`);
-            ctx.pushInputCode(`rdax\t${outputReg},\t0.75`);
+            ctx.pushInputCode(`wrhx\t${filterReg},\t${negThreeQuarters}`);
+            ctx.pushInputCode(`rdax\t${outputReg},\t${threeQuarters}`);
             
             if (invert) {
-                ctx.pushInputCode('sof\t-1.0,\t1.0\t; Invert');
+                ctx.pushInputCode(`sof\t${negOne},\t${one}\t; Invert`);
             }
             
-            ctx.pushInputCode(`wrax\t${outputReg},\t0.0\t; Write to output`);
+            ctx.pushInputCode(`wrax\t${outputReg},\t${zero}\t; Write to output`);
         } else {
             // Direct pot reading without filtering
             ctx.pushInputCode(`; POT direct read (no speedup filter)`);
-            ctx.pushInputCode(`rdax\t${potName},\t1.0`);
+            ctx.pushInputCode(`rdax\t${potName},\t${one}`);
             
             if (invert) {
-                ctx.pushInputCode('sof\t-1.0,\t1.0\t; Invert');
+                ctx.pushInputCode(`sof\t${negOne},\t${one}\t; Invert`);
             }
-            
-            ctx.pushInputCode(`wrax\t${outputReg},\t0.0`);
+
+            ctx.pushInputCode(`wrax\t${outputReg},\t${zero}`);
         }
         
         ctx.pushInputCode('');

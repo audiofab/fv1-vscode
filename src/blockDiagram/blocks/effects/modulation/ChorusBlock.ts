@@ -123,6 +123,11 @@ export class ChorusBlock extends BaseBlock {
     }
     
     generateCode(ctx: CodeGenContext): void {
+        const zero = ctx.getStandardConstant(0.0);
+        const one = ctx.getStandardConstant(1.0);
+        const half = ctx.getStandardConstant(0.5);
+        const negOne = ctx.getStandardConstant(-1.0);
+
                 // Get input register - if not connected, return early
         const inputReg = ctx.getInputRegister(this.type, 'in');
         if (!inputReg) {

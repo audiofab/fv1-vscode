@@ -31,13 +31,20 @@ export class GainBoostBlock extends BaseBlock {
         this._parameters = [
             {
                 id: 'gain',
-                name: 'Gain (6dB steps)',
+                name: 'Gain',
                 type: 'number',
                 default: 1,
                 min: 1,
                 max: 8,
                 step: 1,
-                description: 'Number of 6dB gain stages (1 = 6dB, 2 = 12dB, etc.)'
+                description: 'Gain boost in dB',
+                // Display in dB instead of number of stages
+                displayMin: 6,
+                displayMax: 48,
+                displayStep: 6,
+                displayUnit: 'dB',
+                toDisplay: (codeValue: number) => codeValue * 6,
+                fromDisplay: (displayValue: number) => displayValue / 6
             }
         ];
         
@@ -46,6 +53,11 @@ export class GainBoostBlock extends BaseBlock {
     }
     
     generateCode(ctx: CodeGenContext): void {
+        const zero = ctx.getStandardConstant(0.0);
+        const one = ctx.getStandardConstant(1.0);
+        const half = ctx.getStandardConstant(0.5);
+        const negOne = ctx.getStandardConstant(-1.0);
+
                 const inputReg = ctx.getInputRegister(this.type, 'in');
         const outputReg = ctx.allocateRegister(this.type, 'out');
         const gain = this.getParameterValue<number>(ctx, this.type, 'gain', 1);
@@ -67,7 +79,7 @@ export class GainBoostBlock extends BaseBlock {
         
         // If odd number of stages, correct phase inversion
         if ((gain & 1) === 1) {
-            ctx.pushMainCode(`sof -1.0, 0  ; Phase correction`);
+            ctx.pushMainCode(`sof negOne, 0  ; Phase correction`);
         }
         
         ctx.pushMainCode(`wrax ${outputReg}, 0.0`);

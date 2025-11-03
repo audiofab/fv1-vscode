@@ -89,6 +89,11 @@ export class Mixer3Block extends BaseBlock {
     }
     
     generateCode(ctx: CodeGenContext): void {
+        const zero = ctx.getStandardConstant(0.0);
+        const one = ctx.getStandardConstant(1.0);
+        const half = ctx.getStandardConstant(0.5);
+        const negOne = ctx.getStandardConstant(-1.0);
+
                 const input1Reg = ctx.getInputRegister(this.type, 'in1');
         const input2Reg = ctx.getInputRegister(this.type, 'in2');
         const input3Reg = ctx.getInputRegister(this.type, 'in3');

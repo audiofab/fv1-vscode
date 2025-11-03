@@ -45,39 +45,39 @@ export class VolumeBlock extends BaseBlock {
     }
     
     generateCode(ctx: CodeGenContext): void {
-                const inputReg = ctx.getInputRegister(this.type, 'in');
+        const inputReg = ctx.getInputRegister(this.type, 'in');
         const outputReg = ctx.allocateRegister(this.type, 'out');
         const levelCtrlReg = ctx.getInputRegister(this.type, 'level_ctrl');
         const levelDB = this.getParameterValue(ctx, this.type, 'level', 0);
-                        // Convert dB to linear gain: gain = 10^(dB/20)
-        const linearGain = Math.pow(10, levelDB / 20);
         
-        // Check if input is already in accumulator (optimization)
-                // Check if we should preserve accumulator for next block
-                        ctx.pushMainCode(`; Volume Control: ${levelDB} dB (${linearGain.toFixed(4)} linear)`);
+        // Convert dB to linear gain: gain = 10^(dB/20)
+        const linearGain = Math.pow(10, levelDB / 20);
+        const one = ctx.getStandardConstant(1.0);
+        const zero = ctx.getStandardConstant(0.0);
+        
+        ctx.pushMainCode(`; Volume Control: ${levelDB} dB (${linearGain.toFixed(4)} linear)`);
         
         if (levelCtrlReg) {
             // CV-controlled volume
             ctx.pushMainCode(`; Volume modulated by ${levelCtrlReg}`);
             
             // Always load the audio input explicitly
-            // (We can't rely on accumulator forwarding when we have two inputs)
             if (Math.abs(linearGain - 1.0) > 0.00001) {
                 const gainConst = ctx.getStandardConstant(linearGain);
                 ctx.pushMainCode(`rdax ${inputReg}, ${gainConst}  ; Load audio and apply base level`);
             } else {
-                ctx.pushMainCode(`rdax ${inputReg}, 1.0  ; Load audio`);
+                ctx.pushMainCode(`rdax ${inputReg}, ${one}  ; Load audio`);
             }
             
             // Multiply by control voltage
             ctx.pushMainCode(`mulx ${levelCtrlReg}  ; Apply CV control`);
         } else {
             // Fixed volume level
-            // Load input
-            ctx.pushMainCode(`rdax ${inputReg}, ${this.formatS1_14(linearGain)}`);
+            const gainConst = ctx.getStandardConstant(linearGain);
+            ctx.pushMainCode(`rdax ${inputReg}, ${gainConst}`);
         }
         
-        ctx.pushMainCode(`wrax ${outputReg}, 0.0`);
+        ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);
         ctx.pushMainCode('');
     }
 }

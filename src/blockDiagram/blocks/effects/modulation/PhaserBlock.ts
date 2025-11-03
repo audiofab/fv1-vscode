@@ -69,6 +69,11 @@ export class PhaserBlock extends BaseBlock {
     }
     
     generateCode(ctx: CodeGenContext): void {
+        const zero = ctx.getStandardConstant(0.0);
+        const one = ctx.getStandardConstant(1.0);
+        const half = ctx.getStandardConstant(0.5);
+        const negOne = ctx.getStandardConstant(-1.0);
+
         // Initialize LFO
         ctx.pushInitCode(`; Phaser Initialization`);
         ctx.pushInitCode(`or ${this.formatS1_14(32767 / 32768.0)}  ; Load SIN1 frequency`);
@@ -122,7 +127,7 @@ export class PhaserBlock extends BaseBlock {
         if (widthCtrlReg) {
             ctx.pushMainCode(`rdax ${widthCtrlReg}, 1.0  ; Load width from CV`);
         } else {
-            ctx.pushMainCode(`sof 0.0, ${this.formatS1_14(defaultWidth)}  ; Default width`);
+            ctx.pushMainCode(`sof zero, ${this.formatS1_14(defaultWidth)}  ; Default width`);
         }
         const depthReg = ctx.getScratchRegister();
         ctx.pushMainCode(`wrax ${depthReg}, 0.9`);
@@ -132,9 +137,9 @@ export class PhaserBlock extends BaseBlock {
         if (speedCtrlReg) {
             ctx.pushMainCode(`rdax ${speedCtrlReg}, 1.0  ; Load speed from CV`);
             ctx.pushMainCode(`mulx ${speedCtrlReg}`);
-            ctx.pushMainCode(`sof 0.83, 0.002`);
+            ctx.pushMainCode(`sof 0.83, zero02`);
         } else {
-            ctx.pushMainCode(`sof 0.0, ${this.formatS1_14(defaultSpeed)}  ; Default speed`);
+            ctx.pushMainCode(`sof zero, ${this.formatS1_14(defaultSpeed)}  ; Default speed`);
         }
         ctx.pushMainCode(`wrax SIN1_RATE, 0`);
         ctx.pushMainCode('');

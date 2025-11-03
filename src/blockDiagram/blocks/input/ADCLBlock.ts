@@ -42,16 +42,19 @@ export class ADCLBlock extends BaseBlock {
                 description: 'Input gain (0.0 to 2.0)'
             }
         ];
+        this.autoCalculateHeight();
     }
     
     generateCode(ctx: CodeGenContext): void {
         const outputReg = ctx.allocateRegister(this.type, 'out');
         const gain = this.getParameterValue(ctx, this.type, 'gain', 1.0);
+        const gainConst = ctx.getStandardConstant(gain);
+        const zero = ctx.getStandardConstant(0.0);
         
         // Push ADC read to input section
         ctx.pushInputCode('; Left ADC Input');
-        ctx.pushInputCode(`rdax\tADCL,\t${this.formatS15(gain)}`);
-        ctx.pushInputCode(`wrax\t${outputReg},\t0.0`);
+        ctx.pushInputCode(`rdax\tADCL,\t${gainConst}`);
+        ctx.pushInputCode(`wrax\t${outputReg},\t${zero}`);
         ctx.pushInputCode('');
     }
 }

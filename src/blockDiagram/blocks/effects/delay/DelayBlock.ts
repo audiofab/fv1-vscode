@@ -75,7 +75,11 @@ export class DelayBlock extends BaseBlock {
     }
     
     generateCode(ctx: CodeGenContext): void {
-                // Get base parameters
+        const zero = ctx.getStandardConstant(0.0);
+        const one = ctx.getStandardConstant(1.0);
+        const half = ctx.getStandardConstant(0.5);
+        
+        // Get base parameters
         const maxDelayTimeRequested = this.getParameterValue(ctx, this.type, 'maxDelayTime', 1.0);
         const baseDelayTime = this.getParameterValue(ctx, this.type, 'delayTime', 0.5);
         const baseFeedback = this.getParameterValue(ctx, this.type, 'feedback', 0.5);
@@ -120,28 +124,26 @@ export class DelayBlock extends BaseBlock {
             ctx.pushMainCode(`ldax ${timeCtrlReg}  ; Load CV (0.0 to 1.0)`);
             // Scale CV to delay memory offset (0 to maxDelaySamples-1)
             // CV=0 gives short delay, CV=1 gives max delay
-            ctx.pushMainCode(`sof ${this.formatS1_14(maxDelaySamples / 32768.0)}, 0.0  ; Scale to sample count`);
-            ctx.pushMainCode(`wrax ADDR_PTR, 0.0  ; Load into address pointer`);
+            ctx.pushMainCode(`sof ${this.formatS1_14(maxDelaySamples / 32768.0)}, ${zero}  ; Scale to sample count`);
+            ctx.pushMainCode(`wrax ADDR_PTR, ${zero}  ; Load into address pointer`);
             ctx.pushMainCode('');
         }
         
-                        const half = ctx.getStandardConstant(0.5);
-        
         // Read input signal into accumulator  
-        ctx.pushMainCode(`rdax ${inputReg}, 1.0`);
+        ctx.pushMainCode(`rdax ${inputReg}, ${one}`);
         
         // Read delayed signal
         if (timeCtrlReg) {
             // Use RMPA to read from variable position set by ADDR_PTR
             ctx.pushMainCode(`; Variable delay read using RMPA`);
-            ctx.pushMainCode(`rmpa 1.0  ; Read from delay[ADDR_PTR], coefficient 1.0`);
+            ctx.pushMainCode(`rmpa ${one}  ; Read from delay[ADDR_PTR], coefficient 1.0`);
         } else {
             // Fixed delay - read from calculated offset
             const offset = maxDelaySamples - baseDelaySamples;
             if (offset > 0) {
-                ctx.pushMainCode(`rda ${delayMem.name} + ${offset}, 1.0`);
+                ctx.pushMainCode(`rda ${delayMem.name} + ${offset}, ${one}`);
             } else {
-                ctx.pushMainCode(`rda ${delayMem.name}#, 1.0`);
+                ctx.pushMainCode(`rda ${delayMem.name}#, ${one}`);
             }
         }
         
@@ -150,25 +152,25 @@ export class DelayBlock extends BaseBlock {
             ctx.pushMainCode(`mulx ${mixCtrlReg}  ; Apply wet mix from CV`);
         } else {
             const mixConst = ctx.getStandardConstant(baseMix);
-            ctx.pushMainCode(`sof ${mixConst}, 0.0  ; Apply wet mix`);
+            ctx.pushMainCode(`sof ${mixConst}, ${zero}  ; Apply wet mix`);
         }
         
         // Save wet signal temporarily and write to delay line
         const wetReg = ctx.getScratchRegister();
-        ctx.pushMainCode(`wrax ${wetReg}, 1.0  ; Save wet, keep in ACC`);
+        ctx.pushMainCode(`wrax ${wetReg}, ${one}  ; Save wet, keep in ACC`);
         
         // Add input for feedback and write to delay line
-        ctx.pushMainCode(`rdax ${inputReg}, 1.0`);
+        ctx.pushMainCode(`rdax ${inputReg}, ${one}`);
         if (fbCtrlReg) {
             ctx.pushMainCode(`mulx ${fbCtrlReg}  ; Apply feedback from CV`);
         } else {
             const fbConst = ctx.getStandardConstant(baseFeedback);
-            ctx.pushMainCode(`sof ${fbConst}, 0.0  ; Apply feedback`);
+            ctx.pushMainCode(`sof ${fbConst}, ${zero}  ; Apply feedback`);
         }
-        ctx.pushMainCode(`wra ${delayMem.name}, 0.0  ; Write to delay line`);
+        ctx.pushMainCode(`wra ${delayMem.name}, ${zero}  ; Write to delay line`);
         
         // Mix dry and wet signals
-        ctx.pushMainCode(`rdax ${wetReg}, 1.0  ; Get wet signal`);
+        ctx.pushMainCode(`rdax ${wetReg}, ${one}  ; Get wet signal`);
         if (mixCtrlReg) {
             // Dry is complex with CV - simplified approach
             ctx.pushMainCode(`rdax ${inputReg}, ${half}  ; Add some dry signal`);
@@ -179,6 +181,7 @@ export class DelayBlock extends BaseBlock {
         }
         
         // Write output
-        ctx.pushMainCode(`wrax ${outputReg}, 0.0`);
-        ctx.pushMainCode('');    }
+        ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);
+        ctx.pushMainCode('');
+    }
 }
