@@ -644,13 +644,124 @@ export function activate(context: vscode.ExtensionContext) {
     // Create centralized document manager for .spndiagram files
     const blockDiagramDocumentManager = new BlockDiagramDocumentManager(blockDiagramDiagnostics, blockRegistry);
     
-    // Register hover provider for FV-1 assembly files
-    const fv1HoverProvider = new FV1HoverProvider(documentManager);
-    const hoverProvider = vscode.languages.registerHoverProvider(
-        { language: 'fv1-assembly', scheme: 'file' },
-        fv1HoverProvider
+    // Create status bar items for block diagram resource usage
+    const instructionsStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 103);
+    const registersStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 102);
+    const memoryStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 101);
+    
+    instructionsStatusBar.tooltip = 'FV-1 Instructions Used';
+    registersStatusBar.tooltip = 'FV-1 Registers Used';
+    memoryStatusBar.tooltip = 'FV-1 Delay Memory Used';
+    
+    context.subscriptions.push(instructionsStatusBar, registersStatusBar, memoryStatusBar);
+    
+    // Function to update status bar items
+    const updateStatusBar = (document: vscode.TextDocument | undefined) => {
+        if (!document || !document.fileName.toLowerCase().endsWith('.spndiagram')) {
+            instructionsStatusBar.hide();
+            registersStatusBar.hide();
+            memoryStatusBar.hide();
+            return;
+        }
+        
+        const result = blockDiagramDocumentManager.getCompilationResult(document);
+        if (result.success && result.statistics) {
+            const stats = result.statistics;
+            
+            instructionsStatusBar.text = `$(circuit-board) ${stats.instructionsUsed}/128`;
+            instructionsStatusBar.backgroundColor = stats.instructionsUsed > 128 
+                ? new vscode.ThemeColor('statusBarItem.errorBackground') 
+                : undefined;
+            instructionsStatusBar.show();
+            
+            registersStatusBar.text = `$(database) ${stats.registersUsed}/32`;
+            registersStatusBar.backgroundColor = stats.registersUsed > 32 
+                ? new vscode.ThemeColor('statusBarItem.errorBackground') 
+                : undefined;
+            registersStatusBar.show();
+            
+            memoryStatusBar.text = `$(pulse) ${stats.memoryUsed}/32768`;
+            memoryStatusBar.backgroundColor = stats.memoryUsed > 32768 
+                ? new vscode.ThemeColor('statusBarItem.errorBackground') 
+                : undefined;
+            memoryStatusBar.show();
+        } else {
+            instructionsStatusBar.hide();
+            registersStatusBar.hide();
+            memoryStatusBar.hide();
+        }
+    };
+    
+    // Update status bar when active editor changes
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveTextEditor(editor => {
+            updateStatusBar(editor?.document);
+        })
     );
-    context.subscriptions.push(hoverProvider);
+    
+    // Update status bar when compilation changes
+    blockDiagramDocumentManager.onCompilationChange((uri) => {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (activeEditor && activeEditor.document.uri.toString() === uri.toString()) {
+            updateStatusBar(activeEditor.document);
+        }
+    });
+    
+    // Initial update
+    updateStatusBar(vscode.window.activeTextEditor?.document);
+    
+    // Register virtual document provider for assembly view
+    const assemblyDocumentProvider = new class implements vscode.TextDocumentContentProvider {
+        onDidChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
+        onDidChange = this.onDidChangeEmitter.event;
+        
+        provideTextDocumentContent(uri: vscode.Uri): string {
+            // Extract the original .spndiagram path from the virtual URI
+            const diagramPath = uri.path.replace(/\.spn$/, '');
+            const diagramUri = vscode.Uri.file(diagramPath);
+            
+            // Find the diagram document
+            const diagramDoc = vscode.workspace.textDocuments.find(
+                doc => doc.uri.toString() === diagramUri.toString()
+            );
+            
+            if (!diagramDoc) {
+                return '; Unable to find source diagram document';
+            }
+            
+            // Get compilation result
+            const result = blockDiagramDocumentManager.getCompilationResult(diagramDoc);
+            if (result.success && result.assembly) {
+                return result.assembly;
+            } else {
+                const errors = result.errors?.map(e => `; ${e}`).join('\n') || '; Unknown error';
+                return `; Compilation failed:\n${errors}`;
+            }
+        }
+    };
+    
+    context.subscriptions.push(
+        vscode.workspace.registerTextDocumentContentProvider('fv1-assembly', assemblyDocumentProvider)
+    );
+    
+    // Update virtual assembly documents when compilation changes
+    blockDiagramDocumentManager.onCompilationChange((uri) => {
+        const virtualUri = vscode.Uri.parse(`fv1-assembly:${uri.fsPath}.spn`);
+        assemblyDocumentProvider.onDidChangeEmitter.fire(virtualUri);
+    });
+    
+    // Register hover provider for FV-1 assembly files (both file and virtual schemes)
+    const fv1HoverProvider = new FV1HoverProvider(documentManager);
+    context.subscriptions.push(
+        vscode.languages.registerHoverProvider(
+            { language: 'fv1-assembly', scheme: 'file' },
+            fv1HoverProvider
+        ),
+        vscode.languages.registerHoverProvider(
+            { language: 'fv1-assembly', scheme: 'fv1-assembly' },
+            fv1HoverProvider
+        )
+    );
     
     // Register definition provider for FV-1 assembly files (Ctrl+Click navigation)
     const fv1DefinitionProvider = new FV1DefinitionProvider(documentManager);

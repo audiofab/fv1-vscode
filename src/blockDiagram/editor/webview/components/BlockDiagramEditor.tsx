@@ -579,16 +579,28 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                 vscode={vscode}
             />
             
+            {/* View toolbar */}
+            <div className="view-toolbar">
+                <button 
+                    className="view-button"
+                    onClick={() => vscode.postMessage({ type: 'showAssembly' })}
+                    title="Open generated assembly code in side-by-side editor"
+                >
+                    📝 View Assembly
+                </button>
+            </div>
+            
+            {/* Diagram view */}
             <div 
-                ref={containerRef} 
-                className={`canvas-container ${isPaletteCollapsed ? 'palette-collapsed' : ''}`}
-                onDrop={handleCanvasDrop}
-                onDragOver={handleCanvasDragOver}
-            >
-                <Stage
-                    ref={stageRef}
-                    width={canvasSize.width}
-                    height={canvasSize.height}
+                    ref={containerRef} 
+                    className={`canvas-container ${isPaletteCollapsed ? 'palette-collapsed' : ''}`}
+                    onDrop={handleCanvasDrop}
+                    onDragOver={handleCanvasDragOver}
+                >
+                    <Stage
+                        ref={stageRef}
+                        width={canvasSize.width}
+                        height={canvasSize.height}
                     scaleX={zoom}
                     scaleY={zoom}
                     x={pan.x}
@@ -669,17 +681,17 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                         ))}
                     </Layer>
                 </Stage>
+                
+                {selectedBlock && (
+                    <PropertyPanel
+                        block={selectedBlock}
+                        metadata={blockMetadata.find(m => m.type === selectedBlock.type)}
+                        onUpdate={(updates) => updateBlock(selectedBlock.id, updates)}
+                        onClose={() => setSelectedBlockIds([])}
+                        vscode={vscode}
+                    />
+                )}
             </div>
-            
-            {selectedBlock && (
-                <PropertyPanel
-                    block={selectedBlock}
-                    metadata={blockMetadata.find(m => m.type === selectedBlock.type)}
-                    onUpdate={(updates) => updateBlock(selectedBlock.id, updates)}
-                    onClose={() => setSelectedBlockIds([])}
-                    vscode={vscode}
-                />
-            )}
             
             <div className="footer">
                 <div className="footer-section">

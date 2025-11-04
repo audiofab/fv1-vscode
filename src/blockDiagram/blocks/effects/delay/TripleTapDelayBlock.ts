@@ -133,7 +133,9 @@ export class TripleTapDelayBlock extends BaseBlock {
                 // Get input register
         const inputReg = ctx.getInputRegister(this.type, 'in');
         if (!inputReg) {
-            ctx.pushMainCode(`; ThreeTap (no input connected)`);        }
+            ctx.pushMainCode(`; ThreeTap (no input connected)`);
+            return; // Don't generate code if input is not connected
+        }
 
         // Get optional inputs
         const feedbackReg = ctx.getInputRegister(this.type, 'feedback');

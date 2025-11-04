@@ -75,11 +75,20 @@ export class TopologicalSort {
         
         // Find all terminal nodes (blocks with no children - no outgoing connections)
         // Use children map that excludes feedback, so feedback path blocks aren't terminals
+        // BUT: Exclude completely disconnected blocks (no connections at all)
         const terminalNodes: string[] = [];
         for (const block of graph.blocks) {
             const blockChildren = children.get(block.id) || [];
             if (blockChildren.length === 0) {
-                terminalNodes.push(block.id);
+                // Check if this block has ANY connections before treating it as a terminal
+                const hasConnections = graph.connections.some(
+                    c => c.from.blockId === block.id || c.to.blockId === block.id
+                );
+                
+                // Only add to terminals if it has at least some connections
+                if (hasConnections) {
+                    terminalNodes.push(block.id);
+                }
             }
         }
         
@@ -89,9 +98,19 @@ export class TopologicalSort {
         }
         
         // Handle any orphaned blocks (not connected to terminal nodes)
+        // BUT: Skip completely disconnected blocks (no connections at all)
         for (const block of graph.blocks) {
             if (!generated.has(block.id)) {
-                visitReverse(block.id, new Set());
+                // Check if this block has ANY connections (input or output)
+                const hasConnections = graph.connections.some(
+                    c => c.from.blockId === block.id || c.to.blockId === block.id
+                );
+                
+                // Only process orphaned blocks that have at least some connections
+                if (hasConnections) {
+                    visitReverse(block.id, new Set());
+                }
+                // Completely disconnected blocks are silently skipped
             }
         }
         

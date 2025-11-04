@@ -65,7 +65,6 @@ There are some settings provided in the VS Code settings as well (look under Ext
 We plan to implement the following features in the near future so stay tuned and look for updates to the extension in the coming days and weeks!
 
 - A disassembler
-- Support programming in a higher-level language like Python or a block diagram language?
 - Integrate a simulator?
 
 ## Reporting Issues

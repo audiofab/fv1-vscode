@@ -15,6 +15,9 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
     
     private static readonly webviewScriptUri = 'out/webview.js';
     
+    // Map from .spndiagram URI to virtual assembly document URI
+    private assemblyDocuments = new Map<string, vscode.Uri>();
+    
     constructor(
         private readonly context: vscode.ExtensionContext,
         private readonly documentManager: BlockDiagramDocumentManager
@@ -226,6 +229,11 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                     await this.context.workspaceState.update('blockDiagram.expandedCategories', e.expandedCategories);
                     return;
                     
+                case 'showAssembly':
+                    // Open assembly code in a side-by-side editor
+                    await this.showAssemblyEditor(document);
+                    return;
+                    
                 case 'error':
                     vscode.window.showErrorMessage(e.message);
                     return;
@@ -240,6 +248,51 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             compilationListener.dispose();
             changeDocumentSubscription.dispose();
         });
+    }
+    
+    /**
+     * Show assembly code in a side-by-side editor
+     */
+    private async showAssemblyEditor(diagramDocument: vscode.TextDocument): Promise<void> {
+        const result = this.documentManager.getCompilationResult(diagramDocument);
+        const assembly = result.success && result.assembly 
+            ? result.assembly 
+            : `; Compilation ${result.success ? 'produced no output' : 'failed'}\n${result.errors?.map(e => `; ${e}`).join('\n') || ''}`;
+        
+        // Create a virtual document URI
+        const assemblyUri = vscode.Uri.parse(`fv1-assembly:${diagramDocument.uri.fsPath}.spn`);
+        this.assemblyDocuments.set(diagramDocument.uri.toString(), assemblyUri);
+        
+        // Check if assembly document is already open
+        const existingEditor = vscode.window.visibleTextEditors.find(
+            editor => editor.document.uri.toString() === assemblyUri.toString()
+        );
+        
+        if (existingEditor) {
+            // Already open, just show it
+            await vscode.window.showTextDocument(existingEditor.document, existingEditor.viewColumn);
+        } else {
+            // Find the diagram editor's view column
+            const diagramEditor = vscode.window.visibleTextEditors.find(
+                editor => editor.document.uri.toString() === diagramDocument.uri.toString()
+            );
+            
+            // Determine target column: if diagram is in column One, use Two; otherwise use Beside
+            let targetColumn = vscode.ViewColumn.Two;
+            if (diagramEditor?.viewColumn) {
+                targetColumn = diagramEditor.viewColumn === vscode.ViewColumn.One 
+                    ? vscode.ViewColumn.Two 
+                    : diagramEditor.viewColumn + 1;
+            }
+            
+            // Open the assembly document in a split editor to the right
+            const doc = await vscode.workspace.openTextDocument(assemblyUri);
+            await vscode.window.showTextDocument(doc, {
+                viewColumn: targetColumn,
+                preserveFocus: true,  // Keep focus on diagram
+                preview: false
+            });
+        }
     }
     
     /**
@@ -321,6 +374,51 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
         .resource-stats .over-limit {
             background-color: var(--vscode-statusBarItem-errorBackground);
             color: var(--vscode-statusBarItem-errorForeground);
+        }
+        
+        /* View toolbar styles */
+        .view-toolbar {
+            position: absolute;
+            top: 0;
+            left: 250px;
+            right: 0;
+            height: 36px;
+            background-color: var(--vscode-editor-background);
+            border-bottom: 1px solid var(--vscode-panel-border);
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 8px;
+            z-index: 998;
+            transition: left 0.2s ease;
+        }
+        
+        .palette.collapsed ~ .view-toolbar {
+            left: 0;
+        }
+        
+        .view-button {
+            padding: 6px 16px;
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: var(--vscode-font-family);
+            transition: background-color 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .view-button:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+        
+        .view-button:active {
+            background-color: var(--vscode-button-background);
+            opacity: 0.9;
         }
         
         /* Block palette styles */
@@ -442,7 +540,7 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
         .canvas-container {
             position: absolute;
             left: 250px;
-            top: 0;
+            top: 36px;
             right: 0;
             bottom: 24px;
             overflow: hidden;
@@ -457,7 +555,7 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
         .property-panel {
             position: absolute;
             right: 0;
-            top: 0;
+            top: 36px;
             bottom: 24px;
             width: 300px;
             background-color: var(--vscode-sideBar-background);
