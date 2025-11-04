@@ -55,43 +55,71 @@ export class TripleTapDelayBlock extends BaseBlock {
             },
             {
                 id: 'delayLength',
-                name: 'Delay Time (samples)',
+                name: 'Delay Time',
                 type: 'number',
                 default: 16384,
                 min: 100,
                 max: 32767,
-                step: 100,
-                description: 'Total delay buffer length in samples (max delay time)'
+                step: 1,
+                displayMin: this.samplesToMs(100),
+                displayMax: this.samplesToMs(32767),
+                displayStep: 0.1,
+                displayDecimals: 2,
+                displayUnit: 'ms',
+                toDisplay: (samples: number) => this.samplesToMs(samples),
+                fromDisplay: (ms: number) => this.msToSamples(ms),
+                description: 'Total delay buffer length in milliseconds'
             },
             {
                 id: 'tap1Ratio',
-                name: 'Tap 1 Time (%)',
+                name: 'Tap 1 Time',
                 type: 'number',
                 default: 0.85,
                 min: 0.0,
                 max: 1.0,
                 step: 0.01,
-                description: 'Tap 1 delay time as percentage of total delay (0.0 to 1.0)'
+                displayMin: 0,
+                displayMax: 100,
+                displayStep: 1,
+                displayDecimals: 0,
+                displayUnit: '%',
+                toDisplay: (ratio: number) => ratio * 100,
+                fromDisplay: (percent: number) => percent / 100,
+                description: 'Tap 1 delay time as percentage of total delay'
             },
             {
                 id: 'tap2Ratio',
-                name: 'Tap 2 Time (%)',
+                name: 'Tap 2 Time',
                 type: 'number',
                 default: 0.60,
                 min: 0.0,
                 max: 1.0,
                 step: 0.01,
-                description: 'Tap 2 delay time as percentage of total delay (0.0 to 1.0)'
+                displayMin: 0,
+                displayMax: 100,
+                displayStep: 1,
+                displayDecimals: 0,
+                displayUnit: '%',
+                toDisplay: (ratio: number) => ratio * 100,
+                fromDisplay: (percent: number) => percent / 100,
+                description: 'Tap 2 delay time as percentage of total delay'
             },
             {
                 id: 'tap3Ratio',
-                name: 'Tap 3 Time (%)',
+                name: 'Tap 3 Time',
                 type: 'number',
                 default: 0.45,
                 min: 0.0,
                 max: 1.0,
                 step: 0.01,
-                description: 'Tap 3 delay time as percentage of total delay (0.0 to 1.0)'
+                displayMin: 0,
+                displayMax: 100,
+                displayStep: 1,
+                displayDecimals: 0,
+                displayUnit: '%',
+                toDisplay: (ratio: number) => ratio * 100,
+                fromDisplay: (percent: number) => percent / 100,
+                description: 'Tap 3 delay time as percentage of total delay'
             }
         ];
 

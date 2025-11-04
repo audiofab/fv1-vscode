@@ -84,7 +84,7 @@ export class ChorusBlock extends BaseBlock {
                 // Display values (Hz)
                 displayMin: 0.0,
                 displayMax: this.lfoRateToHz(this.RATE_MAX),
-                displayStep: 0.01,
+                displayStep: 0.05,
                 displayDecimals: 2,
                 displayUnit: 'Hz',
                 // Conversion functions (from AN-001)

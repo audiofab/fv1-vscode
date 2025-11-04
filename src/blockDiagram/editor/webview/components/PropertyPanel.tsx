@@ -43,6 +43,7 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                     if (message.type === 'convertToDisplayResponse' && message.requestId === requestId) {
                         window.removeEventListener('message', messageHandler);
                         if (!message.error) {
+                            // Store the converted value as-is
                             setDisplayValues(prev => ({
                                 ...prev,
                                 [param.id]: message.displayValue
@@ -124,13 +125,19 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                     <h4 style={{ marginBottom: '12px', fontSize: '12px' }}>Parameters</h4>
                     
                     {metadata.parameters.map((param: any) => {
-                        // Get the display value from state (will be set by useEffect)
-                        const displayValue = displayValues[param.id] ?? (block.parameters[param.id] ?? param.default);
+                        // Get the raw display value from state
+                        const rawDisplayValue = displayValues[param.id] ?? (block.parameters[param.id] ?? param.default);
                         
                         // Use display range if available, otherwise use code range
                         const minValue = param.displayMin ?? param.min;
                         const maxValue = param.displayMax ?? param.max;
                         const stepValue = param.displayStep ?? param.step;
+                        const decimals = param.displayDecimals ?? 2;
+                        
+                        // For display, format to the correct number of decimals
+                        const displayValue = typeof rawDisplayValue === 'number' 
+                            ? parseFloat(rawDisplayValue.toFixed(decimals))
+                            : rawDisplayValue;
                         
                         return (
                             <div key={param.id} className="property-group">
@@ -153,11 +160,20 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                                         <input
                                             type="number"
                                             className="property-input"
-                                            value={typeof displayValue === 'number' ? displayValue.toFixed(param.displayDecimals ?? 2) : displayValue}
+                                            value={displayValue}
                                             min={minValue}
                                             max={maxValue}
                                             step={stepValue}
                                             onChange={(e) => {
+                                                const newDisplayValue = parseFloat(e.target.value);
+                                                // Just update display immediately, don't convert yet
+                                                setDisplayValues(prev => ({
+                                                    ...prev,
+                                                    [param.id]: newDisplayValue
+                                                }));
+                                            }}
+                                            onBlur={(e) => {
+                                                // Only convert when user finishes editing (leaves the field)
                                                 const newDisplayValue = parseFloat(e.target.value);
                                                 if (param.displayMin !== undefined || param.displayMax !== undefined) {
                                                     handleDisplayValueChange(param.id, newDisplayValue);
