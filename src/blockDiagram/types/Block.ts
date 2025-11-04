@@ -47,6 +47,7 @@ export interface BlockMetadata {
     inputs: BlockPort[];
     outputs: BlockPort[];
     parameters: BlockParameter[];
+    hasCustomLabel?: boolean;  // Indicates if this block type supports custom labels
 }
 
 export interface Block {
@@ -183,4 +184,11 @@ export interface IBlockDefinition {
      * @returns The code value
      */
     getCodeValue(parameterId: string, displayValue: number): number;
+    
+    /**
+     * Get custom label text for this block instance (optional)
+     * @param parameters The current parameter values
+     * @returns Custom label text or null if no custom label
+     */
+    getCustomLabel?(parameters: Record<string, any>): string | null;
 }

@@ -639,6 +639,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                                 onSelect={(ctrlKey) => handleBlockSelect(block.id, ctrlKey)}
                                 onMove={(delta) => moveBlock(block.id, delta)}
                                 onPortClick={handlePortClick}
+                                vscode={vscode}
                             />
                         ))}
                     </Layer>

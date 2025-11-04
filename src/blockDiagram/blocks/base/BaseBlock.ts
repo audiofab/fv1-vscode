@@ -138,6 +138,14 @@ export abstract class BaseBlock implements IBlockDefinition {
     }
     
     /**
+     * Get custom label to display in the center of the block
+     * Override this method to provide dynamic labels based on parameters
+     * @param parameters Current parameter values for this block instance
+     * @returns Label text to display, or null for no label
+     */
+    getCustomLabel?(parameters: Record<string, any>): string | null;
+    
+    /**
      * Generate FV-1 assembly code for this block
      * Blocks should push code to appropriate sections using ctx.pushInitCode(), 
      * ctx.pushInputCode(), ctx.pushMainCode(), or ctx.pushOutputCode()
@@ -221,7 +229,8 @@ export abstract class BaseBlock implements IBlockDefinition {
             height: this.height,
             inputs: this.inputs,
             outputs: this.outputs,
-            parameters: serializedParams
+            parameters: serializedParams,
+            hasCustomLabel: typeof this.getCustomLabel === 'function'
         };
     }
     

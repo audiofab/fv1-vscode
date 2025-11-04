@@ -139,6 +139,23 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                     }
                     return;
                 
+                case 'getCustomLabel':
+                    // Get custom label for a block instance
+                    const blockDefForLabel = blockRegistry.getBlock(e.blockType);
+                    if (blockDefForLabel && blockDefForLabel.getCustomLabel) {
+                        try {
+                            const label = blockDefForLabel.getCustomLabel(e.parameters);
+                            webviewPanel.webview.postMessage({
+                                type: 'customLabelResponse',
+                                blockId: e.blockId,
+                                label
+                            });
+                        } catch (error) {
+                            console.error('Error getting custom label:', error);
+                        }
+                    }
+                    return;
+                
                 case 'savePaletteState':
                     // Save the expanded categories to workspace state
                     await this.context.workspaceState.update('blockDiagram.expandedCategories', e.expandedCategories);

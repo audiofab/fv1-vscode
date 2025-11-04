@@ -2,9 +2,9 @@
  * Block Component - Renders a single block on the canvas
  */
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Group, Rect, Text, Circle } from 'react-konva';
-import { Block, BlockMetadata } from '../../../../types/Block';
+import { Block, BlockMetadata } from '../../../types/Block';
 
 interface BlockComponentProps {
     block: Block;
@@ -13,6 +13,7 @@ interface BlockComponentProps {
     onSelect: (ctrlKey: boolean) => void;
     onMove: (delta: { x: number; y: number }) => void;
     onPortClick: (blockId: string, portId: string, isOutput: boolean) => void;
+    vscode: any;
 }
 
 export const BlockComponent: React.FC<BlockComponentProps> = ({
@@ -21,9 +22,12 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
     isSelected,
     onSelect,
     onMove,
-    onPortClick
+    onPortClick,
+    vscode
 }) => {
     if (!metadata) return null;
+    
+    const [customLabel, setCustomLabel] = useState<string | null>(null);
     
     const width = metadata.width || 200;
     const height = metadata.height || 100;
@@ -35,6 +39,33 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
         isDragging: false,
         frameCount: 0
     });
+    
+    // Request custom label if block supports it
+    useEffect(() => {
+        if (metadata.hasCustomLabel) {
+            // Listen for custom label response
+            const handleMessage = (event: MessageEvent) => {
+                const message = event.data;
+                if (message.type === 'customLabelResponse' && message.blockId === block.id) {
+                    setCustomLabel(message.label);
+                }
+            };
+            
+            window.addEventListener('message', handleMessage);
+            
+            // Request custom label
+            vscode.postMessage({
+                type: 'getCustomLabel',
+                blockId: block.id,
+                blockType: block.type,
+                parameters: block.parameters
+            });
+            
+            return () => {
+                window.removeEventListener('message', handleMessage);
+            };
+        }
+    }, [block.id, block.type, block.parameters, metadata.hasCustomLabel]);
     
     return (
         <Group
@@ -120,6 +151,19 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                 fill="white"
             />
             
+            {/* Custom label (if available) */}
+            {customLabel && (
+                <Text
+                    text={customLabel}
+                    x={0}
+                    y={height / 2}
+                    width={width}
+                    align="center"
+                    fontSize={12}
+                    fill="white"
+                />
+            )}
+            
             {/* Input ports */}
             {metadata.inputs.map((input, index) => {
                 const y = 40 + index * portSpacing;
@@ -176,7 +220,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                         />
                         <Text
                             text={output.name}
-                            x={width - portRadius - 5 - output.name.length * 6}
+                            x={width - portRadius - 3 - output.name.length * 6}
                             y={y - 6}
                             fontSize={10}
                             fill="white"

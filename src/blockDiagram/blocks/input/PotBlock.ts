@@ -54,6 +54,14 @@ export class PotBlock extends BaseBlock {
         this.autoCalculateHeight();
     }
     
+    /**
+     * Display which pot is being read (POT0, POT1, or POT2)
+     */
+    getCustomLabel(parameters: Record<string, any>): string | null {
+        const potNumber = parameters['potNumber'] ?? 0;
+        return `POT${potNumber}`;
+    }
+    
     generateCode(ctx: CodeGenContext): void {
         const outputReg = ctx.allocateRegister(this.type, 'out');
         const potNumber = this.getParameterValue<number>(ctx, this.type, 'potNumber', 0);
