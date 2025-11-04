@@ -41,6 +41,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
     // Drag state
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    const [isBlockDragging, setIsBlockDragging] = useState(false);
     
     // Lasso selection state
     const [isLassoSelecting, setIsLassoSelecting] = useState(false);
@@ -50,6 +51,14 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
     // Connection drawing state
     const [connectingFrom, setConnectingFrom] = useState<{ blockId: string; portId: string } | null>(null);
     const [connectionPreview, setConnectionPreview] = useState<{ x: number; y: number } | null>(null);
+    
+    // Resource statistics state
+    const [resourceStats, setResourceStats] = useState({
+        instructionsUsed: 0,
+        registersUsed: 0,
+        memoryUsed: 0,
+        blocksProcessed: 0
+    });
     
     const stageRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -75,6 +84,11 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                 case 'blockMetadata':
                     console.log('[Editor] Received block metadata:', message.metadata.length, 'blocks');
                     setBlockMetadata(message.metadata);
+                    break;
+                    
+                case 'resourceStats':
+                    console.log('[Editor] Received resource stats:', message.statistics);
+                    setResourceStats(message.statistics);
                     break;
             }
         };
@@ -120,7 +134,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
     }, [isPaletteCollapsed]);
     
     // Save graph changes
-    const saveGraph = useCallback((newGraph: BlockGraph) => {
+    const saveGraph = useCallback((newGraph: BlockGraph, options?: { isDragging?: boolean; isCreatingConnection?: boolean }) => {
         const updatedGraph = {
             ...newGraph,
             canvas: {
@@ -131,8 +145,13 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         };
         
         setGraph(updatedGraph);
-        vscode.postMessage({ type: 'update', graph: updatedGraph });
-    }, [vscode, zoom, pan]);
+        vscode.postMessage({ 
+            type: 'update', 
+            graph: updatedGraph,
+            isDragging: options?.isDragging ?? isBlockDragging,
+            isCreatingConnection: options?.isCreatingConnection ?? (connectingFrom !== null)
+        });
+    }, [vscode, zoom, pan, isBlockDragging, connectingFrom]);
     
     // Add block
     const addBlock = useCallback((type: string, position: { x: number; y: number }) => {
@@ -638,6 +657,12 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                                 isSelected={selectedBlockIds.includes(block.id)}
                                 onSelect={(ctrlKey) => handleBlockSelect(block.id, ctrlKey)}
                                 onMove={(delta) => moveBlock(block.id, delta)}
+                                onDragStart={() => setIsBlockDragging(true)}
+                                onDragEnd={() => {
+                                    setIsBlockDragging(false);
+                                    // Notify extension to compile now that drag is complete
+                                    vscode.postMessage({ type: 'dragEnd' });
+                                }}
                                 onPortClick={handlePortClick}
                                 vscode={vscode}
                             />
@@ -657,7 +682,23 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             )}
             
             <div className="footer">
-                Blocks: {graph.blocks.length} | Connections: {graph.connections.length} | Zoom: {Math.round(zoom * 100)}% | Selected: {selectedBlockIds.length}
+                <div className="footer-section">
+                    Blocks: {graph.blocks.length} | Connections: {graph.connections.length} | Selected: {selectedBlockIds.length}
+                </div>
+                <div className="footer-section resource-stats">
+                    <span className={resourceStats.instructionsUsed > 128 ? 'over-limit' : ''}>
+                        Instructions: {resourceStats.instructionsUsed}/128
+                    </span>
+                    <span className={resourceStats.registersUsed > 32 ? 'over-limit' : ''}>
+                        Registers: {resourceStats.registersUsed}/32
+                    </span>
+                    <span className={resourceStats.memoryUsed > 32768 ? 'over-limit' : ''}>
+                        Memory: {resourceStats.memoryUsed}/32768
+                    </span>
+                </div>
+                <div className="footer-section">
+                    Zoom: {Math.round(zoom * 100)}%
+                </div>
             </div>
         </div>
     );

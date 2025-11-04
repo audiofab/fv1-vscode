@@ -297,19 +297,20 @@ export class GraphCompiler {
         
         // Check for blocks
         if (graph.blocks.length === 0) {
-            errors.push('Graph is empty - add some blocks first');
-            return { valid: false, errors };
+            // Empty graph is valid - just won't generate any code
+            warnings.push('Graph is empty - add some blocks to generate code');
+            return { valid: true, warnings };
         }
         
-        // Check for at least one output block
+        // Check for at least one output block (warning only)
         const hasOutput = graph.blocks.some(b => 
             b.type.startsWith('output.')
         );
         if (!hasOutput) {
-            errors.push('Graph must have at least one output block (DACL or DACR)');
+            warnings.push('Graph has no output blocks - add DACL or DACR to hear sound');
         }
         
-        // Check for at least one input block
+        // Check for at least one input block (warning only)
         const hasInput = graph.blocks.some(b => 
             b.type.startsWith('input.')
         );
@@ -325,16 +326,16 @@ export class GraphCompiler {
                 continue;
             }
             
-            // Check required inputs are connected
+            // Check required inputs are connected (warning only for better UX)
             for (const input of definition.inputs) {
                 if (input.required) {
                     const hasConnection = graph.connections.some(
                         c => c.to.blockId === block.id && c.to.portId === input.id
                     );
                     if (!hasConnection) {
-                        errors.push(
+                        warnings.push(
                             `Block '${definition.name}' (${block.id}) ` +
-                            `requires input '${input.name}' to be connected`
+                            `has unconnected required input '${input.name}'`
                         );
                     }
                 }

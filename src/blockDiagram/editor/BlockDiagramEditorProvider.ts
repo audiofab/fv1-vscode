@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import { BlockGraph, createEmptyGraph } from '../types/Graph.js';
 import { GraphCompiler } from '../compiler/GraphCompiler.js';
 import { blockRegistry } from '../blocks/BlockRegistry.js';
+import { BlockDiagramDocumentManager } from '../BlockDiagramDocumentManager.js';
 
 export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvider {
     public static readonly viewType = 'fv1.blockDiagramEditor';
@@ -15,14 +16,18 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
     private static readonly webviewScriptUri = 'out/webview.js';
     
     constructor(
-        private readonly context: vscode.ExtensionContext
+        private readonly context: vscode.ExtensionContext,
+        private readonly documentManager: BlockDiagramDocumentManager
     ) {}
     
     /**
      * Register this custom editor provider
      */
-    public static register(context: vscode.ExtensionContext): vscode.Disposable {
-        const provider = new BlockDiagramEditorProvider(context);
+    public static register(
+        context: vscode.ExtensionContext,
+        documentManager: BlockDiagramDocumentManager
+    ): vscode.Disposable {
+        const provider = new BlockDiagramEditorProvider(context, documentManager);
         const providerRegistration = vscode.window.registerCustomEditorProvider(
             BlockDiagramEditorProvider.viewType,
             provider,
@@ -52,6 +57,9 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
         // Set the HTML content
         webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
         
+        // Debounce timer for compilation - avoids recompiling during drag operations
+        let compileTimeout: NodeJS.Timeout | undefined;
+        
         // Load and send the initial document content
         const updateWebview = () => {
             const graph = this.getDocumentAsGraph(document);
@@ -60,6 +68,35 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                 graph: graph
             });
         };
+        
+        // Send resource statistics to webview
+        const updateResourceStats = () => {
+            const result = this.documentManager.getCompilationResult(document);
+            if (result.success && result.statistics) {
+                webviewPanel.webview.postMessage({
+                    type: 'resourceStats',
+                    statistics: result.statistics
+                });
+            } else {
+                // Send zeros if compilation failed
+                webviewPanel.webview.postMessage({
+                    type: 'resourceStats',
+                    statistics: {
+                        instructionsUsed: 0,
+                        registersUsed: 0,
+                        memoryUsed: 0,
+                        blocksProcessed: 0
+                    }
+                });
+            }
+        };
+        
+        // Subscribe to compilation changes
+        const compilationListener = this.documentManager.onCompilationChange((uri) => {
+            if (uri.toString() === document.uri.toString()) {
+                updateResourceStats();
+            }
+        });
         
         // Hook up event handlers
         const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(e => {
@@ -84,10 +121,38 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                         type: 'paletteState',
                         expandedCategories: savedState
                     });
+                    // Send initial resource stats
+                    updateResourceStats();
                     return;
                     
                 case 'update':
                     this.updateTextDocument(document, e.graph);
+                    
+                    // Debounce compilation during interactive operations
+                    // Don't compile immediately during drag operations
+                    if (e.isDragging || e.isCreatingConnection) {
+                        // Clear any pending compilation
+                        if (compileTimeout) {
+                            clearTimeout(compileTimeout);
+                        }
+                    } else {
+                        // Not dragging - schedule compilation after a short delay
+                        if (compileTimeout) {
+                            clearTimeout(compileTimeout);
+                        }
+                        compileTimeout = setTimeout(() => {
+                            // Trigger compilation by notifying the document manager
+                            this.documentManager.onDocumentChange(document);
+                        }, 300); // 300ms debounce
+                    }
+                    return;
+                    
+                case 'dragEnd':
+                    // When drag ends, trigger immediate compilation
+                    if (compileTimeout) {
+                        clearTimeout(compileTimeout);
+                    }
+                    this.documentManager.onDocumentChange(document);
                     return;
                     
                 case 'getBlockMetadata':
@@ -169,6 +234,10 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
         
         // Clean up when the editor is closed
         webviewPanel.onDidDispose(() => {
+            if (compileTimeout) {
+                clearTimeout(compileTimeout);
+            }
+            compilationListener.dispose();
             changeDocumentSubscription.dispose();
         });
     }
@@ -225,10 +294,33 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             border-top: 1px solid var(--vscode-panel-border);
             display: flex;
             align-items: center;
+            justify-content: space-between;
             padding: 0 12px;
             font-size: 11px;
             color: var(--vscode-statusBar-foreground);
             z-index: 1000;
+        }
+        
+        .footer-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .resource-stats {
+            font-weight: 500;
+        }
+        
+        .resource-stats span {
+            display: inline-block;
+            padding: 2px 8px;
+            background-color: var(--vscode-statusBarItem-prominentBackground);
+            border-radius: 3px;
+        }
+        
+        .resource-stats .over-limit {
+            background-color: var(--vscode-statusBarItem-errorBackground);
+            color: var(--vscode-statusBarItem-errorForeground);
         }
         
         /* Block palette styles */

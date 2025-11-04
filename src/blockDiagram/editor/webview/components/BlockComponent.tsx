@@ -12,6 +12,8 @@ interface BlockComponentProps {
     isSelected: boolean;
     onSelect: (ctrlKey: boolean) => void;
     onMove: (delta: { x: number; y: number }) => void;
+    onDragStart?: () => void;
+    onDragEnd?: () => void;
     onPortClick: (blockId: string, portId: string, isOutput: boolean) => void;
     vscode: any;
 }
@@ -22,6 +24,8 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
     isSelected,
     onSelect,
     onMove,
+    onDragStart,
+    onDragEnd,
     onPortClick,
     vscode
 }) => {
@@ -77,6 +81,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                     isDragging: true,
                     frameCount: 0
                 };
+                onDragStart?.();
             }}
             onDragMove={(e) => {
                 if (!dragStateRef.current.isDragging) return;
@@ -117,6 +122,8 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                 if (Math.abs(finalDelta.x) > 0.01 || Math.abs(finalDelta.y) > 0.01) {
                     onMove(finalDelta);
                 }
+                
+                onDragEnd?.();
             }}
             onClick={(e) => {
                 onSelect(e.evt.ctrlKey || e.evt.metaKey);

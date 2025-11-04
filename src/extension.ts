@@ -14,6 +14,7 @@ import { BlockDiagramEditorProvider } from './blockDiagram/editor/BlockDiagramEd
 import { FV1HoverProvider } from './fv1HoverProvider.js';
 import { FV1DefinitionProvider } from './fv1DefinitionProvider.js';
 import { FV1DocumentManager } from './fv1DocumentManager.js';
+import { BlockDiagramDocumentManager } from './blockDiagram/BlockDiagramDocumentManager.js';
 import { GraphCompiler } from './blockDiagram/compiler/GraphCompiler.js';
 import { blockRegistry } from './blockDiagram/blocks/BlockRegistry.js';
 import { BlockGraph } from './blockDiagram/types/Graph.js';
@@ -31,17 +32,23 @@ async function outputWindow(outputChannel: vscode.OutputChannel, message: string
  * Compile a .spndiagram file to .spn assembly code
  * Returns the assembly code as a string, or null if compilation failed
  */
-async function compileBlockDiagram(diagramPath: string, outputChannel: vscode.OutputChannel): Promise<string | null> {
+async function compileBlockDiagram(
+    diagramPath: string, 
+    outputChannel: vscode.OutputChannel,
+    blockDiagramDocMgr: BlockDiagramDocumentManager
+): Promise<string | null> {
     try {
         outputWindow(outputChannel, `[INFO] 🔧 Compiling block diagram ${path.basename(diagramPath)}...`);
         
-        // Read the .spndiagram file
-        const content = fs.readFileSync(diagramPath, 'utf8');
-        const graph: BlockGraph = JSON.parse(content);
+        // Open or get the document
+        const uri = vscode.Uri.file(diagramPath);
+        let document = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
+        if (!document) {
+            document = await vscode.workspace.openTextDocument(uri);
+        }
         
-        // Compile the graph to assembly
-        const compiler = new GraphCompiler(blockRegistry);
-        const result = compiler.compile(graph);
+        // Use the document manager to get cached compilation result
+        const result = blockDiagramDocMgr.getCompilationResult(document);
         
         if (result.success && result.assembly) {
             const stats = result.statistics!;
@@ -469,7 +476,11 @@ async function backupPedal(outputChannel: vscode.OutputChannel): Promise<void> {
 /**
  * Export an entire .spnbank to a multi-segment Intel HEX file
  */
-async function exportBankToHex(outputChannel: vscode.OutputChannel, item?: any): Promise<void> {
+async function exportBankToHex(
+    outputChannel: vscode.OutputChannel, 
+    blockDiagramDocMgr: BlockDiagramDocumentManager,
+    item?: any
+): Promise<void> {
     try {
         const files = item && item.resourceUri ? [item.resourceUri] : await vscode.workspace.findFiles('**/*.spnbank', '**/node_modules/**');
         if (!files || files.length === 0) { 
@@ -531,7 +542,7 @@ async function exportBankToHex(outputChannel: vscode.OutputChannel, item?: any):
             const isBlockDiagram = fsPath.toLowerCase().endsWith('.spndiagram');
             
             if (isBlockDiagram) {
-                const assembly = await compileBlockDiagram(fsPath, outputChannel);
+                const assembly = await compileBlockDiagram(fsPath, outputChannel, blockDiagramDocMgr);
                 if (!assembly) {
                     outputWindow(outputChannel, `[ERROR] ❌ Skipping slot ${slot.slot}: failed to compile block diagram ${path.basename(fsPath)}`);
                     continue;
@@ -625,9 +636,13 @@ export function deactivate() { /* noop */ }
 export function activate(context: vscode.ExtensionContext) {
     const outputChannel = vscode.window.createOutputChannel('FV-1 Assembler');
     const fv1Diagnostics = vscode.languages.createDiagnosticCollection('fv1-assembler');
+    const blockDiagramDiagnostics = vscode.languages.createDiagnosticCollection('block-diagram');
 
-    // Create centralized document manager
+    // Create centralized document manager for .spn files
     const documentManager = new FV1DocumentManager(fv1Diagnostics);
+    
+    // Create centralized document manager for .spndiagram files
+    const blockDiagramDocumentManager = new BlockDiagramDocumentManager(blockDiagramDiagnostics, blockRegistry);
     
     // Register hover provider for FV-1 assembly files
     const fv1HoverProvider = new FV1HoverProvider(documentManager);
@@ -648,20 +663,28 @@ export function activate(context: vscode.ExtensionContext) {
     // Setup document event listeners for live diagnostics
     const onDidOpenTextDocument = vscode.workspace.onDidOpenTextDocument((document) => {
         documentManager.onDocumentOpen(document);
+        blockDiagramDocumentManager.onDocumentChange(document);
     });
     
     const onDidChangeTextDocument = vscode.workspace.onDidChangeTextDocument((event) => {
         documentManager.onDocumentChange(event.document);
+        blockDiagramDocumentManager.onDocumentChange(event.document);
     });
     
     const onDidCloseTextDocument = vscode.workspace.onDidCloseTextDocument((document) => {
         documentManager.onDocumentClose(document);
+        if (document.fileName.toLowerCase().endsWith('.spndiagram')) {
+            blockDiagramDocumentManager.clearCache(document.uri);
+        }
     });
     
     // Process already open documents
     for (const document of vscode.workspace.textDocuments) {
         if (document.languageId === 'fv1-assembly') {
             documentManager.onDocumentOpen(document);
+        }
+        if (document.fileName.toLowerCase().endsWith('.spndiagram')) {
+            blockDiagramDocumentManager.onDocumentChange(document);
         }
     }
     
@@ -873,7 +896,7 @@ export function activate(context: vscode.ExtensionContext) {
                     let result: FV1AssemblerResult;
                     
                     if (isBlockDiagram) {
-                        const assembly = await compileBlockDiagram(fsPath, outputChannel);
+                        const assembly = await compileBlockDiagram(fsPath, outputChannel, blockDiagramDocumentManager);
                         if (!assembly) {
                             outputWindow(outputChannel, `[ERROR] ❌ Skipping slot ${s.slot}: failed to compile block diagram ${path.basename(fsPath)}`);
                             hasAssemblyErrors = true;
@@ -1036,7 +1059,7 @@ export function activate(context: vscode.ExtensionContext) {
             let result: FV1AssemblerResult;
             
             if (isBlockDiagram) {
-                const assembly = await compileBlockDiagram(fsPath, outputChannel);
+                const assembly = await compileBlockDiagram(fsPath, outputChannel, blockDiagramDocumentManager);
                 if (!assembly) {
                     vscode.window.showErrorMessage(`Failed to compile block diagram: ${path.basename(fsPath)}`);
                     return;
@@ -1073,12 +1096,12 @@ export function activate(context: vscode.ExtensionContext) {
     const assembleCommand = vscode.commands.registerCommand('fv1.assemble', async () => { await assembleFV1(outputChannel, documentManager); });
     const assembleAndProgramCommand = vscode.commands.registerCommand('fv1.assembleAndProgram', async () => { const result = await assembleFV1(outputChannel, documentManager); if (result && result.machineCode.length > 0) await programEeprom(result.machineCode, outputChannel); });
     const assembleToHexCommand = vscode.commands.registerCommand('fv1.assembleToHex', async () => { const result = await assembleFV1(outputChannel, documentManager); if (result && result.machineCode.length > 0) await outputIntelHexFile(result.machineCode, outputChannel); });
-    const exportBankToHexCommand = vscode.commands.registerCommand('fv1.exportBankToHex', async (item?: any) => { await exportBankToHex(outputChannel, item); });
+    const exportBankToHexCommand = vscode.commands.registerCommand('fv1.exportBankToHex', async (item?: any) => { await exportBankToHex(outputChannel, blockDiagramDocumentManager, item); });
     const loadHexToEepromCommand = vscode.commands.registerCommand('fv1.loadHexToEeprom', async () => { await loadHexToEeprom(outputChannel); });
     const backupPedalCommand = vscode.commands.registerCommand('fv1.backupPedal', async () => { await backupPedal(outputChannel); });
 
     // Register block diagram editor
-    const blockDiagramEditorProvider = BlockDiagramEditorProvider.register(context);
+    const blockDiagramEditorProvider = BlockDiagramEditorProvider.register(context, blockDiagramDocumentManager);
 
     context.subscriptions.push(
         createCmd,
