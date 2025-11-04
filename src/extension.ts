@@ -9,7 +9,7 @@ import { EEPROM, DEFAULT_EEPROM_ADDRESS, DEFAULT_WRITE_PAGE_SIZE } from '@johnta
 import { NodeHIDStreamSource } from './node-hid-stream.js';
 import { FV1Assembler, FV1AssemblerResult } from './FV1Assembler.js';
 import { IntelHexParser } from './hexParser.js';
-import { SpnBankProvider } from './SpnBanksProvider.js';
+import { SpnBankEditorProvider } from './SpnBankEditorProvider.js';
 import { BlockDiagramEditorProvider } from './blockDiagram/editor/BlockDiagramEditorProvider.js';
 import { FV1HoverProvider } from './fv1HoverProvider.js';
 import { FV1DefinitionProvider } from './fv1DefinitionProvider.js';
@@ -679,48 +679,18 @@ export function activate(context: vscode.ExtensionContext) {
         onDidChangeConfiguration
     );
 
-    const provider = new SpnBankProvider(vscode.workspace.workspaceFolders?.[0]?.uri);
-    const spnBanksView = vscode.window.createTreeView('audiofab.spnBanks', { treeDataProvider: provider, dragAndDropController: provider });
-    // give provider access to the TreeView so it can reveal items on change
-    if ((provider as any).setTreeView) (provider as any).setTreeView(spnBanksView as vscode.TreeView<vscode.TreeItem>);
-
-    // Handle opening .spnbank files by showing the Easy Spin Banks view and revealing the file
-    const onDidChangeActiveTextEditor = vscode.window.onDidChangeActiveTextEditor(async (editor) => {
-        if (editor && editor.document.fileName.endsWith('.spnbank')) {
-            console.log('Detected .spnbank file opened:', editor.document.fileName);
-            
-            // Focus the Explorer panel to show the Easy Spin Banks view
-            try {
-                await vscode.commands.executeCommand('workbench.view.explorer');
-                console.log('Explorer view focused');
-                
-                // Reveal the opened file in the Easy Spin Banks view
-                setTimeout(async () => {
-                    try {
-                        console.log('Attempting to reveal bank:', editor.document.uri.toString());
-                        await provider.revealBank(editor.document.uri);
-                        console.log('Bank revealed successfully');
-                    } catch (error) {
-                        console.error('Failed to reveal Easy Spin bank:', error);
-                    }
-                }, 1000); // Increased delay to 1 second
-            } catch (error) {
-                console.error('Failed to focus explorer:', error);
-            }
-        }
-    });
-
-    // Register command to reveal a specific .spnbank file
-    const revealSpnBankCmd = vscode.commands.registerCommand('fv1.revealSpnBank', async (uri: vscode.Uri) => {
-        await provider.revealBank(uri);
-    });
+    // Register custom editor for .spnbank files
+    context.subscriptions.push(
+        SpnBankEditorProvider.register(context)
+    );
 
     const createCmd = vscode.commands.registerCommand('fv1.createSpnBank', async () => {
         const uris = await vscode.window.showSaveDialog({ filters: { 'Easy Spin Bank': ['spnbank'] }, defaultUri: vscode.Uri.file(path.join(vscode.workspace.workspaceFolders?.[0].uri.fsPath || '.', 'new.spnbank')) });
         if (!uris) return;
         const content = JSON.stringify({ slots: Array.from({ length: 8 }, (_, i) => ({ slot: i + 1, path: '' })) }, null, 2);
         await vscode.workspace.fs.writeFile(uris, Buffer.from(content, 'utf8'));
-        provider.refresh();
+        // Open the newly created bank file in the custom editor
+        await vscode.commands.executeCommand('vscode.open', uris);
     });
 
     const createBlockDiagramCmd = vscode.commands.registerCommand('fv1.createBlockDiagram', async () => {
@@ -890,9 +860,17 @@ export function activate(context: vscode.ExtensionContext) {
                         continue; 
                     }
                     
-                    // Handle .spndiagram files - compile them first
-                    let content: string;
+                    const fileUri = vscode.Uri.file(fsPath);
                     const isBlockDiagram = fsPath.toLowerCase().endsWith('.spndiagram');
+                    
+                    // Open the document to ensure it's properly loaded
+                    let programDoc = vscode.workspace.textDocuments.find(d => d.uri.toString() === fileUri.toString());
+                    if (!programDoc) {
+                        programDoc = await vscode.workspace.openTextDocument(fileUri);
+                    }
+                    
+                    // Handle .spndiagram files - compile them first
+                    let result: FV1AssemblerResult;
                     
                     if (isBlockDiagram) {
                         const assembly = await compileBlockDiagram(fsPath, outputChannel);
@@ -901,19 +879,20 @@ export function activate(context: vscode.ExtensionContext) {
                             hasAssemblyErrors = true;
                             continue;
                         }
-                        content = assembly;
+                        // Assemble the compiled output
+                        const assembler = new FV1Assembler({ fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true });
+                        outputWindow(outputChannel, `[INFO] 🔧 Assembling compiled block diagram for slot ${s.slot}...`);
+                        result = assembler.assemble(assembly);
                     } else {
-                        content = fs.readFileSync(fsPath, 'utf8');
+                        // Use the document manager for proper assembly with full context
+                        outputWindow(outputChannel, `[INFO] 🔧 Assembling slot ${s.slot}: ${path.basename(fsPath)}...`);
+                        result = documentManager.getAssemblyResult(programDoc);
                     }
                     
-                    const assembler = new FV1Assembler({ fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true });
-                    outputWindow(outputChannel, `[INFO] 🔧 Assembling slot ${s.slot}: ${path.basename(fsPath)}...`);
-                    const result = assembler.assemble(content);
-                    const fileUri = vscode.Uri.file(fsPath);
+                    // Process diagnostics
                     fv1Diagnostics.delete(fileUri);
                     const newDiagnostics: Array<vscode.Diagnostic> = [];
                     
-                    // Process diagnostics
                     if (result.problems.length !== 0) {
                         result.problems.forEach((p: any) => {
                             const range = new vscode.Range(p.line - 1, 0, p.line - 1, Number.MAX_SAFE_INTEGER);
@@ -994,7 +973,7 @@ export function activate(context: vscode.ExtensionContext) {
             json.slots[slotNum - 1] = { slot: slotNum, path: '' };
             const newContent = Buffer.from(JSON.stringify(json, null, 2), 'utf8');
             await vscode.workspace.fs.writeFile(bankUri, newContent);
-            provider.refresh();
+            // File will auto-update in the custom editor
         } catch (e) { vscode.window.showErrorMessage(`Failed to unassign slot: ${e}`); }
     });
 
@@ -1025,6 +1004,7 @@ export function activate(context: vscode.ExtensionContext) {
                 vscode.window.showErrorMessage(`Slot ${slotNum} is unassigned`); 
                 return; 
             }
+            
             const bankDir = path.dirname(bankUri!.fsPath);
             const fsPath = path.isAbsolute(entry.path) ? entry.path : path.resolve(bankDir, entry.path);
             if (!fs.existsSync(fsPath)) { 
@@ -1033,11 +1013,19 @@ export function activate(context: vscode.ExtensionContext) {
                 return; 
             }
             
-            // Check if this file is open and dirty, save it first
-            const openDoc = vscode.workspace.textDocuments.find(doc => doc.fileName === fsPath);
-            if (openDoc && openDoc.isDirty) {
+            const fileUri = vscode.Uri.file(fsPath);
+            const isBlockDiagram = fsPath.toLowerCase().endsWith('.spndiagram');
+            
+            // Open the document to ensure it's properly loaded
+            let document = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === fileUri.toString());
+            if (!document) {
+                document = await vscode.workspace.openTextDocument(fileUri);
+            }
+            
+            // Save if dirty
+            if (document.isDirty) {
                 outputWindow(outputChannel, `[INFO] 💾 Saving ${path.basename(fsPath)}...`);
-                const saved = await openDoc.save();
+                const saved = await document.save();
                 if (!saved) {
                     vscode.window.showErrorMessage(`Failed to save ${path.basename(fsPath)}. Programming aborted.`);
                     return;
@@ -1045,8 +1033,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
             
             // Handle .spndiagram files - compile them first
-            let content: string;
-            const isBlockDiagram = fsPath.toLowerCase().endsWith('.spndiagram');
+            let result: FV1AssemblerResult;
             
             if (isBlockDiagram) {
                 const assembly = await compileBlockDiagram(fsPath, outputChannel);
@@ -1054,28 +1041,23 @@ export function activate(context: vscode.ExtensionContext) {
                     vscode.window.showErrorMessage(`Failed to compile block diagram: ${path.basename(fsPath)}`);
                     return;
                 }
-                content = assembly;
+                // Assemble the compiled output
+                const assembler = new FV1Assembler({ fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true });
+                outputWindow(outputChannel, `[INFO] 🔧 Assembling compiled block diagram for slot ${slotNum}...`);
+                result = assembler.assemble(assembly);
             } else {
-                content = fs.readFileSync(fsPath, 'utf8');
+                // Use the document manager for proper assembly with full context
+                outputWindow(outputChannel, `[INFO] 🔧 Assembling ${path.basename(fsPath)} for slot ${slotNum}...`);
+                result = documentManager.getAssemblyResult(document);
             }
             
-            const assembler = new FV1Assembler({ fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true });
-            outputWindow(outputChannel, `[INFO] 🔧 Assembling ${path.basename(fsPath)} for slot ${slotNum}...`);
-            const result = assembler.assemble(content);
-            const fileUri = vscode.Uri.file(fsPath);
-            fv1Diagnostics.delete(fileUri);
-            const newDiagnostics: Array<vscode.Diagnostic> = [];
+            // Handle diagnostics and output
             if (result.problems.length !== 0) {
                 result.problems.forEach((p:any) => {
-                    const range = new vscode.Range(p.line - 1, 0, p.line - 1, Number.MAX_SAFE_INTEGER);
-                    const severity = p.isfatal ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning;
-                    const diagnostic = new vscode.Diagnostic(range, p.message, severity);
-                    diagnostic.source = 'fv1-assembler';
-                    newDiagnostics.push(diagnostic);
                     outputWindow(outputChannel, `${p.isfatal ? '[ERROR] ❌' : '[WARNING] ⚠'} ${p.message}`);
                 });
-                fv1Diagnostics.set(fileUri, newDiagnostics);
             }
+            
             if (result.machineCode && result.machineCode.length > 0) {
                 outputWindow(outputChannel, `[SUCCESS] ✅ Assembly completed for slot ${slotNum}`);
                 await programEeprom(result.machineCode, outputChannel, slotNum - 1);
@@ -1112,11 +1094,7 @@ export function activate(context: vscode.ExtensionContext) {
         loadHexToEepromCommand,
         backupPedalCommand,
         blockDiagramEditorProvider,
-        spnBanksView,
-        provider,
         outputChannel,
         fv1Diagnostics,
-        onDidChangeActiveTextEditor,
-        revealSpnBankCmd,
     );
 }

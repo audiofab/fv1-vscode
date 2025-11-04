@@ -272,49 +272,6 @@ export class CodeGenerationContext implements CodeGenContext {
     }
     
     /**
-     * Pre-allocate registers for feedback connections
-     * This ensures that when a block tries to read from a feedback input,
-     * the register already exists (even though it will be written later in execution order)
-     * @param feedbackConnectionIds Set of connection IDs that are feedback paths
-     */
-    preallocateFeedbackRegisters(feedbackConnectionIds: Set<string>): void {
-        // Build a set of all blocks involved in feedback paths
-        const feedbackBlocks = new Set<string>();
-        
-        for (const connection of this.graph.connections) {
-            if (feedbackConnectionIds.has(connection.id)) {
-                // Mark both source and destination as feedback-related
-                feedbackBlocks.add(connection.from.blockId);
-                feedbackBlocks.add(connection.to.blockId);
-            }
-        }
-        
-        // Pre-allocate registers for ALL outputs of feedback-related blocks
-        // This ensures registers exist regardless of execution order
-        for (const blockId of feedbackBlocks) {
-            const block = this.graph.blocks.find(b => b.id === blockId);
-            if (!block) continue;
-            
-            // Find all connections FROM this block
-            for (const connection of this.graph.connections) {
-                if (connection.from.blockId === blockId) {
-                    const sourcePortId = connection.from.portId;
-                    
-                    // Check if not already allocated
-                    const existing = this.registerAllocations.find(
-                        alloc => alloc.blockId === blockId && alloc.portId === sourcePortId
-                    );
-                    
-                    if (!existing) {
-                        // Allocate the register now
-                        this.allocateRegister(blockId, sourcePortId);
-                    }
-                }
-            }
-        }
-    }
-    
-    /**
      * Sanitize an identifier to make it valid for assembly
      */
     private sanitizeIdentifier(name: string): string {

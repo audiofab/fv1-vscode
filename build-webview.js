@@ -9,7 +9,8 @@ const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
 
 async function main() {
-    const ctx = await esbuild.context({
+    // Build block diagram editor webview
+    const blockDiagramCtx = await esbuild.context({
         entryPoints: ['src/blockDiagram/editor/webview/index.tsx'],
         bundle: true,
         format: 'iife',
@@ -31,12 +32,32 @@ async function main() {
         logLevel: 'info',
     });
 
+    // Build spnbank editor webview
+    const spnbankCtx = await esbuild.context({
+        entryPoints: ['src/spnbank-webview/index.ts'],
+        bundle: true,
+        format: 'iife',
+        outfile: 'out/spnbank-webview.js',
+        platform: 'browser',
+        target: 'es2020',
+        sourcemap: !production,
+        minify: production,
+        loader: {
+            '.ts': 'ts',
+        },
+        define: {
+            'process.env.NODE_ENV': production ? '"production"' : '"development"',
+        },
+        external: [],
+        logLevel: 'info',
+    });
+
     if (watch) {
-        await ctx.watch();
+        await Promise.all([blockDiagramCtx.watch(), spnbankCtx.watch()]);
         console.log('Watching for changes...');
     } else {
-        await ctx.rebuild();
-        await ctx.dispose();
+        await Promise.all([blockDiagramCtx.rebuild(), spnbankCtx.rebuild()]);
+        await Promise.all([blockDiagramCtx.dispose(), spnbankCtx.dispose()]);
         console.log('Build complete!');
     }
 }

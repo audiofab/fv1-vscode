@@ -66,12 +66,6 @@ export class GraphCompiler {
         
         const executionOrder = sortResult.order!;
         
-        // Add warning if feedback connections were detected
-        if (sortResult.feedbackConnections && sortResult.feedbackConnections.size > 0) {
-            warnings.push(`Detected ${sortResult.feedbackConnections.size} feedback connection(s). ` +
-                         `These create valid feedback loops (e.g., delay → filter → back to delay).`);
-        }
-        
         // 3. Create code generation context
         const context = new CodeGenerationContext(graph);
         
