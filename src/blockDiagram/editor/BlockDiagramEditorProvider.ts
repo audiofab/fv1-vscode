@@ -277,15 +277,10 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                 editor => editor.document.uri.toString() === diagramDocument.uri.toString()
             );
             
-            // Determine target column: if diagram is in column One, use Two; otherwise use Beside
-            let targetColumn = vscode.ViewColumn.Two;
-            if (diagramEditor?.viewColumn) {
-                targetColumn = diagramEditor.viewColumn === vscode.ViewColumn.One 
-                    ? vscode.ViewColumn.Two 
-                    : diagramEditor.viewColumn + 1;
-            }
+            // Open in the SAME editor group as the diagram
+            const targetColumn = diagramEditor?.viewColumn ?? vscode.ViewColumn.Active;
             
-            // Open the assembly document in a split editor to the right
+            // Open the assembly document in the same editor group
             const doc = await vscode.workspace.openTextDocument(assemblyUri);
             await vscode.window.showTextDocument(doc, {
                 viewColumn: targetColumn,
