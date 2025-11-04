@@ -31,8 +31,10 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
     const portRadius = 6;
     const portSpacing = 20;
     
-    // Track last position to calculate delta
-    const lastPosRef = useRef({ x: block.position.x, y: block.position.y });
+    const dragStateRef = useRef({ 
+        isDragging: false,
+        frameCount: 0
+    });
     
     return (
         <Group
@@ -40,30 +42,49 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
             y={block.position.y}
             draggable
             onDragStart={() => {
-                // Reset tracking position at start of drag
-                lastPosRef.current = { x: block.position.x, y: block.position.y };
+                dragStateRef.current = {
+                    isDragging: true,
+                    frameCount: 0
+                };
             }}
             onDragMove={(e) => {
-                // Calculate delta from last position
-                const newX = e.target.x();
-                const newY = e.target.y();
+                if (!dragStateRef.current.isDragging) return;
+                
+                dragStateRef.current.frameCount++;
+                
+                // Get Konva's current position
+                const konvaX = e.target.x();
+                const konvaY = e.target.y();
+                
+                // Calculate delta from current block.position (not cached value)
+                // This prevents accumulated error since block.position is the source of truth
                 const delta = {
-                    x: newX - lastPosRef.current.x,
-                    y: newY - lastPosRef.current.y
+                    x: konvaX - block.position.x,
+                    y: konvaY - block.position.y
                 };
-                lastPosRef.current = { x: newX, y: newY };
-                onMove(delta);
+                
+                // Update every few frames to reduce update frequency but stay responsive
+                // Use modulo to throttle: update every 2nd frame for smoother performance
+                if (dragStateRef.current.frameCount % 2 === 0 && (Math.abs(delta.x) > 0.1 || Math.abs(delta.y) > 0.1)) {
+                    onMove(delta);
+                }
             }}
             onDragEnd={(e) => {
-                // Final delta calculation
-                const newX = e.target.x();
-                const newY = e.target.y();
-                const delta = {
-                    x: newX - lastPosRef.current.x,
-                    y: newY - lastPosRef.current.y
+                if (!dragStateRef.current.isDragging) return;
+                
+                // Calculate final delta from current block.position to Konva's end position
+                const konvaX = e.target.x();
+                const konvaY = e.target.y();
+                const finalDelta = {
+                    x: konvaX - block.position.x,
+                    y: konvaY - block.position.y
                 };
-                if (delta.x !== 0 || delta.y !== 0) {
-                    onMove(delta);
+                
+                dragStateRef.current.isDragging = false;
+                
+                // Always send final update to ensure perfect sync
+                if (Math.abs(finalDelta.x) > 0.01 || Math.abs(finalDelta.y) > 0.01) {
+                    onMove(finalDelta);
                 }
             }}
             onClick={(e) => {
