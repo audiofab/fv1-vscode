@@ -20,6 +20,28 @@ import { FV1QuickActionsProvider } from './FV1QuickActionsProvider.js';
 
 const FV1_EEPROM_SLOT_SIZE_BYTES = 512; // Each FV-1 slot is 512 bytes
 
+/**
+ * Helper function to get the active document URI
+ * Works for both text editors and custom editors (like .spndiagram)
+ */
+function getActiveDocumentUri(): vscode.Uri | undefined {
+    // First, try active text editor
+    if (vscode.window.activeTextEditor) {
+        return vscode.window.activeTextEditor.document.uri;
+    }
+    
+    // If no text editor, try to get the active tab (for custom editors)
+    const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+    if (activeTab?.input) {
+        const input = activeTab.input as any;
+        if (input.uri) {
+            return input.uri;
+        }
+    }
+    
+    return undefined;
+}
+
 async function outputWindow(outputChannel: vscode.OutputChannel, message: string, isLine: boolean = true): Promise<void> {
     const config = vscode.workspace.getConfiguration('fv1');
     const showOutputWindow: boolean | undefined = config.get<boolean>('autoShowOutputWindow');
@@ -85,31 +107,20 @@ async function assembleFV1(
 ): Promise<FV1AssemblerResult | undefined> {
     const verbose: boolean = vscode.workspace.getConfiguration('fv1').get<boolean>('verbose') ?? false;
 
-    // Try to get the active file - could be a text editor or custom editor
-    let fileUri: vscode.Uri | undefined;
-    let document: vscode.TextDocument | undefined;
-    
-    // First, try active text editor
-    if (vscode.window.activeTextEditor) {
-        document = vscode.window.activeTextEditor.document;
-        fileUri = document.uri;
-    } else {
-        // If no text editor, try to get the active tab (for custom editors like .spndiagram)
-        const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
-        if (activeTab?.input) {
-            const input = activeTab.input as any;
-            if (input.uri) {
-                fileUri = input.uri;
-            }
-        }
-    }
-    
+    // Get the active file - works for both text editors and custom editors
+    const fileUri = getActiveDocumentUri();
     if (!fileUri) {
         vscode.window.showErrorMessage('No active editor');
         return undefined;
     }
     
     const filePath = fileUri.fsPath;
+    let document: vscode.TextDocument | undefined;
+    
+    // For text editors, get the document
+    if (vscode.window.activeTextEditor) {
+        document = vscode.window.activeTextEditor.document;
+    }
     
     // Check if it's a block diagram file
     if (filePath.endsWith('.spndiagram')) {
@@ -299,12 +310,21 @@ function detectMCP2221(): Promise<HID.Device | undefined> {
 }
 
 async function outputIntelHexFile(machineCode: number[], outputChannel: vscode.OutputChannel): Promise<void> {
-    const activeEditor = vscode.window.activeTextEditor;
-    if (!activeEditor) { vscode.window.showErrorMessage('No active editor'); return; }
-    const document = activeEditor.document;
-    if (!document.fileName.endsWith('.spn')) { vscode.window.showErrorMessage('Active file is not an FV-1 assembly file (.spn)'); return; }
-    const sourceFile = document.fileName;
-    const outputFile = sourceFile.replace(/\.(spn)$/, '.hex');
+    const fileUri = getActiveDocumentUri();
+    if (!fileUri) { 
+        vscode.window.showErrorMessage('No active editor'); 
+        return; 
+    }
+    
+    const sourceFile = fileUri.fsPath;
+    
+    // Support both .spn and .spndiagram files
+    if (!sourceFile.endsWith('.spn') && !sourceFile.endsWith('.spndiagram')) { 
+        vscode.window.showErrorMessage('Active file is not an FV-1 assembly file (.spn) or block diagram (.spndiagram)'); 
+        return; 
+    }
+    
+    const outputFile = sourceFile.replace(/\.(spn|spndiagram)$/, '.hex');
 
     const selectedSlot = await selectProgramSlot();
     if (selectedSlot === undefined) { vscode.window.showWarningMessage('No program slot was selected, aborting'); return; }
@@ -817,25 +837,6 @@ export function activate(context: vscode.ExtensionContext) {
         memoryStatusBar.show();
     };
     
-    // Helper to get active document URI (works for both text editors and custom editors)
-    const getActiveDocumentUri = (): vscode.Uri | undefined => {
-        // First try active text editor
-        if (vscode.window.activeTextEditor) {
-            return vscode.window.activeTextEditor.document.uri;
-        }
-        
-        // If no text editor, try to get from active tab (for custom editors)
-        const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
-        if (activeTab?.input) {
-            const input = activeTab.input as any;
-            if (input.uri) {
-                return input.uri;
-            }
-        }
-        
-        return undefined;
-    };
-    
     // Update status bar when active editor changes
     context.subscriptions.push(
         vscode.window.onDidChangeActiveTextEditor(editor => {
@@ -934,13 +935,18 @@ export function activate(context: vscode.ExtensionContext) {
         )
     );
     
-    // Register definition provider for FV-1 assembly files (Ctrl+Click navigation)
+    // Register definition provider for FV-1 assembly files (Ctrl+Click navigation, both file and virtual schemes)
     const fv1DefinitionProvider = new FV1DefinitionProvider(documentManager);
-    const definitionProvider = vscode.languages.registerDefinitionProvider(
-        { language: 'fv1-assembly', scheme: 'file' },
-        fv1DefinitionProvider
+    context.subscriptions.push(
+        vscode.languages.registerDefinitionProvider(
+            { language: 'fv1-assembly', scheme: 'file' },
+            fv1DefinitionProvider
+        ),
+        vscode.languages.registerDefinitionProvider(
+            { language: 'fv1-assembly', scheme: 'fv1-assembly' },
+            fv1DefinitionProvider
+        )
     );
-    context.subscriptions.push(definitionProvider);
     
     // Setup document event listeners for live diagnostics
     const onDidOpenTextDocument = vscode.workspace.onDidOpenTextDocument((document) => {
