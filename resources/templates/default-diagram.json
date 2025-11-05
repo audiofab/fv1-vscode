@@ -8,24 +8,26 @@
   "blocks": [
     {
       "id": "input-1",
-      "type": "input.adcl",
+      "type": "input.adc",
       "position": {
         "x": 100,
         "y": 200
       },
       "parameters": {
-        "gain": 1.0
+        "gain": 1.0,
+        "adcNumber": 0
       }
     },
     {
       "id": "output-1",
-      "type": "output.dacl",
+      "type": "output.dac",
       "position": {
         "x": 600,
         "y": 200
       },
       "parameters": {
-        "gain": 1.0
+        "gain": 1.0,
+        "dacNumber": 0
       }
     }
   ],
