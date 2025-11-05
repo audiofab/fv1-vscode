@@ -697,17 +697,6 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                 <div className="footer-section">
                     Blocks: {graph.blocks.length} | Connections: {graph.connections.length} | Selected: {selectedBlockIds.length}
                 </div>
-                <div className="footer-section resource-stats">
-                    <span className={resourceStats.instructionsUsed > 128 ? 'over-limit' : ''}>
-                        Instructions: {resourceStats.instructionsUsed}/128
-                    </span>
-                    <span className={resourceStats.registersUsed > 32 ? 'over-limit' : ''}>
-                        Registers: {resourceStats.registersUsed}/32
-                    </span>
-                    <span className={resourceStats.memoryUsed > 32768 ? 'over-limit' : ''}>
-                        Memory: {resourceStats.memoryUsed}/32768
-                    </span>
-                </div>
                 <div className="footer-section">
                     Zoom: {Math.round(zoom * 100)}%
                 </div>

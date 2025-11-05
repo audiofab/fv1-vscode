@@ -80,18 +80,95 @@ async function compileBlockDiagram(
     }
 }
 
-async function assembleFV1(outputChannel: vscode.OutputChannel, documentManager: FV1DocumentManager): Promise<FV1AssemblerResult | undefined> {
+async function assembleFV1(
+    outputChannel: vscode.OutputChannel, 
+    documentManager: FV1DocumentManager,
+    blockDiagramDocMgr: BlockDiagramDocumentManager
+): Promise<FV1AssemblerResult | undefined> {
     const verbose: boolean = vscode.workspace.getConfiguration('fv1').get<boolean>('verbose') ?? false;
 
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) {
+    // Try to get the active file - could be a text editor or custom editor
+    let fileUri: vscode.Uri | undefined;
+    let document: vscode.TextDocument | undefined;
+    
+    // First, try active text editor
+    if (vscode.window.activeTextEditor) {
+        document = vscode.window.activeTextEditor.document;
+        fileUri = document.uri;
+    } else {
+        // If no text editor, try to get the active tab (for custom editors like .spndiagram)
+        const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+        if (activeTab?.input) {
+            const input = activeTab.input as any;
+            if (input.uri) {
+                fileUri = input.uri;
+            }
+        }
+    }
+    
+    if (!fileUri) {
         vscode.window.showErrorMessage('No active editor');
         return undefined;
     }
-    const document = editor.document;
-    if (!document.fileName.endsWith('.spn')) {
-        vscode.window.showErrorMessage('Active file is not an FV-1 assembly file (.spn)');
+    
+    const filePath = fileUri.fsPath;
+    
+    // Check if it's a block diagram file
+    if (filePath.endsWith('.spndiagram')) {
+        // Compile block diagram first
+        const assembly = await compileBlockDiagram(filePath, outputChannel, blockDiagramDocMgr);
+        if (!assembly) {
+            return undefined;
+        }
+        
+        // Create a temporary in-memory document with the assembly code
+        const tempAssemblyDoc = await vscode.workspace.openTextDocument({
+            content: assembly,
+            language: 'fv1-assembly'
+        });
+        
+        // Assemble the generated assembly code
+        const result = documentManager.getAssemblyResult(tempAssemblyDoc);
+        
+        // Output any problems
+        let hasErrors = false;
+        if (result.problems.length > 0) {
+            result.problems.forEach((p: any) => {
+                const prefix = p.isfatal ? '[ERROR]' : '[WARNING]';
+                const icon = p.isfatal ? '❌' : '⚠';
+                outputWindow(outputChannel, `${prefix} ${icon} ${p.message}`);
+                if (p.isfatal) {
+                    hasErrors = true;
+                }
+            });
+        }
+        
+        if (!hasErrors && result.machineCode && result.machineCode.length > 0) {
+            if (verbose) {
+                outputWindow(outputChannel, FV1Assembler.formatMachineCode(result.machineCode));
+            }
+            outputWindow(outputChannel, `[SUCCESS] ✅ Block diagram assembled successfully - ${path.basename(filePath)}`);
+        } else if (hasErrors) {
+            outputWindow(outputChannel, `[ERROR] ❌ Assembly failed with errors - ${path.basename(filePath)}`);
+        }
+        
+        return result;
+    }
+    
+    // Original .spn file handling
+    if (!filePath.endsWith('.spn')) {
+        vscode.window.showErrorMessage('Active file is not an FV-1 assembly file (.spn) or block diagram (.spndiagram)');
         return undefined;
+    }
+    
+    // At this point we must have a document for .spn files
+    if (!document) {
+        // Try to find it in open documents
+        document = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === fileUri!.toString());
+        if (!document) {
+            vscode.window.showErrorMessage('Could not access document');
+            return undefined;
+        }
     }
 
     // Save the document if it has unsaved changes
@@ -665,53 +742,144 @@ export function activate(context: vscode.ExtensionContext) {
     
     // Function to update status bar items
     const updateStatusBar = (document: vscode.TextDocument | undefined) => {
-        if (!document || !document.fileName.toLowerCase().endsWith('.spndiagram')) {
+        if (!document) {
             instructionsStatusBar.hide();
             registersStatusBar.hide();
             memoryStatusBar.hide();
             return;
         }
         
-        const result = blockDiagramDocumentManager.getCompilationResult(document);
-        if (result.success && result.statistics) {
-            const stats = result.statistics;
-            
-            instructionsStatusBar.text = `$(circuit-board) ${stats.instructionsUsed}/128`;
-            instructionsStatusBar.backgroundColor = stats.instructionsUsed > 128 
-                ? new vscode.ThemeColor('statusBarItem.errorBackground') 
-                : undefined;
-            instructionsStatusBar.show();
-            
-            registersStatusBar.text = `$(database) ${stats.registersUsed}/32`;
-            registersStatusBar.backgroundColor = stats.registersUsed > 32 
-                ? new vscode.ThemeColor('statusBarItem.errorBackground') 
-                : undefined;
-            registersStatusBar.show();
-            
-            memoryStatusBar.text = `$(pulse) ${stats.memoryUsed}/32768`;
-            memoryStatusBar.backgroundColor = stats.memoryUsed > 32768 
-                ? new vscode.ThemeColor('statusBarItem.errorBackground') 
-                : undefined;
-            memoryStatusBar.show();
-        } else {
+        const fileName = document.fileName.toLowerCase();
+        let stats: { instructionsUsed: number; registersUsed: number; memoryUsed: number } | undefined;
+        
+        // Get stats based on file type
+        if (fileName.endsWith('.spndiagram')) {
+            const result = blockDiagramDocumentManager.getCompilationResult(document);
+            if (result.success && result.statistics) {
+                stats = result.statistics;
+            }
+        } else if (fileName.endsWith('.spn')) {
+            const result = documentManager.getAssemblyResult(document);
+            // For .spn files, calculate stats from the assembly result
+            if (result.machineCode && result.machineCode.length > 0) {
+                // Count actual instructions (exclude NOP padding)
+                const NOP_ENCODING = 0x00000011;
+                const instructionCount = result.machineCode.filter(code => code !== NOP_ENCODING).length;
+                
+                stats = {
+                    instructionsUsed: instructionCount,
+                    registersUsed: 0, // .spn files don't track register usage
+                    memoryUsed: result.memories.reduce((total, mem) => total + mem.size, 0)
+                };
+            }
+        }
+        
+        if (!stats) {
             instructionsStatusBar.hide();
             registersStatusBar.hide();
             memoryStatusBar.hide();
+            return;
         }
+        
+        // Instructions: 128 max
+        instructionsStatusBar.text = `$(circuit-board) ${stats.instructionsUsed}/128`;
+        const instructionsPercent = stats.instructionsUsed / 128;
+        if (stats.instructionsUsed > 128) {
+            instructionsStatusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+        } else if (instructionsPercent >= 0.8) {
+            instructionsStatusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+        } else {
+            instructionsStatusBar.backgroundColor = undefined;
+        }
+        instructionsStatusBar.show();
+        
+        // Registers: 32 max (only show if we have register info)
+        if (stats.registersUsed > 0 || fileName.endsWith('.spndiagram')) {
+            registersStatusBar.text = `$(database) ${stats.registersUsed}/32`;
+            const registersPercent = stats.registersUsed / 32;
+            if (stats.registersUsed > 32) {
+                registersStatusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+            } else if (registersPercent >= 0.8) {
+                registersStatusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+            } else {
+                registersStatusBar.backgroundColor = undefined;
+            }
+            registersStatusBar.show();
+        } else {
+            registersStatusBar.hide();
+        }
+        
+        // Memory: 32768 max
+        memoryStatusBar.text = `$(pulse) ${stats.memoryUsed}/32768`;
+        const memoryPercent = stats.memoryUsed / 32768;
+        if (stats.memoryUsed > 32768) {
+            memoryStatusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+        } else if (memoryPercent >= 0.8) {
+            memoryStatusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+        } else {
+            memoryStatusBar.backgroundColor = undefined;
+        }
+        memoryStatusBar.show();
+    };
+    
+    // Helper to get active document URI (works for both text editors and custom editors)
+    const getActiveDocumentUri = (): vscode.Uri | undefined => {
+        // First try active text editor
+        if (vscode.window.activeTextEditor) {
+            return vscode.window.activeTextEditor.document.uri;
+        }
+        
+        // If no text editor, try to get from active tab (for custom editors)
+        const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+        if (activeTab?.input) {
+            const input = activeTab.input as any;
+            if (input.uri) {
+                return input.uri;
+            }
+        }
+        
+        return undefined;
     };
     
     // Update status bar when active editor changes
     context.subscriptions.push(
         vscode.window.onDidChangeActiveTextEditor(editor => {
             updateStatusBar(editor?.document);
+        }),
+        vscode.window.tabGroups.onDidChangeTabGroups(() => {
+            // Also update when active tab changes (for custom editors)
+            const uri = getActiveDocumentUri();
+            if (uri) {
+                const fileName = uri.fsPath.toLowerCase();
+                if (fileName.endsWith('.spndiagram') || fileName.endsWith('.spn')) {
+                    const doc = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
+                    if (doc) {
+                        updateStatusBar(doc);
+                    }
+                }
+            }
         })
     );
     
-    // Update status bar when compilation changes
+    // Update status bar when compilation changes (for .spndiagram files)
     blockDiagramDocumentManager.onCompilationChange((uri) => {
-        const activeEditor = vscode.window.activeTextEditor;
-        if (activeEditor && activeEditor.document.uri.toString() === uri.toString()) {
-            updateStatusBar(activeEditor.document);
+        const activeUri = getActiveDocumentUri();
+        if (activeUri && activeUri.toString() === uri.toString()) {
+            const doc = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
+            if (doc) {
+                updateStatusBar(doc);
+            }
+        }
+    });
+    
+    // Update status bar when .spn documents change
+    documentManager.addChangeListener((uri: vscode.Uri) => {
+        const activeUri = getActiveDocumentUri();
+        if (activeUri && activeUri.toString() === uri.toString()) {
+            const doc = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
+            if (doc) {
+                updateStatusBar(doc);
+            }
         }
     });
     
@@ -863,100 +1031,6 @@ export function activate(context: vscode.ExtensionContext) {
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to create block diagram: ${error}`);
             console.error('Error creating block diagram:', error);
-        }
-    });
-
-    const compileBlockDiagramCmd = vscode.commands.registerCommand('fv1.compileBlockDiagram', async () => {
-        // Get the active tab (works for both text editors and custom editors)
-        const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
-        if (!activeTab || !activeTab.input) {
-            vscode.window.showErrorMessage('No active editor');
-            return;
-        }
-        
-        // Get the URI from the active tab
-        let fileUri: vscode.Uri | undefined;
-        const input = activeTab.input as any;
-        if (input.uri) {
-            fileUri = input.uri;
-        } else if (vscode.window.activeTextEditor) {
-            fileUri = vscode.window.activeTextEditor.document.uri;
-        }
-        
-        if (!fileUri) {
-            vscode.window.showErrorMessage('Could not determine active file');
-            return;
-        }
-        
-        const filePath = fileUri.fsPath;
-        if (!filePath.endsWith('.spndiagram')) {
-            vscode.window.showErrorMessage('Active file is not a block diagram (.spndiagram)');
-            return;
-        }
-        
-        // Try to save the document if it's a text document
-        const document = vscode.workspace.textDocuments.find(doc => doc.uri.fsPath === filePath);
-        if (document && document.isDirty) {
-            const saved = await document.save();
-            if (!saved) {
-                vscode.window.showErrorMessage('Failed to save document. Compilation aborted.');
-                return;
-            }
-            outputWindow(outputChannel, `[INFO] 💾 Saved ${path.basename(filePath)}`);
-        }
-        
-        try {
-            outputWindow(outputChannel, `[INFO] 🔧 Compiling block diagram ${path.basename(filePath)}...`);
-            
-            // Read and parse the block diagram
-            const content = fs.readFileSync(filePath, 'utf8');
-            const graph: BlockGraph = JSON.parse(content);
-            
-            // Compile the graph
-            const compiler = new GraphCompiler(blockRegistry);
-            const result = compiler.compile(graph);
-            
-            if (result.success && result.assembly) {
-                // Create .spn file path
-                const spnPath = filePath.replace('.spndiagram', '.spn');
-                
-                // Write assembly to .spn file
-                fs.writeFileSync(spnPath, result.assembly, 'utf8');
-                
-                // Show success message with statistics
-                const stats = result.statistics!;
-                const successMsg = 
-                    `✅ Compiled successfully! ` +
-                    `Instructions: ${stats.instructionsUsed}/128, ` +
-                    `Registers: ${stats.registersUsed}/32, ` +
-                    `Memory: ${stats.memoryUsed}/32768`;
-                
-                vscode.window.showInformationMessage(successMsg);
-                outputWindow(outputChannel, `[SUCCESS] ${successMsg}`);
-                
-                // Open the .spn file
-                const doc = await vscode.workspace.openTextDocument(spnPath);
-                await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
-                
-                // Show warnings if any
-                if (result.warnings && result.warnings.length > 0) {
-                    result.warnings.forEach(warn => 
-                        outputWindow(outputChannel, `[WARNING] ⚠ ${warn}`)
-                    );
-                    vscode.window.showWarningMessage(`Warnings: ${result.warnings.join(', ')}`);
-                }
-            } else {
-                // Show errors
-                const errors = result.errors || ['Unknown compilation error'];
-                vscode.window.showErrorMessage(`Compilation failed: ${errors[0]}`);
-                outputWindow(outputChannel, `[ERROR] ❌ Block diagram compilation failed:`);
-                errors.forEach(err => outputWindow(outputChannel, `  • ${err}`));
-            }
-        } catch (error) {
-            const errorMsg = `Failed to compile block diagram: ${error}`;
-            vscode.window.showErrorMessage(errorMsg);
-            outputWindow(outputChannel, `[ERROR] ❌ ${errorMsg}`);
-            console.error('Error compiling block diagram:', error);
         }
     });
 
@@ -1212,9 +1286,9 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    const assembleCommand = vscode.commands.registerCommand('fv1.assemble', async () => { await assembleFV1(outputChannel, documentManager); });
-    const assembleAndProgramCommand = vscode.commands.registerCommand('fv1.assembleAndProgram', async () => { const result = await assembleFV1(outputChannel, documentManager); if (result && result.machineCode.length > 0) await programEeprom(result.machineCode, outputChannel); });
-    const assembleToHexCommand = vscode.commands.registerCommand('fv1.assembleToHex', async () => { const result = await assembleFV1(outputChannel, documentManager); if (result && result.machineCode.length > 0) await outputIntelHexFile(result.machineCode, outputChannel); });
+    const assembleCommand = vscode.commands.registerCommand('fv1.assemble', async () => { await assembleFV1(outputChannel, documentManager, blockDiagramDocumentManager); });
+    const assembleAndProgramCommand = vscode.commands.registerCommand('fv1.assembleAndProgram', async () => { const result = await assembleFV1(outputChannel, documentManager, blockDiagramDocumentManager); if (result && result.machineCode.length > 0) await programEeprom(result.machineCode, outputChannel); });
+    const assembleToHexCommand = vscode.commands.registerCommand('fv1.assembleToHex', async () => { const result = await assembleFV1(outputChannel, documentManager, blockDiagramDocumentManager); if (result && result.machineCode.length > 0) await outputIntelHexFile(result.machineCode, outputChannel); });
     const exportBankToHexCommand = vscode.commands.registerCommand('fv1.exportBankToHex', async (item?: any) => { await exportBankToHex(outputChannel, blockDiagramDocumentManager, item); });
     const loadHexToEepromCommand = vscode.commands.registerCommand('fv1.loadHexToEeprom', async () => { await loadHexToEeprom(outputChannel); });
     const backupPedalCommand = vscode.commands.registerCommand('fv1.backupPedal', async () => { await backupPedal(outputChannel); });
@@ -1225,7 +1299,6 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         createCmd,
         createBlockDiagramCmd,
-        compileBlockDiagramCmd,
         programAllCmd,
         unassignCmd,
         programThisSlotCmd,

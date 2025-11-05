@@ -82,7 +82,7 @@ function render() {
         } else {
             const emptyEl = document.createElement('div');
             emptyEl.className = 'slot-empty';
-            emptyEl.textContent = 'Drag a file here or create new:';
+            emptyEl.textContent = 'Drag a file here or create:';
             contentEl.appendChild(emptyEl);
             
             // Create new file buttons

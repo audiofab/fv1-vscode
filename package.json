@@ -32,6 +32,23 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "fv1-explorer",
+          "title": "Audiofab Easy Spin (FV-1) Development",
+          "icon": "resources/audiofab-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "fv1-explorer": [
+        {
+          "id": "fv1-quick-actions",
+          "name": "Quick Actions"
+        }
+      ]
+    },
     "languages": [
       {
         "id": "fv1-assembly",
@@ -110,17 +127,14 @@
       {
         "command": "fv1.createSpnBank",
         "title": "Create new .spnbank",
-        "category": "FV-1"
+        "category": "FV-1",
+        "icon": "$(file-add)"
       },
       {
         "command": "fv1.createBlockDiagram",
         "title": "Create new block diagram",
-        "category": "FV-1"
-      },
-      {
-        "command": "fv1.compileBlockDiagram",
-        "title": "Compile block diagram to assembly",
-        "category": "FV-1"
+        "category": "FV-1",
+        "icon": "$(circuit-board)"
       },
       {
         "command": "fv1.programSpnBank",
@@ -135,11 +149,6 @@
       {
         "command": "fv1.unassignSlot",
         "title": "Unassign slot",
-        "category": "FV-1"
-      },
-      {
-        "command": "fv1.revealSpnBank",
-        "title": "Reveal Easy Spin Bank",
         "category": "FV-1"
       },
       {
@@ -167,7 +176,7 @@
       {
         "command": "fv1.assembleAndProgram",
         "key": "ctrl+shift+f5",
-        "when": "editorTextFocus && resourceExtname == .spn"
+        "when": "editorTextFocus && (resourceExtname == .spn || resourceExtname == .spndiagram)"
       },
       {
         "command": "fv1.assembleToHex",
@@ -181,6 +190,18 @@
       }
     ],
     "menus": {
+      "view/title": [
+        {
+          "command": "fv1.createBlockDiagram",
+          "when": "view == fv1-quick-actions",
+          "group": "navigation@1"
+        },
+        {
+          "command": "fv1.createSpnBank",
+          "when": "view == fv1-quick-actions",
+          "group": "navigation@2"
+        }
+      ],
       "commandPalette": [
         {
           "command": "fv1.programSpnBank",
@@ -195,10 +216,6 @@
           "when": "false"
         },
         {
-          "command": "fv1.revealSpnBank",
-          "when": "false"
-        },
-        {
           "command": "fv1.exportBankToHex",
           "when": "false"
         },
@@ -208,15 +225,11 @@
         },
         {
           "command": "fv1.assembleAndProgram",
-          "when": "resourceExtname == .spn"
+          "when": "resourceExtname == .spn || resourceExtname == .spndiagram"
         },
         {
           "command": "fv1.assembleToHex",
-          "when": "resourceExtname == .spn"
-        },
-        {
-          "command": "fv1.compileBlockDiagram",
-          "when": "resourceExtname == .spndiagram"
+          "when": "resourceExtname == .spn || resourceExtname == .spndiagram"
         },
         {
           "command": "fv1.loadHexToEeprom",
