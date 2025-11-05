@@ -119,14 +119,11 @@ async function assembleFV1(
             return undefined;
         }
         
-        // Create a temporary in-memory document with the assembly code
-        const tempAssemblyDoc = await vscode.workspace.openTextDocument({
-            content: assembly,
-            language: 'fv1-assembly'
+        // Assemble the generated assembly code directly (without creating a document)
+        const assembler = new FV1Assembler({ 
+            fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true 
         });
-        
-        // Assemble the generated assembly code
-        const result = documentManager.getAssemblyResult(tempAssemblyDoc);
+        const result = assembler.assemble(assembly);
         
         // Output any problems
         let hasErrors = false;
@@ -1230,19 +1227,24 @@ export function activate(context: vscode.ExtensionContext) {
             const fileUri = vscode.Uri.file(fsPath);
             const isBlockDiagram = fsPath.toLowerCase().endsWith('.spndiagram');
             
-            // Open the document to ensure it's properly loaded
-            let document = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === fileUri.toString());
-            if (!document) {
-                document = await vscode.workspace.openTextDocument(fileUri);
-            }
+            // For regular .spn files, open the document to ensure it's properly loaded
+            // For .spndiagram files, we don't need to open them as we'll compile them directly
+            let document: vscode.TextDocument | undefined;
             
-            // Save if dirty
-            if (document.isDirty) {
-                outputWindow(outputChannel, `[INFO] 💾 Saving ${path.basename(fsPath)}...`);
-                const saved = await document.save();
-                if (!saved) {
-                    vscode.window.showErrorMessage(`Failed to save ${path.basename(fsPath)}. Programming aborted.`);
-                    return;
+            if (!isBlockDiagram) {
+                document = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === fileUri.toString());
+                if (!document) {
+                    document = await vscode.workspace.openTextDocument(fileUri);
+                }
+                
+                // Save if dirty
+                if (document.isDirty) {
+                    outputWindow(outputChannel, `[INFO] 💾 Saving ${path.basename(fsPath)}...`);
+                    const saved = await document.save();
+                    if (!saved) {
+                        vscode.window.showErrorMessage(`Failed to save ${path.basename(fsPath)}. Programming aborted.`);
+                        return;
+                    }
                 }
             }
             
@@ -1262,7 +1264,7 @@ export function activate(context: vscode.ExtensionContext) {
             } else {
                 // Use the document manager for proper assembly with full context
                 outputWindow(outputChannel, `[INFO] 🔧 Assembling ${path.basename(fsPath)} for slot ${slotNum}...`);
-                result = documentManager.getAssemblyResult(document);
+                result = documentManager.getAssemblyResult(document!);
             }
             
             // Handle diagnostics and output
