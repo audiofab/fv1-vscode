@@ -8,7 +8,7 @@ import { CodeGenContext } from '../../types/Block.js';
 
 export class PotBlock extends BaseBlock {
     readonly type = 'input.pot';
-    readonly category = 'Input';
+    readonly category = 'I/O';
     readonly name = 'Potentiometer';
     readonly description = 'Read potentiometer control value (POT0, POT1, or POT2)';
     readonly color = '#4CAF50';

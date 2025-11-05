@@ -4,11 +4,9 @@
  */
 
 import { IBlockDefinition, BlockMetadata } from '../types/Block.js';
-import { ADCLBlock } from './input/ADCLBlock.js';
-import { ADCRBlock } from './input/ADCRBlock.js';
-import { PotBlock } from './input/PotBlock.js';
-import { DACLBlock } from './output/DACLBlock.js';
-import { DACRBlock } from './output/DACRBlock.js';
+import { ADCBlock } from './io/ADCBlock.js';
+import { PotBlock } from './io/PotBlock.js';
+import { DACBlock } from './io/DACBlock.js';
 import { VolumeBlock } from './math/VolumeBlock.js';
 import { Mixer2Block } from './math/Mixer2Block.js';
 import { Mixer3Block } from './math/Mixer3Block.js';
@@ -36,13 +34,11 @@ export class BlockRegistry {
      */
     private registerDefaultBlocks(): void {
         // Input blocks
-        this.register(new ADCLBlock());
-        this.register(new ADCRBlock());
+        this.register(new ADCBlock());
         this.register(new PotBlock());
         
         // Output blocks
-        this.register(new DACLBlock());
-        this.register(new DACRBlock());
+        this.register(new DACBlock());
         
         // Math blocks
         this.register(new VolumeBlock());
