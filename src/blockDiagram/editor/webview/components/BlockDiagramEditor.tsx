@@ -241,7 +241,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             )
         };
         saveGraph(newGraph);
-        setSelectedBlockIds([]);
+        // Note: Don't clear selection here - let the caller handle it
     }, [graph, saveGraph]);
     
     // Validate connection before adding
@@ -528,8 +528,16 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 if (selectedBlockIds.length > 0) {
-                    // Delete all selected blocks
-                    selectedBlockIds.forEach(blockId => deleteBlock(blockId));
+                    // Delete all selected blocks in a single operation
+                    const newGraph = {
+                        ...graph,
+                        blocks: graph.blocks.filter(b => !selectedBlockIds.includes(b.id)),
+                        connections: graph.connections.filter(
+                            c => !selectedBlockIds.includes(c.from.blockId) && !selectedBlockIds.includes(c.to.blockId)
+                        )
+                    };
+                    saveGraph(newGraph);
+                    setSelectedBlockIds([]);
                 } else if (selectedConnectionId) {
                     deleteConnection(selectedConnectionId);
                 }
@@ -546,7 +554,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedBlockIds, selectedConnectionId, deleteBlock, deleteConnection]);
+    }, [selectedBlockIds, selectedConnectionId, deleteConnection, graph, saveGraph]);
     
     // Handle drag and drop from palette
     const handleCanvasDrop = useCallback((e: React.DragEvent) => {
