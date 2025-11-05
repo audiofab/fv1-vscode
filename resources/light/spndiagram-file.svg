@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="16"
+   height="16"
+   viewBox="0 0 16 16"
+   version="1.1"
+   xmlns="http://www.w3.org/2000/svg">
+  <!-- Block diagram icon for light theme - two offset blocks with curved connections -->
+  <defs>
+    <style>
+      .block { fill: #8C8C8C; stroke: #424242; stroke-width: 1; }
+      .connection { stroke: #424242; stroke-width: 1; fill: none; }
+      .dot { fill: #424242; }
+    </style>
+  </defs>
+  
+  <!-- Left block (higher) -->
+  <rect class="block" x="1.5" y="2" width="4.5" height="7" rx="0.5"/>
+  
+  <!-- Right block (lower) -->
+  <rect class="block" x="10" y="7" width="4.5" height="7" rx="0.5"/>
+  
+  <!-- Three curved connections between blocks -->
+  <!-- Top connection -->
+  <path class="connection" d="M 6 4 Q 8 4.5, 10 8"/>
+  <circle class="dot" cx="6" cy="4" r="0.7"/>
+  <circle class="dot" cx="10" cy="8" r="0.7"/>
+  
+  <!-- Middle connection -->
+  <path class="connection" d="M 6 5.5 Q 8 7, 10 10"/>
+  <circle class="dot" cx="6" cy="5.5" r="0.7"/>
+  <circle class="dot" cx="10" cy="10" r="0.7"/>
+  
+  <!-- Bottom connection -->
+  <path class="connection" d="M 6 7 Q 8 9.5, 10 12"/>
+  <circle class="dot" cx="6" cy="7" r="0.7"/>
+  <circle class="dot" cx="10" cy="12" r="0.7"/>
+</svg>

@@ -2,11 +2,13 @@
   "name": "fv1-vscode",
   "displayName": "Audiofab FV-1 Programming",
   "description": "An extension providing development support for Spin Semiconductor's FV-1 chip and programming support for the Audiofab Easy Spin guitar pedal.",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "publisher": "ms-audiofab",
   "publisherDisplayName": "Audiofab Inc.",
   "icon": "doc/logo_600x493.png",
-  "galleryBanner": {"theme": "light"},
+  "galleryBanner": {
+    "theme": "light"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -30,6 +32,23 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "fv1-explorer",
+          "title": "Audiofab Easy Spin (FV-1) Development",
+          "icon": "resources/audiofab-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "fv1-explorer": [
+        {
+          "id": "fv1-quick-actions",
+          "name": "Quick Actions"
+        }
+      ]
+    },
     "languages": [
       {
         "id": "fv1-assembly",
@@ -58,6 +77,19 @@
           "light": "./resources/light/spnbank-file.svg",
           "dark": "./resources/dark/spnbank-file.svg"
         }
+      },
+      {
+        "id": "spndiagram",
+        "aliases": [
+          "FV-1 Block Diagram"
+        ],
+        "extensions": [
+          ".spndiagram"
+        ],
+        "icon": {
+          "light": "./resources/light/spndiagram-file.svg",
+          "dark": "./resources/dark/spndiagram-file.svg"
+        }
       }
     ],
     "grammars": [
@@ -65,6 +97,28 @@
         "language": "fv1-assembly",
         "scopeName": "source.fv1-assembly",
         "path": "./syntaxes/fv1-assembly.tmGrammar.json"
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "fv1.blockDiagramEditor",
+        "displayName": "FV-1 Block Diagram",
+        "selector": [
+          {
+            "filenamePattern": "*.spndiagram"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "audiofab.spnBankEditor",
+        "displayName": "FV-1 Program Bank",
+        "selector": [
+          {
+            "filenamePattern": "*.spnbank"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "commands": [
@@ -82,34 +136,38 @@
         "command": "fv1.assembleToHex",
         "title": "Assemble current file to an Intel HEX file",
         "category": "FV-1"
-      }
-      ,
+      },
       {
         "command": "fv1.createSpnBank",
         "title": "Create new .spnbank",
-        "category": "FV-1"
+        "category": "FV-1",
+        "icon": {
+          "light": "./resources/light/spnbank-file.svg",
+          "dark": "./resources/dark/spnbank-file.svg"
+        }
+      },
+      {
+        "command": "fv1.createBlockDiagram",
+        "title": "Create new block diagram",
+        "category": "FV-1",
+        "icon": {
+          "light": "./resources/light/spndiagram-file.svg",
+          "dark": "./resources/dark/spndiagram-file.svg"
+        }
       },
       {
         "command": "fv1.programSpnBank",
         "title": "Program Bank",
         "category": "FV-1"
-      }
-      ,
+      },
       {
         "command": "fv1.programThisSlot",
         "title": "Program this slot",
         "category": "FV-1"
-      }
-      ,
+      },
       {
         "command": "fv1.unassignSlot",
         "title": "Unassign slot",
-        "category": "FV-1"
-      }
-      ,
-      {
-        "command": "fv1.revealSpnBank",
-        "title": "Reveal Easy Spin Bank",
         "category": "FV-1"
       },
       {
@@ -137,7 +195,7 @@
       {
         "command": "fv1.assembleAndProgram",
         "key": "ctrl+shift+f5",
-        "when": "editorTextFocus && resourceExtname == .spn"
+        "when": "editorTextFocus && (resourceExtname == .spn || resourceExtname == .spndiagram)"
       },
       {
         "command": "fv1.assembleToHex",
@@ -150,16 +208,19 @@
         "when": "editorTextFocus && resourceExtname == .hex"
       }
     ],
-    "views": {
-      "explorer": [
-        {
-          "id": "audiofab.spnBanks",
-          "name": "Easy Spin Banks",
-          "icon": "doc/logo_600x493.png"
-        }
-      ]
-    },
     "menus": {
+      "view/title": [
+        {
+          "command": "fv1.createBlockDiagram",
+          "when": "view == fv1-quick-actions",
+          "group": "navigation@1"
+        },
+        {
+          "command": "fv1.createSpnBank",
+          "when": "view == fv1-quick-actions",
+          "group": "navigation@2"
+        }
+      ],
       "commandPalette": [
         {
           "command": "fv1.programSpnBank",
@@ -174,10 +235,6 @@
           "when": "false"
         },
         {
-          "command": "fv1.revealSpnBank",
-          "when": "false"
-        },
-        {
           "command": "fv1.exportBankToHex",
           "when": "false"
         },
@@ -187,11 +244,11 @@
         },
         {
           "command": "fv1.assembleAndProgram",
-          "when": "resourceExtname == .spn"
+          "when": "resourceExtname == .spn || resourceExtname == .spndiagram"
         },
         {
           "command": "fv1.assembleToHex",
-          "when": "resourceExtname == .spn"
+          "when": "resourceExtname == .spn || resourceExtname == .spndiagram"
         },
         {
           "command": "fv1.loadHexToEeprom",
@@ -215,40 +272,7 @@
           "group": "fv1@1"
         }
       ],
-      "explorer/context": [],
-      "view/item/context": [
-        {
-          "when": "view == audiofab.spnBanks && viewItem == spnSlotAssigned",
-          "command": "fv1.programThisSlot",
-          "group": "inline"
-        },
-        {
-          "when": "view == audiofab.spnBanks && viewItem == spnSlotAssigned",
-          "command": "fv1.unassignSlot",
-          "group": "inline"
-        },
-        {
-          "when": "view == audiofab.spnBanks && viewItem == spnBank",
-          "command": "fv1.programSpnBank",
-          "group": "navigation"
-        },
-        {
-          "when": "view == audiofab.spnBanks && viewItem == spnBank",
-          "command": "fv1.exportBankToHex",
-          "group": "navigation"
-        }
-      ],
-  "view/item/toolbar": [
-        {
-          "when": "view == audiofab.spnBanks && viewItem == spnSlotAssigned",
-          "command": "fv1.unassignSlot",
-          "group": "inline",
-          "icon": {
-            "light": "resources/light/unassign.svg",
-            "dark": "resources/dark/unassign.svg"
-          }
-        }
-      ]
+      "explorer/context": []
     },
     "configuration": {
       "title": "Audiofab FV-1",
@@ -297,20 +321,31 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run compile && npm run compile-webview",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "compile-webview": "node build-webview.js",
+    "watch-webview": "node build-webview.js --watch"
   },
   "devDependencies": {
     "@types/node": "16.x",
     "@types/node-hid": "^1.3.4",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@types/uuid": "^10.0.0",
     "@types/vscode": "^1.74.0",
+    "esbuild": "^0.25.11",
     "typescript": "^4.9.4"
   },
   "dependencies": {
     "@johntalton/eeprom": "^1.1.1",
     "@johntalton/i2c-bus-mcp2221": "^4.2.1",
     "@johntalton/mcp2221": "^4.0.4",
-    "node-hid": "^3.2.0"
+    "konva": "^10.0.2",
+    "node-hid": "^3.2.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-konva": "^19.0.10",
+    "uuid": "^13.0.0"
   }
 }

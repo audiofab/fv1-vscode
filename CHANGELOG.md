@@ -1,5 +1,11 @@
 # Change Log
 
+## [1.2.0]
+
+- Block diagram programming support!
+- Replaced Easy Spin Banks View with a more full-featured .spnbank editor
+- Realtime compilation of the block diagram with resource usage reporting
+
 ## [1.1.1]
 
 - Major editor UI enhancements

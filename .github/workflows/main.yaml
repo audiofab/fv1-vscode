@@ -57,7 +57,7 @@ jobs:
       - name: Install Dependencies
         run: npm ci
       - name: Build Code
-        run: npm run compile
+        run: node build-webview.js && npm run compile
       - name: Package Extension
         id: packageExtension
         uses: HaaLeo/publish-vscode-extension@v2
