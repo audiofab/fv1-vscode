@@ -77,6 +77,19 @@
           "light": "./resources/light/spnbank-file.svg",
           "dark": "./resources/dark/spnbank-file.svg"
         }
+      },
+      {
+        "id": "spndiagram",
+        "aliases": [
+          "FV-1 Block Diagram"
+        ],
+        "extensions": [
+          ".spndiagram"
+        ],
+        "icon": {
+          "light": "./resources/light/spndiagram-file.svg",
+          "dark": "./resources/dark/spndiagram-file.svg"
+        }
       }
     ],
     "grammars": [
@@ -128,13 +141,19 @@
         "command": "fv1.createSpnBank",
         "title": "Create new .spnbank",
         "category": "FV-1",
-        "icon": "$(file-add)"
+        "icon": {
+          "light": "./resources/light/spnbank-file.svg",
+          "dark": "./resources/dark/spnbank-file.svg"
+        }
       },
       {
         "command": "fv1.createBlockDiagram",
         "title": "Create new block diagram",
         "category": "FV-1",
-        "icon": "$(circuit-board)"
+        "icon": {
+          "light": "./resources/light/spndiagram-file.svg",
+          "dark": "./resources/dark/spndiagram-file.svg"
+        }
       },
       {
         "command": "fv1.programSpnBank",

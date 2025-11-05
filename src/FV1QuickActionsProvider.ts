@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 
 export class FV1QuickActionsProvider implements vscode.TreeDataProvider<QuickAction> {
     private _onDidChangeTreeData: vscode.EventEmitter<QuickAction | undefined | null | void> = new vscode.EventEmitter<QuickAction | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<QuickAction | undefined | null | void> = this._onDidChangeTreeData.event;
 
-    constructor() {}
+    constructor(private context: vscode.ExtensionContext) {}
 
     refresh(): void {
         this._onDidChangeTreeData.fire();
@@ -28,7 +29,10 @@ export class FV1QuickActionsProvider implements vscode.TreeDataProvider<QuickAct
                     command: 'fv1.createBlockDiagram',
                     title: 'Create Block Diagram'
                 },
-                new vscode.ThemeIcon('circuit-board')
+                {
+                    light: vscode.Uri.file(path.join(this.context.extensionPath, 'resources', 'light', 'spndiagram-file.svg')),
+                    dark: vscode.Uri.file(path.join(this.context.extensionPath, 'resources', 'dark', 'spndiagram-file.svg'))
+                }
             ),
             new QuickAction(
                 'New Program Bank',
@@ -38,7 +42,10 @@ export class FV1QuickActionsProvider implements vscode.TreeDataProvider<QuickAct
                     command: 'fv1.createSpnBank',
                     title: 'Create Program Bank'
                 },
-                new vscode.ThemeIcon('file-add')
+                {
+                    light: vscode.Uri.file(path.join(this.context.extensionPath, 'resources', 'light', 'spnbank-file.svg')),
+                    dark: vscode.Uri.file(path.join(this.context.extensionPath, 'resources', 'dark', 'spnbank-file.svg'))
+                }
             ),
             new QuickAction(
                 'Backup Pedal',
@@ -62,7 +69,7 @@ class QuickAction extends vscode.TreeItem {
         public readonly tooltip: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public readonly command?: vscode.Command,
-        public readonly iconPath?: vscode.ThemeIcon
+        public readonly iconPath?: vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }
     ) {
         super(label, collapsibleState);
         this.tooltip = tooltip;

@@ -15,9 +15,7 @@ import { FV1HoverProvider } from './fv1HoverProvider.js';
 import { FV1DefinitionProvider } from './fv1DefinitionProvider.js';
 import { FV1DocumentManager } from './fv1DocumentManager.js';
 import { BlockDiagramDocumentManager } from './blockDiagram/BlockDiagramDocumentManager.js';
-import { GraphCompiler } from './blockDiagram/compiler/GraphCompiler.js';
 import { blockRegistry } from './blockDiagram/blocks/BlockRegistry.js';
-import { BlockGraph } from './blockDiagram/types/Graph.js';
 import { FV1QuickActionsProvider } from './FV1QuickActionsProvider.js';
 
 const FV1_EEPROM_SLOT_SIZE_BYTES = 512; // Each FV-1 slot is 512 bytes
@@ -723,7 +721,7 @@ export function activate(context: vscode.ExtensionContext) {
     const blockDiagramDocumentManager = new BlockDiagramDocumentManager(blockDiagramDiagnostics, blockRegistry);
     
     // Register Quick Actions view
-    const quickActionsProvider = new FV1QuickActionsProvider();
+    const quickActionsProvider = new FV1QuickActionsProvider(context);
     const quickActionsView = vscode.window.createTreeView('fv1-quick-actions', {
         treeDataProvider: quickActionsProvider
     });
