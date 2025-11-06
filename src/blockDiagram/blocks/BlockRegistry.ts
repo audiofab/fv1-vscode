@@ -25,9 +25,11 @@ import { InvertBlock } from './control/InvertBlock.js';
 import { PowerBlock } from './control/PowerBlock.js';
 import { SinCosLFOBlock } from './control/SinCosLFOBlock.js';
 import { ControlSmootherBlock } from './control/ControlSmootherBlock.js';
+import { TremolizerBlock } from './control/TremolizerBlock.js';
 import { CrossfadeBlock } from './math/CrossfadeBlock.js';
 import { Crossfade2Block } from './math/Crossfade2Block.js';
 import { Crossfade3Block } from './math/Crossfade3Block.js';
+import { CoarseDelayBlock } from './effects/delay/CoarseDelayBlock.js';
 
 export class BlockRegistry {
     private blocks: Map<string, IBlockDefinition> = new Map();
@@ -62,6 +64,7 @@ export class BlockRegistry {
         // this.register(new DelayBlock());
         // this.register(new PingPongDelayBlock());
         this.register(new TripleTapDelayBlock());
+        this.register(new CoarseDelayBlock());
         
         // Effect blocks - Modulation
         // this.register(new PhaserBlock());
@@ -82,6 +85,7 @@ export class BlockRegistry {
         this.register(new PowerBlock());
         this.register(new SinCosLFOBlock());
         this.register(new ControlSmootherBlock());
+        this.register(new TremolizerBlock());
         
         // Effect blocks - Control
         // this.register(new TapTempoBlock());

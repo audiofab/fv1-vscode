@@ -93,6 +93,14 @@ export class SinCosLFOBlock extends BaseBlock {
         this.autoCalculateHeight();
     }
 
+    /**
+     * Display which LFO is being used (LFO 0 or LFO 1)
+     */
+    getCustomLabel(parameters: Record<string, any>): string | null {
+        const lfoSel = parameters['lfoSel'] ?? 0;
+        return `LFO ${lfoSel}`;
+    }
+
     generateCode(ctx: CodeGenContext): void {
         const zero = this.formatS1_14(0.0);
 
