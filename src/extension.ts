@@ -767,8 +767,21 @@ export function activate(context: vscode.ExtensionContext) {
         const fileName = document.fileName.toLowerCase();
         let stats: { instructionsUsed: number; registersUsed: number; memoryUsed: number } | undefined;
         
+        // Check if this is a virtual assembly document from a block diagram
+        if (document.uri.scheme === 'fv1-assembly') {
+            // Extract the original .spndiagram URI from the virtual URI
+            // Virtual URI format: fv1-assembly:${originalUri.fsPath}.spn
+            const originalPath = document.uri.path.replace(/\.spn$/, '');
+            const originalUri = vscode.Uri.file(originalPath);
+            
+            // Get cached compilation result for the original block diagram
+            const cachedResult = blockDiagramDocumentManager.getCachedCompilationResult(originalUri);
+            if (cachedResult && cachedResult.success && cachedResult.statistics) {
+                stats = cachedResult.statistics;
+            }
+        }
         // Get stats based on file type
-        if (fileName.endsWith('.spndiagram')) {
+        else if (fileName.endsWith('.spndiagram')) {
             const result = blockDiagramDocumentManager.getCompilationResult(document);
             if (result.success && result.statistics) {
                 stats = result.statistics;
@@ -840,18 +853,64 @@ export function activate(context: vscode.ExtensionContext) {
     // Update status bar when active editor changes
     context.subscriptions.push(
         vscode.window.onDidChangeActiveTextEditor(editor => {
-            updateStatusBar(editor?.document);
-        }),
-        vscode.window.tabGroups.onDidChangeTabGroups(() => {
-            // Also update when active tab changes (for custom editors)
-            const uri = getActiveDocumentUri();
-            if (uri) {
-                const fileName = uri.fsPath.toLowerCase();
-                if (fileName.endsWith('.spndiagram') || fileName.endsWith('.spn')) {
-                    const doc = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
-                    if (doc) {
-                        updateStatusBar(doc);
+            if (editor) {
+                // Text editor is active, use it
+                updateStatusBar(editor.document);
+            } else {
+                // No text editor active, check if there's a custom editor (like block diagram)
+                const uri = getActiveDocumentUri();
+                if (uri && uri.fsPath.toLowerCase().endsWith('.spndiagram')) {
+                    // Block diagram custom editor is active
+                    const cachedResult = blockDiagramDocumentManager.getCachedCompilationResult(uri);
+                    if (cachedResult && cachedResult.success && cachedResult.statistics) {
+                        const stats = cachedResult.statistics;
+                        
+                        // Instructions: 128 max
+                        instructionsStatusBar.text = `$(circuit-board) ${stats.instructionsUsed}/128`;
+                        const instructionsPercent = stats.instructionsUsed / 128;
+                        if (stats.instructionsUsed > 128) {
+                            instructionsStatusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+                        } else if (instructionsPercent >= 0.8) {
+                            instructionsStatusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+                        } else {
+                            instructionsStatusBar.backgroundColor = undefined;
+                        }
+                        instructionsStatusBar.show();
+                        
+                        // Registers: 32 max
+                        registersStatusBar.text = `$(database) ${stats.registersUsed}/32`;
+                        const registersPercent = stats.registersUsed / 32;
+                        if (stats.registersUsed > 32) {
+                            registersStatusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+                        } else if (registersPercent >= 0.8) {
+                            registersStatusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+                        } else {
+                            registersStatusBar.backgroundColor = undefined;
+                        }
+                        registersStatusBar.show();
+                        
+                        // Memory: 32768 max
+                        memoryStatusBar.text = `$(pulse) ${stats.memoryUsed}/32768`;
+                        const memoryPercent = stats.memoryUsed / 32768;
+                        if (stats.memoryUsed > 32768) {
+                            memoryStatusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+                        } else if (memoryPercent >= 0.8) {
+                            memoryStatusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+                        } else {
+                            memoryStatusBar.backgroundColor = undefined;
+                        }
+                        memoryStatusBar.show();
+                    } else {
+                        // No cached result, hide status bar
+                        instructionsStatusBar.hide();
+                        registersStatusBar.hide();
+                        memoryStatusBar.hide();
                     }
+                } else {
+                    // No relevant editor active
+                    instructionsStatusBar.hide();
+                    registersStatusBar.hide();
+                    memoryStatusBar.hide();
                 }
             }
         })

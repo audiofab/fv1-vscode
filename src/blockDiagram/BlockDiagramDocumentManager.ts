@@ -110,6 +110,15 @@ export class BlockDiagramDocumentManager {
     }
     
     /**
+     * Get cached compilation result by URI (if available).
+     * Returns undefined if no cached result exists.
+     */
+    public getCachedCompilationResult(uri: vscode.Uri): CompilationResult | undefined {
+        const cached = this.documentCache.get(uri.toString());
+        return cached?.result;
+    }
+    
+    /**
      * Handle document changes
      */
     public async onDocumentChange(document: vscode.TextDocument): Promise<void> {

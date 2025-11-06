@@ -19,6 +19,7 @@ Create FV-1 programs visually by connecting blocks together - no assembly code r
 - **Drag-and-drop block palette** with categorized blocks
 - **Real-time compilation** with live error checking and resource usage tracking
 - **View generated assembly** to see the code produced from your diagram
+- **Code optimizer** that tries to optimize the generated assembly to save program space
 - **Instantly program the current diagram** into any one of the 8 slots on your [Audiofab Easy Spin](https://audiofab.com/products/easy-spin) pedal
 
 ![visual editor](doc//visual_editor.png)
@@ -78,6 +79,8 @@ For hardware programming, you'll need the [Audiofab USB Programmer](https://audi
 5. Connect blocks by clicking output ports and dragging to input ports
 6. Program directly to a program slot on your [Audiofab Easy Spin](https://audiofab.com/products/easy-spin) (_Ctrl+Shift+P > FV-1: Assemble current file and load to EEPROM_), or create a program bank and add it there
 
+_NOTE: After programming ensure you rotate the **Program** select switch off of the current program and back to have the FV-1 reload the new program contents from EEPROM_
+
 ### Creating Your First Program Bank
 
 1. Open the Quick Actions sidebar (click the Audiofab icon in the Activity Bar)
@@ -85,6 +88,8 @@ For hardware programming, you'll need the [Audiofab USB Programmer](https://audi
 3. Choose a location and filename
 4. Drag `.spn` or `.spndiagram` files from the File Explorer onto bank slots (hold _Shift_ to drop into a slot)
 5. Click "Program Bank" to load all programs to your pedal
+
+_NOTE: After programming ensure you rotate the **Program** select switch off of the current program and back to have the FV-1 reload the new program contents from EEPROM_
 
 ## Commands
 
@@ -159,7 +164,7 @@ Configure the extension in VS Code Settings (`File > Preferences > Settings` or 
 - For block diagrams, check connection validation messages
 
 **Program doesn't sound right**
-- Ensure you rotate the **Program** select switch off of the desired program and back to the desired program to have the FV-1 re-load the new program contents from EEPROM
+- Ensure you rotate the **Program** select switch off of the current program and back to have the FV-1 reload the new program contents from EEPROM
 - Verify resource usage isn't exceeding limits (red indicators in status bar)
 - There could be a bug in the assembler - file an issue!
 
@@ -175,6 +180,7 @@ If you find a program that fails to assemble or a block diagram that doesn't com
 - [Audiofab Easy Spin](https://audiofab.com/products/easy-spin)
 - [SpinCAD Designer](https://github.com/HolyCityAudio/SpinCAD-Designer) - the "OG" and the inspiration for this extension!
 - [FV-1 Programs](https://mstratman.github.io/fv1-programs) - a nice collection of FV-1 effects
+- Special thanks to [@johntalton](https://github.com/johntalton) for his super-awesome mcp2221 and EEPROM libraries
 
 
 ## License

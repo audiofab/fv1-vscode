@@ -61,17 +61,17 @@ export class ChorusBlock extends BaseBlock {
                 fromDisplay: (ms: number) => this.msToSamples(ms),
                 description: 'Delay buffer length'
             },
-            {
-                id: 'tap1Center',
-                name: 'Tap Center',
-                type: 'number',
-                default: 0.5,
-                min: 0.25,
-                max: 0.75,
-                step: 0.01,
-                displayDecimals: 2,
-                description: 'Center position of modulated tap (0.25-0.75)'
-            },
+            // {
+            //     id: 'tap1Center',
+            //     name: 'Tap Center',
+            //     type: 'number',
+            //     default: 0.5,
+            //     min: 0.25,
+            //     max: 0.75,
+            //     step: 0.01,
+            //     displayDecimals: 2,
+            //     description: 'Center position of modulated tap (0.25-0.75)'
+            // },
             {
                 id: 'rate',
                 name: 'LFO Rate',
@@ -139,7 +139,7 @@ export class ChorusBlock extends BaseBlock {
         
         // Get parameters
         const delayLength = Math.floor(this.getParameterValue(ctx, this.type, 'delayLength', 512));
-        const tap1Center = this.getParameterValue(ctx, this.type, 'tap1Center', 0.5);
+        const tap1Center = 0.5; // this.getParameterValue(ctx, this.type, 'tap1Center', 0.5);
         const rate = this.getParameterValue(ctx, this.type, 'rate', 20);
         const width = this.getParameterValue(ctx, this.type, 'width', 30);
         const lfoSel = Math.floor(this.getParameterValue(ctx, this.type, 'lfoSel', 0));

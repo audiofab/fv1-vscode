@@ -23,7 +23,7 @@ export class FV1QuickActionsProvider implements vscode.TreeDataProvider<QuickAct
         const actions: QuickAction[] = [
             new QuickAction(
                 'New Block Diagram',
-                'Create a new visual block diagram',
+                'Create a new block diagram program (.spndiagram)',
                 vscode.TreeItemCollapsibleState.None,
                 {
                     command: 'fv1.createBlockDiagram',
@@ -36,7 +36,7 @@ export class FV1QuickActionsProvider implements vscode.TreeDataProvider<QuickAct
             ),
             new QuickAction(
                 'New Program Bank',
-                'Create a new .spnbank file',
+                'Create a new program bank (.spnbank)',
                 vscode.TreeItemCollapsibleState.None,
                 {
                     command: 'fv1.createSpnBank',
