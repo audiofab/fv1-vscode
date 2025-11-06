@@ -20,6 +20,14 @@ import { ShelvingHighPassBlock } from './effects/filter/ShelvingHighPassBlock.js
 import { ShelvingLowPassBlock } from './effects/filter/ShelvingLowPassBlock.js';
 import { StateVariableFilter2PBlock } from './effects/filter/StateVariableFilter2PBlock.js';
 import { StateVariableFilter2PAdjustableBlock } from './effects/filter/StateVariableFilter2PAdjustableBlock.js';
+import { ScaleOffsetBlock } from './control/ScaleOffsetBlock.js';
+import { InvertBlock } from './control/InvertBlock.js';
+import { PowerBlock } from './control/PowerBlock.js';
+import { SinCosLFOBlock } from './control/SinCosLFOBlock.js';
+import { ControlSmootherBlock } from './control/ControlSmootherBlock.js';
+import { CrossfadeBlock } from './math/CrossfadeBlock.js';
+import { Crossfade2Block } from './math/Crossfade2Block.js';
+import { Crossfade3Block } from './math/Crossfade3Block.js';
 
 export class BlockRegistry {
     private blocks: Map<string, IBlockDefinition> = new Map();
@@ -46,6 +54,9 @@ export class BlockRegistry {
         this.register(new Mixer2Block());
         this.register(new Mixer3Block());
         this.register(new Mixer4Block());
+        this.register(new CrossfadeBlock());
+        this.register(new Crossfade2Block());
+        this.register(new Crossfade3Block());
         
         // Effect blocks - Delay
         // this.register(new DelayBlock());
@@ -64,6 +75,13 @@ export class BlockRegistry {
         this.register(new ShelvingLowPassBlock());
         this.register(new StateVariableFilter2PBlock());
         this.register(new StateVariableFilter2PAdjustableBlock());
+        
+        // Control blocks
+        this.register(new ScaleOffsetBlock());
+        this.register(new InvertBlock());
+        this.register(new PowerBlock());
+        this.register(new SinCosLFOBlock());
+        this.register(new ControlSmootherBlock());
         
         // Effect blocks - Control
         // this.register(new TapTempoBlock());
