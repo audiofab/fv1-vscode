@@ -2,7 +2,7 @@
   "name": "fv1-vscode",
   "displayName": "Audiofab FV-1 Programming",
   "description": "An extension providing development support for Spin Semiconductor's FV-1 chip and programming support for the Audiofab Easy Spin guitar pedal.",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "publisher": "ms-audiofab",
   "publisherDisplayName": "Audiofab Inc.",
   "icon": "doc/logo_600x493.png",
@@ -139,7 +139,7 @@
       },
       {
         "command": "fv1.createSpnBank",
-        "title": "Create new .spnbank",
+        "title": "Create new program bank (.spnbank)",
         "category": "FV-1",
         "icon": {
           "light": "./resources/light/spnbank-file.svg",
@@ -148,7 +148,7 @@
       },
       {
         "command": "fv1.createBlockDiagram",
-        "title": "Create new block diagram",
+        "title": "Create new block diagram program (.spndiagram)",
         "category": "FV-1",
         "icon": {
           "light": "./resources/light/spndiagram-file.svg",
