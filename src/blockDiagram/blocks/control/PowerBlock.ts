@@ -41,21 +41,21 @@ export class PowerBlock extends BaseBlock {
                 min: 1,
                 max: 5,
                 step: 1,
-                description: 'Exponent to raise input signal to (integer 1-5)'
+                description: 'Exponent to raise input signal to (1-5). Creates exponential curves: power=1 is linear, power=2 is quadratic (gentle curve), power=3 is cubic (moderate curve), power=4-5 creates steep curves. Higher values compress low signals more.'
             },
             {
                 id: 'invert',
                 name: 'Invert',
                 type: 'boolean',
                 default: false,
-                description: 'Invert input signal before applying power'
+                description: 'Invert input before applying power (flips 0→1, 1→0). When enabled: output = input^power. When disabled: output = 1 - input^power. Use this to flip the curve direction.'
             },
             {
                 id: 'flip',
                 name: 'Flip',
                 type: 'boolean',
                 default: false,
-                description: 'Flip output signal after applying power'
+                description: 'Flip output after applying power (mirrors the curve horizontally). Reverses the input axis so the curve starts at 1.0 instead of 0.0. Combine with Invert for different curve shapes.'
             }
         ];
         
