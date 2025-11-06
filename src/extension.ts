@@ -783,7 +783,8 @@ export function activate(context: vscode.ExtensionContext) {
         // Get stats based on file type
         else if (fileName.endsWith('.spndiagram')) {
             const result = blockDiagramDocumentManager.getCompilationResult(document);
-            if (result.success && result.statistics) {
+            // Show statistics even if compilation failed (to show over-limit resources in red)
+            if (result.statistics) {
                 stats = result.statistics;
             }
         } else if (fileName.endsWith('.spn')) {

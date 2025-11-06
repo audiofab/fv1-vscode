@@ -72,16 +72,11 @@ export class CoarseDelayBlock extends BaseBlock {
         const outputReg = ctx.allocateRegister(this.type, 'audio_output');
         const delayTimeReg = ctx.getInputRegister(this.type, 'delay_time');
 
-        // Get delay length parameter
+        // Get delay length parameter (user-selected maximum)
         const delayLength = Math.floor(this.getParameterValue(ctx, this.type, 'delayLength', 8192) as number);
 
-        // Allocate delay memory
-        const delayLengthParam = this._parameters.find(p => p.id === 'delayLength');
-        if (!delayLengthParam?.max) {
-            throw new Error(`${this.name} block: delayLength parameter max not defined`);
-        }
-        const maxDelayLength = delayLengthParam.max as number;
-        const memory = ctx.allocateMemory(this.type, maxDelayLength);
+        // Allocate delay memory based on user-selected delayLength (not parameter max)
+        const memory = ctx.allocateMemory(this.type, delayLength);
         const delayOffset = memory.address;
         const memoryName = memory.name;
 
@@ -97,15 +92,11 @@ export class CoarseDelayBlock extends BaseBlock {
         ctx.pushMainCode(`or ${this.formatS1_14(32767)}`);
 
         if (delayTimeReg) {
-            // Control input is connected - use it to modulate delay time
+            // Control input is connected - use it to modulate delay time (0-1 → 0-delayLength)
             ctx.pushMainCode(`mulx ${delayTimeReg}`);
-        } else {
-            // No control input - use full delay length
-            // Scale to delayLength/32768 since we just loaded 32767
-            // Note: Original SpinCAD doesn't scale when no control, so we use full range
         }
 
-        // Scale to actual delay range and add offset
+        // Scale to actual delay range (0 to delayLength) and add offset
         const scale = delayLength / 32768.0;
         const offset = delayOffset / 32768.0;
         ctx.pushMainCode(`sof ${this.formatS1_14(scale)}, ${this.formatS1_14(offset)}`);

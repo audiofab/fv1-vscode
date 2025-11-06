@@ -48,7 +48,13 @@ export class GraphCompiler {
         if (!validation.valid) {
             return {
                 success: false,
-                errors: validation.errors
+                errors: validation.errors,
+                statistics: {
+                    instructionsUsed: 0,
+                    registersUsed: 0,
+                    memoryUsed: 0,
+                    blocksProcessed: 0
+                }
             };
         }
         if (validation.warnings) {
@@ -60,7 +66,13 @@ export class GraphCompiler {
         if (!sortResult.success) {
             return {
                 success: false,
-                errors: [sortResult.error || 'Failed to sort blocks']
+                errors: [sortResult.error || 'Failed to sort blocks'],
+                statistics: {
+                    instructionsUsed: 0,
+                    registersUsed: 0,
+                    memoryUsed: 0,
+                    blocksProcessed: 0
+                }
             };
         }
         
@@ -99,8 +111,17 @@ export class GraphCompiler {
                 context.resetScratchRegisters();
             }
         } catch (error) {
+            // Even on error, try to provide statistics if context has any data
+            const statistics: CompilationStatistics = {
+                instructionsUsed: 0,
+                registersUsed: context.getUsedRegisterCount(),
+                memoryUsed: context.getUsedMemorySize(),
+                blocksProcessed: 0
+            };
+            
             return {
                 success: false,
+                statistics,
                 errors: [`Code generation failed: ${error}`]
             };
         }
@@ -202,6 +223,7 @@ export class GraphCompiler {
         if (errors.length > 0) {
             return {
                 success: false,
+                statistics,  // Include statistics even on failure so status bar shows usage
                 errors,
                 warnings: warnings.length > 0 ? warnings : undefined
             };

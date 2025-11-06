@@ -396,9 +396,12 @@ export class CodeGenerationContext implements CodeGenContext {
         
         // Check if enough memory available
         if (this.nextMemoryAddress + size > this.MAX_MEMORY) {
+            // Update nextMemoryAddress to reflect total attempted allocation
+            // so getUsedMemorySize() returns the correct total when error is caught
+            this.nextMemoryAddress += size;
             throw new Error(
                 `Out of delay memory! Requested ${size} words, ` +
-                `but only ${this.MAX_MEMORY - this.nextMemoryAddress} available.`
+                `but only ${this.MAX_MEMORY - (this.nextMemoryAddress - size)} available.`
             );
         }
         
