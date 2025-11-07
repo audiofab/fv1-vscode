@@ -1,5 +1,13 @@
 # Change Log
 
+## [1.2.2]
+
+- Add some more blocks (untested)
+
+## [1.2.1]
+
+- Minor fixes
+
 ## [1.2.0]
 
 - Block diagram programming support!
