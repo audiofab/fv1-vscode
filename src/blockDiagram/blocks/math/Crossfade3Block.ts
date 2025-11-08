@@ -88,14 +88,13 @@ export class Crossfade3Block extends BaseBlock {
         // Here, controlIn is between 0.0 and 0.5
         ctx.pushMainCode(`${labelZeroFifty}:`);
         ctx.pushMainCode(`; Control range 0.0 to 0.5`);
-        ctx.pushMainCode(`clr`);
         ctx.pushMainCode(`rdax ${controlReg}, ${this.formatS1_14(1.414)}`);
-        ctx.pushMainCode(`mulx ${input2Reg}`);
+        ctx.pushMainCode(`mulx ${input1Reg}`);
         ctx.pushMainCode(`wrax ${tempReg}, ${zero}`);
         
         ctx.pushMainCode(`rdax ${controlReg}, ${this.formatS1_14(-0.586)}`);
         ctx.pushMainCode(`sof ${this.formatS1_14(0.999)}, ${this.formatS1_14(0.999)}`);
-        ctx.pushMainCode(`mulx ${input1Reg}`);
+        ctx.pushMainCode(`mulx ${input2Reg}`);
         ctx.pushMainCode(`rdax ${tempReg}, ${this.formatS1_14(1.0)}`);
 
         ctx.pushMainCode(`${labelWriteout}:`);
