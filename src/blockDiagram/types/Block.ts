@@ -17,13 +17,14 @@ export interface BlockPort {
 export interface BlockParameter {
     id: string;
     name: string;
-    type: 'number' | 'select' | 'boolean';
+    type: 'number' | 'select' | 'boolean' | 'string';
     default: any;
     min?: number;
     max?: number;
     step?: number;
     options?: Array<{ label: string; value: any }>;
     description?: string;
+    multiline?: boolean; // For string type: whether to use textarea instead of input
     // Display formatting for UI (slider shows these values)
     displayMin?: number;
     displayMax?: number;
@@ -83,6 +84,7 @@ export interface CodeGenContext {
     
     // Code section management
     // Blocks can push code to different sections that are assembled in order
+    pushHeaderComment(...lines: string[]): void; // Header comments from sticky notes
     pushInitCode(...lines: string[]): void;      // EQU, MEM, SKP declarations
     pushInputCode(...lines: string[]): void;     // ADC reads, POT reads
     pushMainCode(...lines: string[]): void;      // Main processing logic

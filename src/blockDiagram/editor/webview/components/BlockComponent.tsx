@@ -162,12 +162,16 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
             {customLabel && (
                 <Text
                     text={customLabel}
-                    x={0}
-                    y={height / 2}
-                    width={width}
-                    align="center"
-                    fontSize={12}
-                    fill="white"
+                    x={block.type.includes('stickynote') ? 10 : 0}
+                    y={block.type.includes('stickynote') ? 30 : height / 2}
+                    width={block.type.includes('stickynote') ? width - 20 : width}
+                    height={block.type.includes('stickynote') ? height - 40 : undefined}
+                    align={block.type.includes('stickynote') ? 'left' : 'center'}
+                    verticalAlign={block.type.includes('stickynote') ? 'top' : 'middle'}
+                    fontSize={block.type.includes('stickynote') ? 10 : 12}
+                    fill={block.type.includes('stickynote') ? '#333' : 'white'}
+                    wrap="word"
+                    ellipsis={block.type.includes('stickynote') ? true : false}
                 />
             )}
             

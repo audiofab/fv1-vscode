@@ -89,6 +89,24 @@ export class GraphCompiler {
         // 5. Generate code for each block in execution order
         // Blocks will push their code to appropriate sections (init, input, main, output)
         try {
+            // First, process sticky notes (which may be disconnected but need to generate comments)
+            for (const block of graph.blocks) {
+                // Only process sticky note blocks that are not in execution order
+                if (!executionOrder.includes(block.id) && block.type.includes('stickynote')) {
+                    const definition = this.registry.getBlock(block.type);
+                    if (!definition) {
+                        continue;
+                    }
+                    
+                    // Set current block context
+                    context.setCurrentBlock(block.id);
+                    
+                    // Generate block code (sticky notes will push header comments)
+                    definition.generateCode(context);
+                }
+            }
+            
+            // Then process connected blocks in execution order
             for (const blockId of executionOrder) {
                 const block = graph.blocks.find(b => b.id === blockId);
                 if (!block) {
@@ -143,6 +161,14 @@ export class GraphCompiler {
         }
         codeLines.push(`; Generated at ${new Date().toLocaleString()} by the Audiofab Easy Spin (FV-1) Block Diagram Editor`);
         codeLines.push(';================================================================================');
+        
+        // Add any header comments from sticky notes
+        const headerComments = context.getHeaderComments();
+        if (headerComments.length > 0) {
+            codeLines.push('');
+            codeLines.push(...headerComments);
+        }
+        
         codeLines.push('');
         
         // Section 2: Initialization (EQU, MEM, SKP)

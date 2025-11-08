@@ -526,7 +526,11 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
     // Handle keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Delete' || e.key === 'Backspace') {
+            // Check if we're typing in an input/textarea - don't handle shortcuts in that case
+            const target = e.target as HTMLElement;
+            const isInInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+            
+            if (e.key === 'Delete' && !isInInput) {
                 if (selectedBlockIds.length > 0) {
                     // Delete all selected blocks in a single operation
                     const newGraph = {

@@ -222,6 +222,30 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                                         onChange={(e) => handleParameterChange(param.id, e.target.checked)}
                                     />
                                 )}
+                                
+                                {param.type === 'string' && (
+                                    param.multiline ? (
+                                        <textarea
+                                            className="property-input"
+                                            style={{ 
+                                                width: '100%', 
+                                                minHeight: '100px',
+                                                fontFamily: 'var(--vscode-editor-font-family)',
+                                                fontSize: '12px',
+                                                resize: 'vertical'
+                                            }}
+                                            value={block.parameters[param.id] ?? param.default}
+                                            onChange={(e) => handleParameterChange(param.id, e.target.value)}
+                                        />
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            className="property-input"
+                                            value={block.parameters[param.id] ?? param.default}
+                                            onChange={(e) => handleParameterChange(param.id, e.target.value)}
+                                        />
+                                    )
+                                )}
                             </div>
                         );
                     })}

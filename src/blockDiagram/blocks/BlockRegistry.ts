@@ -30,6 +30,7 @@ import { CrossfadeBlock } from './math/CrossfadeBlock.js';
 import { Crossfade2Block } from './math/Crossfade2Block.js';
 import { Crossfade3Block } from './math/Crossfade3Block.js';
 import { CoarseDelayBlock } from './effects/delay/CoarseDelayBlock.js';
+import { StickyNoteBlock } from './other/StickyNoteBlock.js';
 
 export class BlockRegistry {
     private blocks: Map<string, IBlockDefinition> = new Map();
@@ -49,6 +50,9 @@ export class BlockRegistry {
         
         // Output blocks
         this.register(new DACBlock());
+        
+        // Utility blocks
+        this.register(new StickyNoteBlock());
         
         // Math blocks
         this.register(new VolumeBlock());

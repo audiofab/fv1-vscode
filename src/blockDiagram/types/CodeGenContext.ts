@@ -36,6 +36,7 @@ export class CodeGenerationContext implements CodeGenContext {
     private currentBlockId: string | null = null;
     
     // Code sections
+    private headerComments: string[] = []; // User comments from sticky notes
     private initCode: string[] = [];    // EQU, MEM declarations, SKP logic
     private inputCode: string[] = [];   // ADC reads, POT reads
     private mainCode: string[] = [];    // Main processing logic
@@ -54,6 +55,14 @@ export class CodeGenerationContext implements CodeGenContext {
      */
     setCurrentBlock(blockId: string): void {
         this.currentBlockId = blockId;
+    }
+    
+    /**
+     * Push comments to the header section
+     * For documentation and notes from sticky note blocks
+     */
+    pushHeaderComment(...lines: string[]): void {
+        this.headerComments.push(...lines);
     }
     
     /**
@@ -86,6 +95,13 @@ export class CodeGenerationContext implements CodeGenContext {
      */
     pushOutputCode(...lines: string[]): void {
         this.outputCode.push(...lines);
+    }
+    
+    /**
+     * Get header comments (from sticky notes)
+     */
+    getHeaderComments(): string[] {
+        return [...this.headerComments];
     }
     
     /**
