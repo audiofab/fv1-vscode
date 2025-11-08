@@ -44,9 +44,9 @@ export class ADCBlock extends BaseBlock {
                 type: 'number',
                 default: 1.0,
                 min: 0.0,
-                max: 2.0,
+                max: 1.99993896484375,
                 step: 0.01,
-                description: 'Input gain (0.0 to 2.0)'
+                description: 'Input gain (0.0 to +1.9999)'
             }
         ];
         this.autoCalculateHeight();

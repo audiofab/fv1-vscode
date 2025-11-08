@@ -14,6 +14,8 @@ import { Mixer4Block } from './math/Mixer4Block.js';
 import { GainBoostBlock } from './math/GainBoostBlock.js';
 import { TripleTapDelayBlock } from './effects/delay/TripleTapDelayBlock.js';
 import { ChorusBlock } from './effects/modulation/ChorusBlock.js';
+import { FlangerBlock } from './effects/modulation/FlangerBlock.js';
+import { Chorus4VoiceBlock } from './effects/modulation/Chorus4VoiceBlock.js';
 import { LowPassFilterBlock } from './effects/filter/LowPassFilterBlock.js';
 import { HighPassFilterBlock } from './effects/filter/HighPassFilterBlock.js';
 import { ShelvingHighPassBlock } from './effects/filter/ShelvingHighPassBlock.js';
@@ -74,6 +76,8 @@ export class BlockRegistry {
         // this.register(new PhaserBlock());
         // this.register(new RingModulatorBlock());
         this.register(new ChorusBlock());
+        this.register(new FlangerBlock());
+        this.register(new Chorus4VoiceBlock());
         
         // Effect blocks - Filter
         this.register(new LowPassFilterBlock());

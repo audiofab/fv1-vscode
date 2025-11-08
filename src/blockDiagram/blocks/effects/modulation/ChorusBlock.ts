@@ -128,10 +128,12 @@ export class ChorusBlock extends BaseBlock {
         const half = ctx.getStandardConstant(0.5);
         const negOne = ctx.getStandardConstant(-1.0);
 
-                // Get input register - if not connected, return early
+        // Get input register - if not connected, return early
         const inputReg = ctx.getInputRegister(this.type, 'in');
         if (!inputReg) {
-            ctx.pushMainCode(`; Chorus (no input connected)`);        }
+            ctx.pushMainCode(`; Chorus (no input connected)`);
+            return;
+        }
         
         // Get control input registers (may be undefined if not connected)
         const rateInReg = ctx.getInputRegister(this.type, 'lfo_rate');
@@ -208,20 +210,13 @@ export class ChorusBlock extends BaseBlock {
         
         // CHO RDA instructions for interpolated delay reading
         // First read: SIN|REG|COMPC for fractional interpolation
-        const flag1 = lfoSel === 0 ? 'SIN0' : 'SIN1';
-        ctx.pushMainCode(`cho rda, ${flag1}, SIN | REG | COMPC, ${chorusCenter}`);
+        ctx.pushMainCode(`cho rda, ${lfoNum}, SIN | REG | COMPC, ${chorusCenter}`);
         
         // Second read: SIN flag for next sample
-        ctx.pushMainCode(`cho rda, ${flag1}, SIN, ${chorusCenter + 1}`);
+        ctx.pushMainCode(`cho rda, ${lfoNum}, SIN, ${chorusCenter + 1}`);
         ctx.pushMainCode('');
         
         ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);
-        ctx.pushMainCode('');    }
-    
-    /**
-     * Sanitize type identifier for use in assembly labels
-     */
-    private sanitizeLabelForAsm(type: string): string {
-        return type.replace(/\./g, '_');
+        ctx.pushMainCode('');
     }
 }

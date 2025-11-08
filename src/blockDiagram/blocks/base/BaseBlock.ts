@@ -466,4 +466,14 @@ export abstract class BaseBlock implements IBlockDefinition {
     protected generateLabel(blockId: string, suffix: string): string {
         return `${blockId.replace(/[^a-zA-Z0-9]/g, '_')}_${suffix}`;
     }
+    
+    /**
+     * Sanitize a string for use as an assembly label
+     * Replaces dots with underscores and removes any non-alphanumeric characters except underscores
+     * @param label The label to sanitize
+     * @returns Sanitized label safe for assembly code
+     */
+    protected sanitizeLabelForAsm(label: string): string {
+        return label.replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+    }
 }

@@ -3,7 +3,7 @@
  */
 
 import { BaseBlock } from '../base/BaseBlock.js';
-import { CodeGenContext, ValidationContext, ValidationResult } from '../../types/Block.js';
+import { CodeGenContext } from '../../types/Block.js';
 
 export class DACBlock extends BaseBlock {
     readonly type = 'output.dac';
@@ -81,19 +81,7 @@ export class DACBlock extends BaseBlock {
         }
         
         ctx.pushOutputCode(`wrax\tDAC${dacNumber == 0 ? 'L' : 'R'},\t${zero}`);
-        ctx.pushOutputCode('');
-    }
-    
-    validate(ctx: ValidationContext): ValidationResult {
-        // Must have input connected
-        const block = ctx.getBlock(this.type);
-        if (!block || !ctx.hasInput(block.id, 'in')) {
-            return {
-                valid: false,
-                error: 'DAC output must have audio input connected'
-            };
-        }
         
-        return { valid: true };
+        ctx.pushOutputCode('');
     }
 }

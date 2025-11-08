@@ -102,11 +102,4 @@ export class Crossfade3Block extends BaseBlock {
         ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);
         ctx.pushMainCode('');
     }
-
-    /**
-     * Sanitize type identifier for use in assembly labels
-     */
-    private sanitizeLabelForAsm(type: string): string {
-        return type.replace(/\./g, '_');
-    }
 }

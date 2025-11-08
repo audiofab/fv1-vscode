@@ -89,7 +89,7 @@ export class CoarseDelayBlock extends BaseBlock {
         // Set up delay read pointer
         ctx.pushMainCode(`; Set up variable delay read pointer`);
         ctx.pushMainCode(`clr`);
-        ctx.pushMainCode(`or ${this.formatS1_14(32767)}`);
+        ctx.pushMainCode(`or $${(32767 * 256).toString(16)}`);
 
         if (delayTimeReg) {
             // Control input is connected - use it to modulate delay time (0-1 → 0-delayLength)
