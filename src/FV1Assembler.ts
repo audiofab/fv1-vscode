@@ -376,17 +376,15 @@ class FV1Assembler {
     // any EQUs in the expression
     for (const _sym of this.symbols) {
       for (const sym of this.symbols) {
-        const regex = new RegExp(`(^|\\s|[^\\w])(${sym.name})($|\\s|[^\\w])`, 'g');
-        if (regex.test(_sym.value)) {
-          _sym.value = _sym.value.replace(regex, `$1${sym.value}$3`);
-          // SpinASM seems to resolve any symbolic value as it is replaced
-          // So, attempt to resolve the symbolic expression now, if possible
-          // otherwise we get into order of operations issues later!
-          try {
-            _sym.value = `${resolveExpression(_sym.value)}`;
-          } catch (error) {
-            // Ignore
-          }
+        const regex = new RegExp(`(?<=^|\\s|[^\\w])(${sym.name})(?=$|\\s|[^\\w])`, 'g');
+        _sym.value = _sym.value.replace(regex, sym.value);
+        // SpinASM seems to resolve any symbolic value as it is replaced
+        // So, attempt to resolve the symbolic expression now, if possible
+        // otherwise we get into order of operations issues later!
+        try {
+          _sym.value = `${resolveExpression(_sym.value)}`;
+        } catch (error) {
+          // Ignore
         }
       }
     }
@@ -407,10 +405,8 @@ class FV1Assembler {
             let sizeStr = parts[2];
             // Replace any symbols in the MEM size
             for (const sym of this.symbols) {
-              const regex = new RegExp(`(^|\\s|[^\\w])(${sym.name})($|\\s|[^\\w])`, 'g');
-              if (regex.test(sizeStr)) {
-                sizeStr = sizeStr.replace(regex, `$1${sym.value}$3`);
-              }
+              const regex = new RegExp(`(?<=^|\\s|[^\\w])(${sym.name})(?=$|\\s|[^\\w])`, 'g');
+              sizeStr = sizeStr.replace(regex, sym.value);
             }
             // parseInteger should evaluate any expressions
             const size = this.parseInteger(sizeStr.toString());
@@ -445,10 +441,8 @@ class FV1Assembler {
         expandedLines.push(mnemonic); // The instruction mnemonic
         // Replace all occurrences of symbols in each subpart
         this.symbols.forEach(equ => {
-          const regex = new RegExp(`(^|\\s|[^\\w])(${equ.name})($|\\s|[^\\w])`, 'g');
-          if (regex.test(operands)) {
-            operands = operands.replace(regex, `$1${equ.value}$3`);
-          }
+          const regex = new RegExp(`(?<=^|\\s|[^\\w])(${equ.name})(?=$|\\s|[^\\w])`, 'g');
+          operands = operands.replace(regex, equ.value);
         });
         // Split on commas and trim whitespace
         const subParts = operands.split(',');
