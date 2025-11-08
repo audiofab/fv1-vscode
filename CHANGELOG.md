@@ -1,5 +1,11 @@
 # Change Log
 
+## [1.2.3]
+
+- Add sticky notes
+- Add some more blocks (still a few untested)
+- Fix a few bugs
+
 ## [1.2.2]
 
 - Add some more blocks (untested)
