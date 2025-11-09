@@ -29,11 +29,11 @@ export class ScaleOffsetBlock extends BaseBlock {
         super();
 
         this._inputs = [
-            { id: 'ctrl_in', name: 'Control Input', type: 'control', required: true }
+            { id: 'ctrl_in', name: 'Control', type: 'control', required: true }
         ];
 
         this._outputs = [
-            { id: 'ctrl_out', name: 'Control Output', type: 'control' }
+            { id: 'ctrl_out', name: 'Control', type: 'control' }
         ];
 
         this._parameters = [

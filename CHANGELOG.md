@@ -1,5 +1,11 @@
 # Change Log
 
+## [1.2.4]
+
+- Add a Minimal and Room Reverb block as well as a Constant block
+- Add a couple Tone Generator blocks
+- Minor UI improvements
+
 ## [1.2.3]
 
 - Add sticky notes

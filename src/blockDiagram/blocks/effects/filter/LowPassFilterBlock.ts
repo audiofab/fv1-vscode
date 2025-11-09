@@ -56,6 +56,12 @@ export class LowPassFilterBlock extends BaseBlock {
         this.autoCalculateHeight();
     }
 
+    getCustomLabel(params: Record<string, any>): string {
+        const freq = params['frequency'] ?? 0.15;
+        const freqHz = this.filterCoeffToHz(freq);
+        return `${Math.round(freqHz)} Hz`;
+    }
+
     generateCode(ctx: CodeGenContext): void {
         const zero = ctx.getStandardConstant(0.0);
         const one = ctx.getStandardConstant(1.0);

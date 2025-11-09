@@ -26,11 +26,11 @@ export class ControlSmootherBlock extends BaseBlock {
         super();
 
         this._inputs = [
-            { id: 'input', name: 'Control Input', type: 'control' }
+            { id: 'input', name: 'Control', type: 'control' }
         ];
 
         this._outputs = [
-            { id: 'output', name: 'Control Output', type: 'control' }
+            { id: 'output', name: 'Control', type: 'control' }
         ];
 
         this._parameters = [
@@ -52,6 +52,12 @@ export class ControlSmootherBlock extends BaseBlock {
         
         // Auto-calculate height based on port count
         this.autoCalculateHeight();
+    }
+
+    getCustomLabel(params: Record<string, any>): string {
+        const freq = params['frequency'] ?? 0.00015;
+        const freqHz = this.filterCoeffToHz(freq);
+        return `${freqHz.toFixed(2)} Hz`;
     }
 
     generateCode(ctx: CodeGenContext): void {

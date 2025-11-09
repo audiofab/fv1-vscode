@@ -44,6 +44,11 @@ export class VolumeBlock extends BaseBlock {
         this.autoCalculateHeight();
     }
     
+    getCustomLabel(params: Record<string, any>): string {
+        const levelDB = params['level'] ?? 0;
+        return `${levelDB} dB`;
+    }
+    
     generateCode(ctx: CodeGenContext): void {
         const inputReg = ctx.getInputRegister(this.type, 'in');
         const outputReg = ctx.allocateRegister(this.type, 'out');

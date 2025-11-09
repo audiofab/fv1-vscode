@@ -28,10 +28,15 @@ import { PowerBlock } from './control/PowerBlock.js';
 import { SinCosLFOBlock } from './control/SinCosLFOBlock.js';
 import { ControlSmootherBlock } from './control/ControlSmootherBlock.js';
 import { TremolizerBlock } from './control/TremolizerBlock.js';
+import { ConstantBlock } from './control/ConstantBlock.js';
 import { CrossfadeBlock } from './math/CrossfadeBlock.js';
 import { Crossfade2Block } from './math/Crossfade2Block.js';
 import { Crossfade3Block } from './math/Crossfade3Block.js';
 import { CoarseDelayBlock } from './effects/delay/CoarseDelayBlock.js';
+import { MinReverbBlock } from './effects/reverb/MinReverbBlock.js';
+import { RoomReverbBlock } from './effects/reverb/RoomReverbBlock.js';
+import { ToneGenFixedBlock } from './other/ToneGenFixed.js';
+import { ToneGenAdjustableBlock } from './other/ToneGenAdjustable.js';
 import { StickyNoteBlock } from './other/StickyNoteBlock.js';
 
 export class BlockRegistry {
@@ -55,8 +60,8 @@ export class BlockRegistry {
         
         // Utility blocks
         this.register(new StickyNoteBlock());
-        
-        // Math blocks
+        this.register(new ToneGenFixedBlock());
+        this.register(new ToneGenAdjustableBlock());
         this.register(new VolumeBlock());
         this.register(new GainBoostBlock());
         this.register(new Mixer2Block());
@@ -67,18 +72,14 @@ export class BlockRegistry {
         this.register(new Crossfade3Block());
         
         // Effect blocks - Delay
-        // this.register(new DelayBlock());
-        // this.register(new PingPongDelayBlock());
         this.register(new TripleTapDelayBlock());
         this.register(new CoarseDelayBlock());
         
         // Effect blocks - Modulation
-        // this.register(new PhaserBlock());
-        // this.register(new RingModulatorBlock());
         this.register(new ChorusBlock());
-        this.register(new FlangerBlock());
         this.register(new Chorus4VoiceBlock());
-        
+        this.register(new FlangerBlock());
+
         // Effect blocks - Filter
         this.register(new LowPassFilterBlock());
         this.register(new HighPassFilterBlock());
@@ -87,16 +88,18 @@ export class BlockRegistry {
         this.register(new StateVariableFilter2PBlock());
         this.register(new StateVariableFilter2PAdjustableBlock());
         
+        // Effect blocks - Reverb
+        this.register(new MinReverbBlock());
+        this.register(new RoomReverbBlock());
+        
         // Control blocks
+        this.register(new ConstantBlock());
         this.register(new ScaleOffsetBlock());
         this.register(new InvertBlock());
         this.register(new PowerBlock());
         this.register(new SinCosLFOBlock());
         this.register(new ControlSmootherBlock());
         this.register(new TremolizerBlock());
-        
-        // Effect blocks - Control
-        // this.register(new TapTempoBlock());
     }
     
     /**

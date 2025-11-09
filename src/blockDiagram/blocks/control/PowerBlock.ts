@@ -25,11 +25,11 @@ export class PowerBlock extends BaseBlock {
         super();
 
         this._inputs = [
-            { id: 'input', name: 'Control Input', type: 'control' }
+            { id: 'input', name: 'Control', type: 'control' }
         ];
 
         this._outputs = [
-            { id: 'output', name: 'Control Output', type: 'control' }
+            { id: 'output', name: 'Control', type: 'control' }
         ];
 
         this._parameters = [

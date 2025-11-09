@@ -52,6 +52,12 @@ export class GainBoostBlock extends BaseBlock {
         this.autoCalculateHeight();
     }
     
+    getCustomLabel(params: Record<string, any>): string {
+        const gain = params['gain'] ?? 1;
+        const gainDB = gain * 6;
+        return `+${gainDB} dB`;
+    }
+    
     generateCode(ctx: CodeGenContext): void {
         const zero = ctx.getStandardConstant(0.0);
         const one = ctx.getStandardConstant(1.0);

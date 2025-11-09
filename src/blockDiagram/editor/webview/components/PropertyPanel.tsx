@@ -172,6 +172,13 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                                                     [param.id]: newDisplayValue
                                                 }));
                                             }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault(); // Prevent form submission
+                                                    // Trigger blur which will handle the value change
+                                                    e.currentTarget.blur();
+                                                }
+                                            }}
                                             onBlur={(e) => {
                                                 // Only convert when user finishes editing (leaves the field)
                                                 const newDisplayValue = parseFloat(e.target.value);
