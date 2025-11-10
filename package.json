@@ -328,7 +328,7 @@
     "watch-webview": "node build-webview.js --watch"
   },
   "devDependencies": {
-    "@types/node": "16.x",
+    "@types/node": "24.x",
     "@types/node-hid": "^3.0.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
