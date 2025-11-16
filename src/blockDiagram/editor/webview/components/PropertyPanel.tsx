@@ -212,7 +212,16 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                                     <select
                                         className="property-input"
                                         value={block.parameters[param.id] ?? param.default}
-                                        onChange={(e) => handleParameterChange(param.id, e.target.value)}
+                                        onChange={(e) => {
+                                            // Parse the value to match the type of the default
+                                            let value: any = e.target.value;
+                                            if (typeof param.default === 'number') {
+                                                value = parseFloat(value);
+                                            } else if (typeof param.default === 'boolean') {
+                                                value = value === 'true';
+                                            }
+                                            handleParameterChange(param.id, value);
+                                        }}
                                     >
                                         {param.options?.map((opt: any) => (
                                             <option key={opt.value} value={opt.value}>
