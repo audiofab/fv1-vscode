@@ -29,13 +29,13 @@ function getLuminance(hexColor: string): number {
 }
 
 /**
- * Determine text color (black or white) based on background luminance
+ * Determine text color (dark or light) based on background luminance
  * Uses WCAG contrast guidelines
  */
 function getTextColor(backgroundColor: string): string {
     const luminance = getLuminance(backgroundColor);
-    // If luminance is above 0.5, use black text, otherwise use white
-    return luminance > 0.5 ? '#000000' : '#ffffff';
+    // If luminance is above 0.5, use dark text, otherwise use light
+    return luminance > 0.5 ? '#212121' : '#ffffff';
 }
 
 interface BlockComponentProps {

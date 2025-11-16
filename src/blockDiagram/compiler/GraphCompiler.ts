@@ -160,7 +160,8 @@ export class GraphCompiler {
         if (graph.metadata.author) {
             codeLines.push(`; Author: ${graph.metadata.author}`);
         }
-        codeLines.push(`; Generated at ${new Date().toLocaleString()} by the Audiofab Easy Spin (FV-1) Block Diagram Editor`);
+        codeLines.push(`; Generated at ${new Date().toLocaleString()} by the Audiofab Easy Spin (FV-1)`);
+        codeLines.push(';  Block Diagram Editor (https://www.audiofab.com/)');
         codeLines.push(';================================================================================');
         
         // Add any header comments from sticky notes
@@ -168,6 +169,13 @@ export class GraphCompiler {
         if (headerComments.length > 0) {
             codeLines.push('');
             codeLines.push(...headerComments);
+        }
+        
+        // Add pot mapping comments
+        const potMappings = this.generatePotMappingComments(graph);
+        if (potMappings.length > 0) {
+            codeLines.push('');
+            codeLines.push(...potMappings);
         }
         
         codeLines.push('');
@@ -503,6 +511,67 @@ export class GraphCompiler {
             errors: errors.length > 0 ? errors : undefined,
             warnings: warnings.length > 0 ? warnings : undefined
         };
+    }
+    
+    /**
+     * Generate pot mapping comments showing which parameters each pot controls
+     */
+    private generatePotMappingComments(graph: BlockGraph): string[] {
+        const comments: string[] = [];
+        const potMappings = new Map<number, string[]>(); // pot number -> list of controlled parameters
+        
+        // Find all pot blocks
+        for (const block of graph.blocks) {
+            if (block.type === 'input.pot') {
+                const potNumber = block.parameters['potNumber'] ?? 0;
+                
+                // Find what this pot is connected to
+                const connections = graph.connections.filter(
+                    c => c.from.blockId === block.id
+                );
+                
+                if (connections.length > 0) {
+                    const targets: string[] = [];
+                    
+                    for (const conn of connections) {
+                        const targetBlock = graph.blocks.find(b => b.id === conn.to.blockId);
+                        if (targetBlock) {
+                            const targetDef = this.registry.getBlock(targetBlock.type);
+                            if (targetDef) {
+                                const inputPort = targetDef.inputs.find(p => p.id === conn.to.portId);
+                                const targetLabel = `${targetDef.name}${inputPort ? ` (${inputPort.name})` : ''}`;
+                                targets.push(targetLabel);
+                            }
+                        }
+                    }
+                    
+                    if (targets.length > 0) {
+                        if (!potMappings.has(potNumber)) {
+                            potMappings.set(potNumber, []);
+                        }
+                        potMappings.get(potNumber)!.push(...targets);
+                    }
+                }
+            }
+        }
+        
+        // Generate comments for pots that are mapped
+        if (potMappings.size > 0) {
+            comments.push('; Potentiometer Assignments');
+            comments.push(';--------------------------------------------------------------------------------');
+            
+            // Sort by pot number
+            const sortedPots = Array.from(potMappings.keys()).sort((a, b) => a - b);
+            
+            for (const potNumber of sortedPots) {
+                const targets = potMappings.get(potNumber)!;
+                if (targets.length > 0) {
+                    comments.push(`; POT${potNumber}: ${targets.join(', ')}`);
+                }
+            }
+        }
+        
+        return comments;
     }
     
     /**
