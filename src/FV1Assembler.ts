@@ -355,7 +355,17 @@ class FV1Assembler {
           if (this.labels.has(name)) {
             this.problems.push({message: `EQU name '${name}' conflicts with existing label`, isfatal: true, line: lineNumber});
           } else {
-            this.symbols.push({name: name, value: parts[2], line: lineNumber, original: line});
+            // Check for duplicate EQU definitions
+            const existing = this.symbols.find(s => s.name === name);
+            if (existing) {
+              this.problems.push({
+                message: `Duplicate EQU '${name}' - already defined on line ${existing.line}`, 
+                isfatal: false, 
+                line: lineNumber
+              });
+            } else {
+              this.symbols.push({name: name, value: parts[2], line: lineNumber, original: line});
+            }
             lines.delete(lineNumber); // Remove EQU line after processing
           }
         }
