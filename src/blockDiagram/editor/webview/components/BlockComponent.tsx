@@ -6,6 +6,38 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Group, Rect, Text, Circle } from 'react-konva';
 import { Block, BlockMetadata } from '../../../types/Block';
 
+/**
+ * Calculate relative luminance of a color
+ * Returns a value between 0 (black) and 1 (white)
+ */
+function getLuminance(hexColor: string): number {
+    // Remove # if present
+    const hex = hexColor.replace('#', '');
+    
+    // Parse RGB values
+    const r = parseInt(hex.substring(0, 2), 16) / 255;
+    const g = parseInt(hex.substring(2, 4), 16) / 255;
+    const b = parseInt(hex.substring(4, 6), 16) / 255;
+    
+    // Apply gamma correction
+    const rsRGB = r <= 0.03928 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4);
+    const gsRGB = g <= 0.03928 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4);
+    const bsRGB = b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4);
+    
+    // Calculate relative luminance
+    return 0.2126 * rsRGB + 0.7152 * gsRGB + 0.0722 * bsRGB;
+}
+
+/**
+ * Determine text color (black or white) based on background luminance
+ * Uses WCAG contrast guidelines
+ */
+function getTextColor(backgroundColor: string): string {
+    const luminance = getLuminance(backgroundColor);
+    // If luminance is above 0.5, use black text, otherwise use white
+    return luminance > 0.5 ? '#000000' : '#ffffff';
+}
+
 interface BlockComponentProps {
     block: Block;
     metadata?: BlockMetadata;
@@ -36,6 +68,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
     const width = metadata.width || 200;
     const height = metadata.height || 100;
     const color = metadata.color || '#607D8B';
+    const textColor = getTextColor(color);
     const portRadius = 6;
     const portSpacing = 20;
     
@@ -155,7 +188,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                 width={width - 20}
                 fontSize={14}
                 fontStyle="bold"
-                fill="white"
+                fill={textColor}
             />
             
             {/* Custom label (if available) */}
@@ -169,7 +202,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                     align={block.type.includes('stickynote') ? 'left' : 'center'}
                     verticalAlign={block.type.includes('stickynote') ? 'top' : 'middle'}
                     fontSize={block.type.includes('stickynote') ? 10 : 12}
-                    fill={block.type.includes('stickynote') ? '#333' : 'white'}
+                    fill={block.type.includes('stickynote') ? '#333' : textColor}
                     wrap="word"
                     ellipsis={block.type.includes('stickynote') ? true : false}
                 />
@@ -202,7 +235,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                             x={portRadius + 5}
                             y={y - 6}
                             fontSize={10}
-                            fill="white"
+                            fill={textColor}
                         />
                     </Group>
                 );
@@ -234,7 +267,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                             x={width - portRadius - 3 - output.name.length * 6}
                             y={y - 6}
                             fontSize={10}
-                            fill="white"
+                            fill={textColor}
                         />
                     </Group>
                 );
