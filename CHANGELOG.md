@@ -1,5 +1,11 @@
 # Change Log
 
+## [1.2.5]
+
+- A few bugfixes and integrate dependabot changes
+- Auto-generate comments for potentiometer connections
+- Add a plate and spring reverb block
+
 ## [1.2.4]
 
 - Add a Minimal and Room Reverb block as well as a Constant block
