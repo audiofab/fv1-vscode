@@ -334,7 +334,7 @@
     "@types/react-dom": "^19.2.2",
     "@types/uuid": "^11.0.0",
     "@types/vscode": "^1.105.0",
-    "esbuild": "^0.25.12",
+    "esbuild": "^0.27.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
