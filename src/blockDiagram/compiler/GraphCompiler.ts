@@ -9,6 +9,7 @@ import { BlockRegistry } from '../blocks/BlockRegistry.js';
 import { TopologicalSort } from './TopologicalSort.js';
 import { CodeGenerationContext } from '../types/CodeGenContext.js';
 import { CodeOptimizer } from './CodeOptimizer.js';
+import { FV1Assembler } from '../../FV1Assembler.js';
 
 export interface CompilationStatistics {
     instructionsUsed: number;
@@ -206,15 +207,35 @@ export class GraphCompiler {
         // Apply post-processing optimizations to the complete code
         const optimizerResult = this.optimizer.optimize(codeLines);
         
-        // 7. Count instructions (rough estimate)
-        const instructions = optimizerResult.code.filter(line => {
-            const trimmed = line.trim();
-            return trimmed.length > 0 && 
-                   !trimmed.startsWith(';') && 
-                   !trimmed.includes('equ') &&
-                   !trimmed.includes('mem') &&
-                   !trimmed.includes(':');  // Skip labels
-        }).length;
+        // 7. Assemble the code to get accurate instruction count
+        let instructions = 0;
+        try {
+            const assembler = new FV1Assembler({ fv1AsmMemBug: true });
+            const assemblyResult = assembler.assemble(optimizerResult.code.join('\n'));
+            
+            // Count actual instructions from machine code (exclude NOP padding)
+            const NOP_ENCODING = 0x00000011;
+            instructions = assemblyResult.machineCode.filter((code: number) => code !== NOP_ENCODING).length;
+            
+            // Check for assembly errors
+            const assemblyErrors = assemblyResult.problems.filter((p: any) => p.isfatal);
+            if (assemblyErrors.length > 0) {
+                assemblyErrors.forEach((p: any) => {
+                    errors.push(p.message);
+                });
+            }
+        } catch (e) {
+            // Fallback to rough estimate if assembly fails
+            instructions = optimizerResult.code.filter(line => {
+                const trimmed = line.trim();
+                return trimmed.length > 0 && 
+                       !trimmed.startsWith(';') && 
+                       !trimmed.includes('equ') &&
+                       !trimmed.includes('mem') &&
+                       !trimmed.includes(':');  // Skip labels
+            }).length;
+            warnings.push('Could not accurately count instructions');
+        }
         
         // Check instruction limit
         if (instructions > 128) {
@@ -249,6 +270,7 @@ export class GraphCompiler {
         if (errors.length > 0) {
             return {
                 success: false,
+                assembly: optimizerResult.code.join('\n'),  // Include assembly even with errors so it can be viewed
                 statistics,  // Include statistics even on failure so status bar shows usage
                 errors,
                 warnings: warnings.length > 0 ? warnings : undefined

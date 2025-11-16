@@ -492,6 +492,7 @@ class FV1Assembler {
   private generateMachineCode(lines: Map<number, string[]>): number[] {
     const machineCode: number[] = [];
     let errorLine = -1;
+    let line128 = -1;  // Track the source line number where instruction 128 occurs
 
     try {
       lines.forEach((lineParts, lineNumber) => {
@@ -502,6 +503,11 @@ class FV1Assembler {
           throw new Error('Encoding error');
         }
         machineCode.push(encoding);
+        
+        // Track where instruction 128 is (the first instruction that exceeds the limit)
+        if (machineCode.length === 128) {
+          line128 = lineNumber;
+        }
       });
     } catch (e) {
         this.problems.push({message: `Error encoding instruction on line ${errorLine}`, isfatal: true, line: errorLine});
@@ -509,10 +515,15 @@ class FV1Assembler {
     }
 
     if (machineCode.length > 128) {
-      this.problems.push({message: `Program exceeds 128 instruction limit`, isfatal: true, line: 128});
+      // Report error at the line where instruction 128 occurs (or last line if line128 not tracked)
+      const reportLine = line128 !== -1 ? line128 : errorLine;
+      this.problems.push({message: `Program exceeds 128 instruction limit (${machineCode.length} instructions)`, isfatal: true, line: reportLine});
+      // Still return the machine code so it can be viewed in the assembly output
+      // But don't pad it, and the fatal error will prevent EEPROM/HEX operations
+      return machineCode;
     }
 
-    // Pad to 128 instructions if needed
+    // Pad to 128 instructions if needed (only when within limit)
     while (machineCode.length < 128) {
       machineCode.push(this.NOP_ENCODING);
     }

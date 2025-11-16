@@ -149,7 +149,13 @@ async function assembleFV1(
             });
         }
         
-        if (!hasErrors && result.machineCode && result.machineCode.length > 0) {
+        // Allow viewing assembly even with errors, but prevent operations that need valid code
+        if (hasErrors) {
+            outputWindow(outputChannel, `[ERROR] ❌ Assembly has errors - cannot program or export`);
+            return undefined;  // Prevent further operations
+        }
+        
+        if (result.machineCode && result.machineCode.length > 0) {
             if (verbose) {
                 outputWindow(outputChannel, FV1Assembler.formatMachineCode(result.machineCode));
             }
@@ -776,7 +782,7 @@ export function activate(context: vscode.ExtensionContext) {
             
             // Get cached compilation result for the original block diagram
             const cachedResult = blockDiagramDocumentManager.getCachedCompilationResult(originalUri);
-            if (cachedResult && cachedResult.success && cachedResult.statistics) {
+            if (cachedResult && cachedResult.statistics) {
                 stats = cachedResult.statistics;
             }
         }
@@ -863,7 +869,7 @@ export function activate(context: vscode.ExtensionContext) {
                 if (uri && uri.fsPath.toLowerCase().endsWith('.spndiagram')) {
                     // Block diagram custom editor is active
                     const cachedResult = blockDiagramDocumentManager.getCachedCompilationResult(uri);
-                    if (cachedResult && cachedResult.success && cachedResult.statistics) {
+                    if (cachedResult && cachedResult.statistics) {
                         const stats = cachedResult.statistics;
                         
                         // Instructions: 128 max
@@ -963,8 +969,18 @@ export function activate(context: vscode.ExtensionContext) {
             
             // Get compilation result
             const result = blockDiagramDocumentManager.getCompilationResult(diagramDoc);
-            if (result.success && result.assembly) {
-                return result.assembly;
+            if (result.assembly) {
+                // Show assembly even if there are errors (e.g., exceeds instruction limit)
+                // Prepend error/warning comments if present
+                let output = '';
+                if (result.errors && result.errors.length > 0) {
+                    output += result.errors.map(e => `; ERROR: ${e}`).join('\n') + '\n\n';
+                }
+                if (result.warnings && result.warnings.length > 0) {
+                    output += result.warnings.map(w => `; WARNING: ${w}`).join('\n') + '\n\n';
+                }
+                output += result.assembly;
+                return output;
             } else {
                 const errors = result.errors?.map(e => `; ${e}`).join('\n') || '; Unknown error';
                 return `; Compilation failed:\n${errors}`;
@@ -1353,8 +1369,30 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const assembleCommand = vscode.commands.registerCommand('fv1.assemble', async () => { await assembleFV1(outputChannel, documentManager, blockDiagramDocumentManager); });
-    const assembleAndProgramCommand = vscode.commands.registerCommand('fv1.assembleAndProgram', async () => { const result = await assembleFV1(outputChannel, documentManager, blockDiagramDocumentManager); if (result && result.machineCode.length > 0) await programEeprom(result.machineCode, outputChannel); });
-    const assembleToHexCommand = vscode.commands.registerCommand('fv1.assembleToHex', async () => { const result = await assembleFV1(outputChannel, documentManager, blockDiagramDocumentManager); if (result && result.machineCode.length > 0) await outputIntelHexFile(result.machineCode, outputChannel); });
+    const assembleAndProgramCommand = vscode.commands.registerCommand('fv1.assembleAndProgram', async () => { 
+        const result = await assembleFV1(outputChannel, documentManager, blockDiagramDocumentManager); 
+        if (result && result.machineCode.length > 0) {
+            const hasFatalErrors = result.problems.some(p => p.isfatal);
+            if (hasFatalErrors) {
+                vscode.window.showErrorMessage('Cannot program EEPROM: Program has errors (e.g., exceeds 128 instruction limit)');
+                outputWindow(outputChannel, '[ERROR] ❌ Cannot program EEPROM due to assembly errors');
+            } else {
+                await programEeprom(result.machineCode, outputChannel);
+            }
+        }
+    });
+    const assembleToHexCommand = vscode.commands.registerCommand('fv1.assembleToHex', async () => { 
+        const result = await assembleFV1(outputChannel, documentManager, blockDiagramDocumentManager); 
+        if (result && result.machineCode.length > 0) {
+            const hasFatalErrors = result.problems.some(p => p.isfatal);
+            if (hasFatalErrors) {
+                vscode.window.showErrorMessage('Cannot export to HEX: Program has errors (e.g., exceeds 128 instruction limit)');
+                outputWindow(outputChannel, '[ERROR] ❌ Cannot export to HEX due to assembly errors');
+            } else {
+                await outputIntelHexFile(result.machineCode, outputChannel);
+            }
+        }
+    });
     const exportBankToHexCommand = vscode.commands.registerCommand('fv1.exportBankToHex', async (item?: any) => { await exportBankToHex(outputChannel, blockDiagramDocumentManager, item); });
     const loadHexToEepromCommand = vscode.commands.registerCommand('fv1.loadHexToEeprom', async () => { await loadHexToEeprom(outputChannel); });
     const backupPedalCommand = vscode.commands.registerCommand('fv1.backupPedal', async () => { await backupPedal(outputChannel); });
