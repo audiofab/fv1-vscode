@@ -27,7 +27,7 @@ export class MinReverbBlock extends BaseBlock {
     readonly category = 'Reverb';
     readonly name = 'Simple Reverb';
     readonly description = 'Minimal reverb with 4 input allpass and 2 delay loops';
-    readonly color = '#9C27B0';
+    readonly color = '#7100FC';
     readonly width = 180;
     
     constructor() {

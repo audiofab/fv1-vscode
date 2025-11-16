@@ -35,6 +35,8 @@ import { Crossfade3Block } from './math/Crossfade3Block.js';
 import { CoarseDelayBlock } from './effects/delay/CoarseDelayBlock.js';
 import { MinReverbBlock } from './effects/reverb/MinReverbBlock.js';
 import { RoomReverbBlock } from './effects/reverb/RoomReverbBlock.js';
+import { SpringReverbBlock } from './effects/reverb/SpringReverbBlock.js';
+import { PlateReverbBlock } from './effects/reverb/PlateReverbBlock.js';
 import { ToneGenFixedBlock } from './other/ToneGenFixed.js';
 import { ToneGenAdjustableBlock } from './other/ToneGenAdjustable.js';
 import { StickyNoteBlock } from './other/StickyNoteBlock.js';
@@ -91,6 +93,8 @@ export class BlockRegistry {
         // Effect blocks - Reverb
         this.register(new MinReverbBlock());
         this.register(new RoomReverbBlock());
+        this.register(new SpringReverbBlock());
+        this.register(new PlateReverbBlock());
         
         // Control blocks
         this.register(new ConstantBlock());
