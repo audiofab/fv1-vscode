@@ -146,6 +146,7 @@ Configure the extension in VS Code Settings (`File > Preferences > Settings` or 
 
 **Compatibility Settings**
 - `fv1.spinAsmMemBug` - Emulate SpinASM IDE memory allocation bug for compatibility (default: true)
+- `fv1.clampReals` - Emulate SpinASM IDE behaviour and clamp out of range real values (default: true)
 
 ## Troubleshooting
 

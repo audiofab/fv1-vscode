@@ -22,6 +22,7 @@
     "node_modules", 
     ".vscode-test",
     "src/blockDiagram/editor/webview/**/*",
-    "src/spnbank-webview/**/*"
+    "src/spnbank-webview/**/*",
+    "test/**/*"
   ]
 }

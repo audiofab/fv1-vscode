@@ -1,0 +1,17 @@
+
+NO ERRORS
+
+LABELS:
+LOC: 2	Label:  LOOP
+
+
+EQUATES:
+POTFIL		32
+
+
+MEMORY MAP:
+
+LDEL	:0x0000  -   0x0FFF size:0x1000  (4096)
+RDEL	:0x1001  -   0x2000 size:0x1000  (4096)
+DTEMP	:0x2002  -   0x2002 size:0x0001  (1)
+SRAM Memory Unallocated:	24572 Locations

@@ -2,7 +2,7 @@
   "name": "fv1-vscode",
   "displayName": "Audiofab FV-1 Programming",
   "description": "An extension providing development support for Spin Semiconductor's FV-1 chip and programming support for the Audiofab Easy Spin guitar pedal.",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "publisher": "ms-audiofab",
   "publisherDisplayName": "Audiofab Inc.",
   "icon": "doc/logo_600x493.png",
@@ -307,6 +307,11 @@
           "default": true,
           "description": "Emulate SpinASM IDE memory bug (wastes one word per MEM block)"
         },
+        "fv1.clampReals": {
+          "type": "boolean",
+          "default": true,
+          "description": "Clamp real number values to valid ranges (emulates SpinASM IDE behavior)"
+        },
         "fv1.mcp2221VendorId": {
           "type": "string",
           "default": "04D8",
@@ -325,7 +330,9 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "compile-webview": "node build-webview.js",
-    "watch-webview": "node build-webview.js --watch"
+    "watch-webview": "node build-webview.js --watch",
+    "pretest": "npm run compile",
+    "test": "node test/assembler-test.mjs"
   },
   "devDependencies": {
     "@types/node": "24.x",

@@ -1,0 +1,122 @@
+0000		80200011	:skp RUN, LOOP
+0001		00C01412	:wlds 0, 12, 160
+0002	LOOP:
+0002		7FEF0244	:rdax pot2, 1.999
+0003		000004A6	:wrax mix, 0
+0004		40000244	:rdax pot2, 1.0
+0005		0000024A	:mulx pot2
+0006		000004C6	:wrax fbk, 0
+0007		26660484	:rdax fladout, 0.6
+0008		000004CA	:mulx fbk
+0009		20000284	:rdax adcl, 0.5
+0010		200002A4	:rdax adcr, 0.5
+0011		00000002	:wra fladel, 0
+0012		40000224	:rdax pot1, 1.0
+0013		0000022A	:mulx pot1
+0014		033300AD	:sof 0.05, 0.005
+0015		0010000D	:sof .001, 0
+0016		40000404	:rdax ramp, 1.0
+0017		BFFFFF0E	:and 0xbfffff
+0018		40000406	:wrax ramp, 1.0
+0019		4000E00D	:sof 1.0, -0.25
+0020		00000409	:maxx reg0, 0
+0021		4000F00D	:sof 1.0, -0.125
+0022		0002000D	:sof .00015, 0
+0023		3FFE0444	:rdax  tri, 0.9999
+0024		00000446	:wrax tri, 0
+0025		008A000F	:or fladel_138 < 8
+0026		02000444	:rdax tri, 0.03125
+0027		40000306	:wrax addr_ptr, 1.0
+0028		0000FF0E	:and 0x0000ff
+0029		8000000D	:sof  -2.0, 0
+0030		8000000D	:sof  -2.0, 0
+0031		8000000D	:sof  -2.0, 0
+0032		8000000D	:sof  -2.0, 0
+0033		8000000D	:sof  -2.0, 0
+0034		8000000D	:sof  -2.0, 0
+0035		8000000D	:sof  -2.0, 0
+0036		8000000D	:sof  -2.0, 0
+0037		8000000D	:sof  -2.0, 0
+0038		8000000D	:sof  -2.0, 0
+0039		8000000D	:sof  -2.0, 0
+0040		8000000D	:sof  -2.0, 0
+0041		8000000D	:sof  -2.0, 0
+0042		8000000D	:sof  -2.0, 0
+0043		7FFE000D	:sof  1.9999 ,0
+0044		40000526	:wrax k2, 1.0
+0045		C0007FCD	:sof -1.0, 0.999
+0046		00000506	:wrax k1, 0.0
+0047		40000001	:rmpa 1.0
+0048		0000050A	:mulx k1
+0049		00000546	:wrax temp, 0
+0050		008B000F	:or fladel_139 < 8
+0051		02000444	:rdax tri, 0.03125
+0052		00000306	:wrax addr_ptr, 0
+0053		40000001	:rmpa 1.0
+0054		0000052A	:mulx k2
+0055		40000544	:rdax temp, 1.0
+0056		40000486	:wrax fladout, 1.0
+0057		000004AA	:mulx mix
+0058		40000000	:rda fladel, 1.0
+0059		00000466	:wrax flaout, 0.0
+0060		0600D654	:cho RDA, sin0, 0x06, rap1+50
+0061		0000D674	:cho RDA, sin0, 0, rap1+51
+0062		0000DC82	:wra rap1+100, 0
+0063		07028154	:cho RDA, sin0, 0x07, rap2+50
+0064		01028174	:cho RDA, sin0, 1, rap2+51
+0065		00028782	:wra rap2+100, 0
+0066		0E044A94	:cho  RDA, sin0, 0x0E, rap3+50
+0067		08044AB4	:cho RDA, sin0, 0x08, rap3+51
+0068		000450C2	:wra rap3+100, 0
+0069		0F066514	:cho  RDA, sin0, 0x0F, rap4+50
+0070		09066534	:cho RDA, sin0, 0x09, rap4+51
+0071		00066B42	:wra rap4+100, 0
+0072		20000464	:rdax flaout, 0.5
+0073		D9A052E0	:rda ap1#, -0.6
+0074		26604023	:wrap ap1, 0.6
+0075		D9A06EA0	:rda ap2#, -0.6
+0076		26605303	:wrap ap2, 0.6
+0077		D9A099E0	:rda ap3#, -0.6
+0078		26606EC3	:wrap ap3, 0.6
+0079		D9A0CFE0	:rda ap4#, -0.6
+0080		26609A03	:wrap ap4, 0.6
+0081		00000566	:wrax revin, 0.0
+0082		198E7520	:rda d4#, 0.4
+0083		D9A160A0	:rda rap1#, -0.6
+0084		2660D003	:wrap rap1, 0.6
+0085		D3427AE0	:rda rap1b#, -0.7
+0086		2CC160C3	:wrap rap1b, 0.7
+0087		20000564	:rdax revin, 0.5
+0088		0007BD22	:wra d1, 0.0
+0089		1988CDA0	:rda d1#, 0.4
+0090		D9A37240	:rda rap2#, -0.6
+0091		26627B03	:wrap rap2, 0.6
+0092		D3444420	:rda rap2b#, -0.7
+0093		2CC37263	:wrap rap2b, 0.7
+0094		20000564	:rdax revin, 0.5
+0095		0008CDC2	:wra d2, 0.0
+0096		198ABC40	:rda d2#, 0.4
+0097		D9A52B80	:rda rap3#, -0.6
+0098		26644443	:wrap rap3, 0.6
+0099		D3465EA0	:rda rap3b#, -0.7
+0100		2CC52BA3	:wrap rap3b, 0.7
+0101		20000564	:rdax revin, 0.5
+0102		000ABC62	:wra d3, 0.0
+0103		198CC500	:rda d3#, 0.4
+0104		D9A6F900	:rda rap4#, -0.6
+0105		26665EC3	:wrap rap4, 0.6
+0106		D347BD00	:rda rap4b#, -0.7
+0107		2CC6F923	:wrap rap4b, 0.7
+0108		20000564	:rdax revin, 0.5
+0109		000CC522	:wra d4, 0.0
+0110		40093420	:rda d1+3000, 1.0
+0111		332968A0	:rda d2+1239, 0.8
+0112		2CCBE100	:rda d3+2341, 0.7
+0113		266CEAE0	:rda d4+302, 0.6
+0114		20000585	:rdfx rfil, 0.5
+0115		0000020A	:mulx pot0
+0116		0000020A	:mulx pot0
+0117		20000464	:rdax flaout, 0.5
+0118		7FEF000D	:sof 1.999,  0
+0119		400002E6	:wrax dacr, 1.0
+0120		000002C6	:wrax dacl, 0

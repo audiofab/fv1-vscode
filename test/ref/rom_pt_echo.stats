@@ -1,0 +1,20 @@
+
+
+NO ERRORS
+
+LABELS:
+LOC: 2	Label:  LOOP
+
+
+EQUATES:
+POTFIL		32
+TEMP		33
+EFIL		34
+
+
+MEMORY MAP:
+
+PDEL	:0x0000  -   0x0FFF size:0x1000  (4096)
+PMIX	:0x1001  -   0x1001 size:0x0001  (1)
+ECHO	:0x1003  -   0x5E22 size:0x4E20  (20000)
+SRAM Memory Unallocated:	8668 Locations

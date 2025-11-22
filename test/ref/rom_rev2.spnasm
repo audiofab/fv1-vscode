@@ -1,0 +1,81 @@
+0000		80400011	:skp RUN, start
+0001		00C01412	:wlds SIN0, 12, 160
+0002		20CFFFF2	:wlds SIN1, 12, 32767
+0003	start:
+0003		06009634	:cho  rda,SIN0,0x06, rap1+50
+0004		00009654	:cho rda,SIN0,0x00, rap1+51
+0005		00009C62	:wra rap1+100, 0
+0006		07024134	:cho  rda,SIN0,0x07, rap2+50
+0007		01024154	:cho rda,SIN0,1,  rap2+51
+0008		00024762	:wra rap2+100, 0
+0009		0E040A74	:cho  rda,SIN0,0x0E, rap3+50
+0010		08040A94	:cho rda,SIN0,8,  rap3+51
+0011		000410A2	:wra rap3+100, 0
+0012		0F0624F4	:cho  rda,SIN0,0x0F, rap4+50
+0013		09062514	:cho rda,SIN0,0x09, rap4+51
+0014		00062B22	:wra rap4+100, 0
+0015		40000224	:rdax pot1,  1.0
+0016		0000022A	:mulx pot1
+0017		19990CCD	:sof 0.4,   0.1
+0018		00000046	:wrax sin1_rate, 0
+0019		C2200014	:cho RDAL,SIN1
+0020		0000024A	:mulx pot2
+0021		2000400D	:sof 0.5,  0.5
+0022		00000446	:wrax trem,  0
+0023		20000284	:rdax adcl,  0.5
+0024		200002A4	:rdax adcr,  0.5
+0025		0000044A	:mulx trem
+0026		00000466	:wrax tremout, 0
+0027		33330204	:rdax pot0, 0.8
+0028		00000406	:wrax p0,  0.0
+0029		20000464	:rdax tremout, 0.5
+0030		D9A012C0	:rda ap1#, -0.6
+0031		26600003	:wrap ap1, 0.6
+0032		D9A02E80	:rda ap2#, -0.6
+0033		266012E3	:wrap ap2, 0.6
+0034		D9A059C0	:rda ap3#, -0.6
+0035		26602EA3	:wrap ap3, 0.6
+0036		D9A08FC0	:rda ap4#, -0.6
+0037		266059E3	:wrap ap4, 0.6
+0038		00000486	:wrax revin, 0.0
+0039		200E3500	:rda d4#, rt
+0040		D9A12080	:rda rap1#, -0.6
+0041		26608FE3	:wrap rap1, 0.6
+0042		D3423AC0	:rda rap1b#, -0.7
+0043		2CC120A3	:wrap rap1b, 0.7
+0044		20000484	:rdax revin, 0.5
+0045		00077D02	:wra d1, 0.0
+0046		20088D80	:rda d1#, rt
+0047		D9A33220	:rda rap2#, -0.6
+0048		26623AE3	:wrap rap2, 0.6
+0049		D3440400	:rda rap2b#, -0.7
+0050		2CC33243	:wrap rap2b, 0.7
+0051		20000484	:rdax revin, 0.5
+0052		00088DA2	:wra d2, 0.0
+0053		200A7C20	:rda d2#, rt
+0054		D9A4EB60	:rda rap3#, -0.6
+0055		26640423	:wrap rap3, 0.6
+0056		D3461E80	:rda rap3b#, -0.7
+0057		2CC4EB83	:wrap rap3b, 0.7
+0058		20000484	:rdax revin, 0.5
+0059		000A7C42	:wra d3, 0.0
+0060		200C84E0	:rda d3#, rt
+0061		D9A6B8E0	:rda rap4#, -0.6
+0062		26661EA3	:wrap rap4, 0.6
+0063		D3477CE0	:rda rap4b#, -0.7
+0064		2CC6B903	:wrap rap4b, 0.7
+0065		20000484	:rdax revin, 0.5
+0066		000C8502	:wra d4, 0.0
+0067		4008F400	:rda d1+3000, 1.0
+0068		33292880	:rda d2+1239, 0.8
+0069		2CCBA0E0	:rda d3+2341, 0.7
+0070		266CAAC0	:rda d4+302, 0.6
+0071		200004A5	:rdfx rfil, 0.5
+0072		0000020A	:mulx pot0
+0073		0000020A	:mulx pot0
+0074		6000000D	:sof 1.5, 0
+0075		20000464	:rdax tremout, 0.5
+0076		7F5C000D	:sof 1.99,0
+0077		7F5C000D	:sof 1.99,0
+0078		400002E6	:wrax dacr, 1.0
+0079		000002C6	:wrax dacl, 0

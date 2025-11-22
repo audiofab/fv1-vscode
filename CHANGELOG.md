@@ -1,5 +1,11 @@
 # Change Log
 
+## [1.2.6]
+
+- Add an assembler test framework
+- Fix assembler to support all Spin Semiconductor ROM programs
+- Added clampReals option
+
 ## [1.2.5]
 
 - A few bugfixes and integrate dependabot changes

@@ -22,7 +22,8 @@ export class FV1DocumentManager {
     
     constructor(diagnosticCollection: vscode.DiagnosticCollection) {
         this.assembler = new FV1Assembler({ 
-            fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true 
+            fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
+            clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
         });
         this.diagnosticCollection = diagnosticCollection;
     }
@@ -152,7 +153,8 @@ export class FV1DocumentManager {
     public refreshAll(): void {
         // Update assembler configuration
         this.assembler = new FV1Assembler({ 
-            fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true 
+            fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
+            clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
         });
         
         // Clear cache

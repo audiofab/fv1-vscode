@@ -1,5 +1,6 @@
 interface FV1AssemblerOptions {
   fv1AsmMemBug?: boolean;
+  clampReals?: boolean;
 }
 
 interface FV1AssemblerProblem {
@@ -33,7 +34,7 @@ interface FV1Instruction {
 interface FV1AssemblerResult {
   machineCode: number[];
   problems: FV1AssemblerProblem[];
-  labels: Map<string, number>;
+  labels: Map<string, {line: number, instructionLine: number}>;
   symbols: FV1Symbol[];
   memories: FV1Memory[];
 }
@@ -58,7 +59,7 @@ interface SignedFixedPointNumber {
 function resolveExpression(expression: string) {
   const _parts = expression.match(
       // digits |operators|whitespace 
-      /(?:\-?[\d\.]+)|[-\+\*\/]|\s+/g
+      /(?:\-?[\d\.]+)|[-\+\*\/<>]|\s+/g
   );
 
   if (expression !== _parts.join("")) {
@@ -88,6 +89,12 @@ function resolveExpression(expression: string) {
             case "/":
                 processed.push(processed.pop() / nums[++i]);
                 break;
+            case "<":
+                processed.push(processed.pop() << nums[++i]);
+                break;
+            case ">":
+                processed.push(processed.pop() >> nums[++i]);
+                break;
             default:
                 throw new Error(`Unknown operation: ${parts[i]}`);
         }
@@ -106,7 +113,7 @@ class SignedFixedPointNumber implements SignedFixedPointNumber {
     this.maximum = max_value - lsb;
   }
 
-  public encode(value: string, onError?: (msg: string)=>void): number | null {
+  public encode(value: string, clamp?: boolean, onError?: (msg: string)=>void): number | null {
     // Apparently the SpinASM assembler allows multiple signs in front of numbers
     // so we need to deal with that here as well
     let multiplier = 1;
@@ -125,10 +132,14 @@ class SignedFixedPointNumber implements SignedFixedPointNumber {
     }
     num *= multiplier;
     if (num < this.minimum || num > this.maximum) {
-      if (onError) {
-        onError(`Value out of range: ${value} (must be between ${this.minimum} and ${this.maximum})`);
+      if (clamp) {
+        num = Math.min(Math.max(num, this.minimum), this.maximum);
+      } else {
+        if (onError) {
+          onError(`Value out of range: ${value} (must be between ${this.minimum} and ${this.maximum})`);
+        }
+        return null;
       }
-      return null;
     }
 
     let encoded = Math.trunc(num * (1 << this.fractional_bits));
@@ -217,7 +228,7 @@ class FV1Assembler {
     ['GEZ', 0x1000_0000], ['NEG', 0x0800_0000]
   ]);
 
-  private labels = new Map<string, number>();
+  private labels = new Map<string, {line: number, instructionLine: number}>();
   private symbols: FV1Symbol[] = [];
   private memories: FV1Memory[] = [];
   private problems: FV1AssemblerProblem[] = [];
@@ -232,8 +243,6 @@ class FV1Assembler {
     this.reset();
     let machineCode: number[] = [];
     const instructionLines = this.preprocessSource(source);
-    const totalDelayMemory = this.allocateDelayMemory();
-    console.log(`Total delay memory allocated: ${totalDelayMemory} words`);
 
     // If there are no fatal problems continue with parsing instructions
     if (!this.problems.some(p => p.isfatal)) {
@@ -271,6 +280,8 @@ class FV1Assembler {
       }
     } else if (value.startsWith('$')) {
       parsed = parseInt(value.substring(1), 16);
+    } else if (value.startsWith('0X')) {
+      parsed = parseInt(value.substring(2), 16);
     } else if (value.startsWith('%')) {
       // Handle binary with optional underscores
       const binaryStr = value.substring(1).replace(/_/g, '');
@@ -323,29 +334,8 @@ class FV1Assembler {
       .map(({line, number}) => [number, line] as [number, string])
     );
 
-    // Resolve labels and remove them if necessary
-    lines.forEach((line, lineNumber) => {
-      if (line.includes(':')) {
-        const [label, rest] = line.split(':', 2);
-        const labelName = label.trim().toUpperCase();
-        if (this.labels.has(labelName)) {
-          this.problems.push({message: `Duplicate label '${labelName}'`, isfatal: true, line: lineNumber});
-        } else if (labelName === '') {
-          this.problems.push({message: `Empty label is not allowed`, isfatal: true, line: lineNumber});
-        } else {
-          this.labels.set(labelName, lineNumber);
-        }
-        // If there are instructions after the label, keep them
-        if (rest && rest.trim()) {
-          lines.set(lineNumber, rest.trim());
-        } else {
-          lines.delete(lineNumber); // Remove line if only label
-        }
-      }
-    });
-
     // Process EQU directives
-    lines.forEach((line, lineNumber) => {
+    for (const [lineNumber, line] of lines.entries()) {
       const parts = line.toUpperCase().split(/\s+/);
       if (parts.length == 3) {
         // Handle both scenarios in the docs (EQU first or second)
@@ -370,7 +360,7 @@ class FV1Assembler {
           }
         }
       }
-    });
+    }
 
     // Replace any EQU symbols that happened to be defined as internal symbolic values
     for (const _sym of this.symbols) {
@@ -400,7 +390,7 @@ class FV1Assembler {
     }
 
     // Process all lines for MEM directives
-    lines.forEach((line, lineNumber) => {
+    for (const [lineNumber, line] of lines.entries()) {
       const parts = line.toUpperCase().split(/\s+/);
       if (parts.length == 3) {
         // Handle both scenarios in the docs (MEM first or second)
@@ -431,13 +421,48 @@ class FV1Assembler {
           }
         }
       }
-    });
+    }
+
+    // Now we can allocate delay memory because EQU symbols may be defined
+    // as MEM expressions which we need to resolve before replacing EQU symbols
+    // globally in the code
+    const totalDelayMemory = this.allocateDelayMemory();
+    // Resolve any memory addresses in EQU values
+    for (const sym of this.symbols) {
+      const addr = this.parseDelayMemoryAddress(sym.value);
+      if (addr !== null) {
+        sym.value = addr.toString();
+      }
+    }
+
+    let instructionLine = 0;
+    // Resolve labels and remove them if necessary
+    for (const [lineNumber, line] of lines.entries()) {
+      if (line.includes(':')) {
+        const [label, rest] = line.split(':', 2);
+        const labelName = label.trim().toUpperCase();
+        if (this.labels.has(labelName)) {
+          this.problems.push({message: `Duplicate label '${labelName}'`, isfatal: true, line: lineNumber});
+        } else if (labelName === '') {
+          this.problems.push({message: `Empty label is not allowed`, isfatal: true, line: lineNumber});
+        } else {
+          this.labels.set(labelName, {line: lineNumber, instructionLine: instructionLine});
+        }
+        // If there are instructions after the label, keep the instructions
+        if (rest && rest.trim()) {
+          lines.set(lineNumber, rest.trim());
+        } else {
+          lines.delete(lineNumber); // Remove line if only label
+        }
+      }
+      instructionLine++;
+    }
 
     let invalidLine: boolean = false
     // The remaining lines should be instructions. First pull out the
     // instruction mnemonic.
     const instructionLines = new Map<number, string[]>();
-    lines.forEach((line, lineNumber) => {
+    for (const [lineNumber, line] of lines.entries()) {
       const parts = line.toUpperCase().split(/\s+/);
       if (parts.length === 0) {
         // Shouldn't happen since we filtered out empty lines earlier
@@ -450,21 +475,21 @@ class FV1Assembler {
         const expandedLines: string[] = [];
         expandedLines.push(mnemonic); // The instruction mnemonic
         // Replace all occurrences of symbols in each subpart
-        this.symbols.forEach(equ => {
+        for (const equ of this.symbols) {
           const regex = new RegExp(`(?<=^|\\s|[^\\w])(${equ.name})(?=$|\\s|[^\\w])`, 'g');
           operands = operands.replace(regex, equ.value);
-        });
+        }
         // Split on commas and trim whitespace
         const subParts = operands.split(',');
-        subParts.forEach((subPart, index) => {
+        for (const subPart of subParts) {
           if (subPart && subPart.trim()) {
             expandedLines.push(subPart.trim());
           }
-        });
+        }
 
         instructionLines.set(lineNumber, expandedLines);
       }
-    });
+    }
 
     if (invalidLine) {
       return null;
@@ -482,13 +507,13 @@ class FV1Assembler {
       if (nextAvailableAddress > this.MAX_DELAY_MEMORY) {
         this.problems.push({message: `Total delay memory exceeds ${this.MAX_DELAY_MEMORY} words`, isfatal: true, line: mem.line});
       }
+      mem.end = nextAvailableAddress - 1;
       if (this.options.fv1AsmMemBug) {
         // Simulate SpinASM bug where the next available address is
         // actually one more than it should be, wasting a word of memory per block
         // And also mis-calculating the end address by one
         nextAvailableAddress += 1;
       }
-      mem.end = nextAvailableAddress - 1;
       if (mem.size % 2) {
         // Odd size, so the middle sample is (size - 1) / 2 - 1
         mem.middle = mem.start + (mem.size - 1) / 2 - 1;
@@ -553,7 +578,7 @@ class FV1Assembler {
       case 'OR':  // MMMMMMMMMMMMMMMMMMMMMMMM00001111
       case 'XOR': // MMMMMMMMMMMMMMMMMMMMMMMM00010000
       {
-        const m = this.parseInteger(operands[0], 24);
+        let m = this.parseInteger(operands[0], 24);
 
         if (m === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
@@ -658,7 +683,7 @@ class FV1Assembler {
         if (n === null) {
           // Must be a label, so try to resolve it
           if (this.labels.has(operands[1])) {
-            n = this.labels.get(operands[1]) - lineNumber - 1; // Relative to next instruction
+            n = this.labels.get(operands[1]).line - lineNumber - 1; // Relative to next instruction
           }
         }
         if (flags === null || n === null) {
@@ -833,7 +858,7 @@ class FV1Assembler {
         return parsed;
       }
     }
-    const encoded = format.encode(value, (msg) => {
+    const encoded = format.encode(value, this.options.clampReals, (msg) => {
       this.problems.push({message: `Line ${lineNumber}: ${msg} in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
     });
     if (encoded === null) {
@@ -842,7 +867,7 @@ class FV1Assembler {
     return encoded;
   }
 
-  private parseDelayMemoryAddress(value: string, lineNumber: number, mnemonic: string): number | null {
+  private parseDelayMemoryAddress(value: string, lineNumber?: number, mnemonic?: string): number | null {
     // Try to parse as an unsigned int first
     let addr = this.parseInteger(value);
     if (addr === null) {
@@ -873,15 +898,22 @@ class FV1Assembler {
           if ( mem.name === name || (mem.name + '#') === name || (mem.name + '^') === name) {
             base = mem.start;
             if (name.endsWith('#')) {
-              base = mem.end;
+              if (this.options.fv1AsmMemBug) {
+                // Simulate SpinASM bug where the end address is actually one more than it should be
+                base = mem.end + 1;
+              } else {
+                base = mem.end;
+              }
             } else if (name.endsWith('^')) {
               base = mem.middle;
             }
             break;
           }
         }
-        if (base === -1) {
-          this.problems.push({message: `Line ${lineNumber}: Undefined memory label '${name}' in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+        if (base === -1 && lineNumber) {
+          if (lineNumber !== undefined && mnemonic !== undefined) {
+            this.problems.push({message: `Line ${lineNumber}: Undefined memory label '${name}' in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+          }
           return null;
         }
       }
@@ -890,7 +922,9 @@ class FV1Assembler {
 
     if (addr !== null) {
       if (addr > this.MAX_DELAY_MEMORY) {
-        this.problems.push({message: `Line ${lineNumber}: Delay memory address out of range in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+        if (lineNumber !== undefined && mnemonic !== undefined) {
+          this.problems.push({message: `Line ${lineNumber}: Delay memory address out of range in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+        }
         return null;
       }
     }

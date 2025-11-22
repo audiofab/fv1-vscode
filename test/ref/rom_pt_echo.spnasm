@@ -1,0 +1,33 @@
+0000		80200011	:skp RUN,  loop
+0001		40000012	:wldr 0, 0, 4096
+0002	loop:
+0002		40000204	:rdax  pot0, 1.0
+0003		1000F00D	:sof  0.25,  -0.125
+0004		01470405	:rdfx  potfil, 0.02
+0005		40000406	:wrax  potfil, 1.0
+0006		00000086	:wrax  rmp0_rate, 0
+0007		40000284	:rdax  adcl,1.0
+0008		00000002	:wra  pdel,0
+0009		06400014	:cho  rda,rmp0,reg|compc,pdel
+0010		00400034	:cho  rda,rmp0,0,pdel+1
+0011		00020022	:wra  pmix,0
+0012		14400014	:cho  rda,rmp0,rptr2|compc,pdel
+0013		10400034	:cho  rda,rmp0,rptr2,pdel+1
+0014		A4400014	:cho  sof,rmp0,na|compc,0
+0015		20420034	:cho  rda,rmp0,na, pmix
+0016		000002C6	:wrax  dacl,0
+0017		31B5000F	:or  0x31b500
+0018		0000022A	:mulx  pot1
+0019		00000426	:wrax  temp, 0
+0020		2335000F	:or  0x233500
+0021		40000424	:rdax  temp, 1.0
+0022		01470445	:rdfx  efil, 0.02
+0023		40000446	:wrax  efil, 1.0
+0024		00000306	:wrax  addr_ptr,0
+0025		40000001	:rmpa  1
+0026		0000024A	:mulx  pot2
+0027		400002A4	:rdax  adcr, 1.0
+0028		000002E6	:wrax  dacr, 0
+0029		10000001	:rmpa  0.25
+0030		400002A4	:rdax  adcr, 1
+0031		00020062	:wra  echo, 0

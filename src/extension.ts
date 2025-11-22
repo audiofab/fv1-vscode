@@ -132,7 +132,8 @@ async function assembleFV1(
         
         // Assemble the generated assembly code directly (without creating a document)
         const assembler = new FV1Assembler({ 
-            fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true 
+            fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
+            clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
         });
         const result = assembler.assemble(assembly);
         
@@ -653,7 +654,8 @@ async function exportBankToHex(
 
             // Assemble the program
             const assembler = new FV1Assembler({ 
-                fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true 
+                fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
+                clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
             });
             
             outputWindow(outputChannel, `[INFO] 🔧 Assembling slot ${slot.slot}: ${path.basename(fsPath)}...`);
@@ -1054,7 +1056,7 @@ export function activate(context: vscode.ExtensionContext) {
     
     // Listen for configuration changes
     const onDidChangeConfiguration = vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration('fv1.spinAsmMemBug')) {
+        if (event.affectsConfiguration('fv1.spinAsmMemBug') || event.affectsConfiguration('fv1.clampReals')) {
             documentManager.refreshAll();
         }
     });
@@ -1173,7 +1175,10 @@ export function activate(context: vscode.ExtensionContext) {
                             continue;
                         }
                         // Assemble the compiled output
-                        const assembler = new FV1Assembler({ fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true });
+                        const assembler = new FV1Assembler({
+                            fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
+                            clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
+                        });
                         outputWindow(outputChannel, `[INFO] 🔧 Assembling compiled block diagram for slot ${s.slot}...`);
                         result = assembler.assemble(assembly);
                     } else {
@@ -1340,7 +1345,10 @@ export function activate(context: vscode.ExtensionContext) {
                     return;
                 }
                 // Assemble the compiled output
-                const assembler = new FV1Assembler({ fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true });
+                const assembler = new FV1Assembler({
+                    fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
+                    clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
+                 });
                 outputWindow(outputChannel, `[INFO] 🔧 Assembling compiled block diagram for slot ${slotNum}...`);
                 result = assembler.assemble(assembly);
             } else {

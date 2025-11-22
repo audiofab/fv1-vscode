@@ -1,0 +1,45 @@
+
+
+NO ERRORS
+
+LABELS:
+LOC: 2	Label:  LOOP
+
+
+EQUATES:
+FLADEL_138		138
+FLADEL_139		139
+RAMP		32
+TRI		34
+FLAOUT		35
+FLADOUT		36
+MIX		37
+FBK		38
+FRACT		39
+K1		40
+K2		41
+TEMP		42
+REVIN		43
+RFIL		44
+
+
+MEMORY MAP:
+
+FLADEL	:0x0000  -   0x01FF size:0x0200  (512)
+AP1	:0x0201  -   0x0296 size:0x0096  (150)
+AP2	:0x0298  -   0x0374 size:0x00DD  (221)
+AP3	:0x0376  -   0x04CE size:0x0159  (345)
+AP4	:0x04D0  -   0x067E size:0x01AF  (431)
+RAP1	:0x0680  -   0x0B04 size:0x0485  (1157)
+RAP1B	:0x0B06  -   0x13D6 size:0x08D1  (2257)
+RAP2	:0x13D8  -   0x1B91 size:0x07BA  (1978)
+RAP2B	:0x1B93  -   0x2220 size:0x068E  (1678)
+RAP3	:0x2222  -   0x295B size:0x073A  (1850)
+RAP3B	:0x295D  -   0x32F4 size:0x0998  (2456)
+RAP4	:0x32F6  -   0x37C7 size:0x04D2  (1234)
+RAP4B	:0x37C9  -   0x3DE7 size:0x061F  (1567)
+D1	:0x3DE9  -   0x466C size:0x0884  (2180)
+D2	:0x466E  -   0x55E1 size:0x0F74  (3956)
+D3	:0x55E3  -   0x6627 size:0x1045  (4165)
+D4	:0x6629  -   0x73A8 size:0x0D80  (3456)
+SRAM Memory Unallocated:	3158 Locations

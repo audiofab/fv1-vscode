@@ -1,0 +1,118 @@
+0000		80200011	:skp run, loop
+0001		00C01412	:wlds sin0, 12, 160
+0002	loop:
+0002		06013F94	:cho  rda, sin0, 0x06, ap1+50
+0003		00013FB4	:cho rda, sin0, 0, ap1+51
+0004		000145C2	:wra ap1+100, 0
+0005		07041394	:cho  rda, sin0, 0x07, ap3+50
+0006		010413B4	:cho rda, sin0, 1, ap3+51
+0007		000419C2	:wra ap3+100, 0
+0008		40000204	:rdax POT0, 1.0
+0009		33330CCD	:sof  0.8,  0.1
+0010		00000526	:wrax rt, 0
+0011		40000224	:rdax POT1, 1.0
+0012		333399AD	:sof 0.8,  -0.8
+0013		00000546	:wrax  hf,0
+0014		40000244	:rdax POT2, 1.0
+0015		333399AD	:sof  0.8, -0.8
+0016		00000566	:wrax  lf,0
+0017		20000284	:rdax adcl, 0.5
+0018		E0001380	:rda lap1#, -0.5
+0019		20000003	:wrap lap1, 0.5
+0020		E0002F80	:rda lap2#, -0.5
+0021		200013A3	:wrap lap2, 0.5
+0022		E0005920	:rda lap3#, -0.5
+0023		20002FA3	:wrap lap3, 0.5
+0024		E0009DC0	:rda lap4#, -0.5
+0025		20005943	:wrap lap4, 0.5
+0026		00000586	:wrax lapout, 0
+0027		200002A4	:rdax adcr, 0.5
+0028		E000B520	:rda rap1#, -0.5
+0029		20009DE3	:wrap rap1, 0.5
+0030		E000D4E0	:rda rap2#, -0.5
+0031		2000B543	:wrap rap2, 0.5
+0032		E000FAC0	:rda rap3#, -0.5
+0033		2000D503	:wrap rap3, 0.5
+0034		E0013920	:rda rap4#, -0.5
+0035		2000FAE3	:wrap rap4, 0.5
+0036		000005A6	:wrax rapout, 0
+0037		400FE780	:rda del4#, 1.0
+0038		0000052A	:mulx rt
+0039		40000584	:rdax lapout, 1.0
+0040		D9A1D5A0	:rda ap1#, -0.6
+0041		26613943	:wrap ap1, 0.6
+0042		D9A2B0A0	:rda ap1b#, -0.6
+0043		2661D5C3	:wrap ap1b, 0.6
+0044		40000406	:wrax temp, 1.0
+0045		20000425	:rdfx lpf1, 0.5
+0046		C0000427	:wrhx lpf1, -1.0
+0047		0000056A	:mulx lf
+0048		40000404	:rdax temp, 1.0
+0049		40000406	:wrax temp, 1.0
+0050		033304A5	:rdfx hpf1, 0.05
+0051		C00004A8	:wrlx hpf1, -1.0
+0052		0000054A	:mulx hf
+0053		40000404	:rdax temp, 1.0
+0054		00071722	:wra del1, 0.0
+0055		4009F380	:rda del1#, 1.0
+0056		0000052A	:mulx rt
+0057		D9A36520	:rda ap2#, -0.6
+0058		2662B0C3	:wrap ap2, 0.6
+0059		D9A40D20	:rda ap2b#, -0.6
+0060		26636543	:wrap ap2b, 0.6
+0061		40000406	:wrax temp, 1.0
+0062		20000445	:rdfx lpf2, 0.5
+0063		C0000447	:wrhx lpf2, -1.0
+0064		0000054A	:mulx hf
+0065		40000404	:rdax temp, 1.0
+0066		40000406	:wrax temp, 1.0
+0067		033304C5	:rdfx hpf2, 0.05
+0068		C00004C8	:wrlx hpf2, -1.0
+0069		0000056A	:mulx lf
+0070		40000404	:rdax temp, 1.0
+0071		0009F3A2	:wra del2, 0.0
+0072		400BF9C0	:rda del2#, 1.0
+0073		0000052A	:mulx rt
+0074		400005A4	:rdax rapout, 1.0
+0075		D9A4D300	:rda ap3#, -0.6
+0076		26640D43	:wrap ap3, 0.6
+0077		D9A5CAC0	:rda ap3b#, -0.6
+0078		2664D323	:wrap ap3b, 0.6
+0079		40000406	:wrax temp, 1.0
+0080		20000465	:rdfx lpf3, 0.5
+0081		C0000467	:wrhx lpf3, -1.0
+0082		0000054A	:mulx hf
+0083		40000404	:rdax temp, 1.0
+0084		40000406	:wrax temp, 1.0
+0085		033304E5	:rdfx hpf3, 0.05
+0086		C00004E8	:wrlx hpf3, -1.0
+0087		0000056A	:mulx lf
+0088		40000404	:rdax temp, 1.0
+0089		000BF9E2	:wra del3, 0.0
+0090		400DAC60	:rda del3#, 1.0
+0091		0000052A	:mulx rt
+0092		D9A66A20	:rda ap4#, -0.6
+0093		2665CAE3	:wrap ap4, 0.6
+0094		D9A71700	:rda ap4b#, -0.6
+0095		26666A43	:wrap ap4b, 0.6
+0096		40000406	:wrax temp, 1.0
+0097		20000485	:rdfx lpf4, 0.5
+0098		C0000487	:wrhx lpf4, -1.0
+0099		0000054A	:mulx hf
+0100		40000404	:rdax temp, 1.0
+0101		40000406	:wrax temp, 1.0
+0102		03330505	:rdfx hpf4, 0.05
+0103		C0000508	:wrlx hpf4, -1.0
+0104		0000056A	:mulx lf
+0105		40000404	:rdax temp, 1.0
+0106		000DAC82	:wra del4, 0.0
+0107		60085FE0	:rda del1+2630, 1.5
+0108		4CCAE680	:rda del2+1943, 1.2
+0109		400D89E0	:rda del3+3200, 1.0
+0110		332FA280	:rda del4+4016, 0.8
+0111		000002C6	:wrax dacl, 0.0
+0112		600C8B40	:rda del3+1163, 1.5
+0113		4CCF4CC0	:rda del4+3330, 1.2
+0114		400845A0	:rda del1+2420, 1.0
+0115		332B3C80	:rda del2+2631, 0.8
+0116		000002E6	:wrax dacr, 0.0
