@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.2.9]
+
+- node-hid packaging was still broken in the deployed extension - attempt #2
+
 ## [1.2.8]
 
 - Fix broken node-hid packaging

@@ -14,7 +14,7 @@ async function main() {
     sourcesContent: false,
     platform: 'node',
     outfile: 'dist/extension.cjs',
-    external: ['vscode', 'node-hid'],  // node-hid is a native module, must be external
+    external: ['vscode', 'node-hid', 'pkg-prebuilds'],  // native modules must be external
     logLevel: 'warning',
     plugins: [esbuildProblemMatcherPlugin]
   });

@@ -1,6 +1,7 @@
 .vscode
 node_modules/**
 !node_modules/node-hid/**
+!node_modules/pkg-prebuilds/**
 .github/
 out/
 src/
