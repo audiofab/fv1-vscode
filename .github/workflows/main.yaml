@@ -56,9 +56,7 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Install Dependencies
         run: npm ci
-      - name: Build Code
-        run: node build-webview.js && npm run compile
-      - name: Run tests
+      - name: Run tests (will automatically compile)
         run: npm test
       - name: Package Extension
         id: packageExtension

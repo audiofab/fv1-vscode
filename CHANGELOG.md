@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.2.7]
+
+- Bundle the extension by following the bundling guide
+
 ## [1.2.6]
 
 - Add an assembler test framework
