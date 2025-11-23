@@ -4,7 +4,8 @@ const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
 
 async function main() {
-  const ctx = await esbuild.context({
+  // Build main extension
+  const extensionCtx = await esbuild.context({
     entryPoints: ['src/extension.ts'],
     bundle: true,
     format: 'cjs',
@@ -12,19 +13,61 @@ async function main() {
     sourcemap: !production,
     sourcesContent: false,
     platform: 'node',
-    outfile: 'dist/extension.js',
+    outfile: 'dist/extension.cjs',
     external: ['vscode'],
     logLevel: 'warning',
-    plugins: [
-      /* add to the end of plugins array */
-      esbuildProblemMatcherPlugin
-    ]
+    plugins: [esbuildProblemMatcherPlugin]
   });
+
+  // Build block diagram editor webview
+  const blockDiagramCtx = await esbuild.context({
+    entryPoints: ['src/blockDiagram/editor/webview/index.tsx'],
+    bundle: true,
+    format: 'iife',
+    minify: production,
+    sourcemap: !production,
+    sourcesContent: false,
+    platform: 'browser',
+    target: 'es2020',
+    outfile: 'dist/webview.js',
+    jsx: 'automatic',
+    jsxDev: !production,
+    logLevel: 'warning',
+    plugins: [esbuildProblemMatcherPlugin]
+  });
+
+  // Build spnbank editor webview
+  const spnbankCtx = await esbuild.context({
+    entryPoints: ['src/spnbank-webview/index.ts'],
+    bundle: true,
+    format: 'iife',
+    minify: production,
+    sourcemap: !production,
+    sourcesContent: false,
+    platform: 'browser',
+    target: 'es2020',
+    outfile: 'dist/spnbank-webview.js',
+    logLevel: 'warning',
+    plugins: [esbuildProblemMatcherPlugin]
+  });
+
   if (watch) {
-    await ctx.watch();
+    await Promise.all([
+      extensionCtx.watch(),
+      blockDiagramCtx.watch(),
+      spnbankCtx.watch()
+    ]);
   } else {
-    await ctx.rebuild();
-    await ctx.dispose();
+    await Promise.all([
+      extensionCtx.rebuild(),
+      blockDiagramCtx.rebuild(),
+      spnbankCtx.rebuild()
+    ]);
+    await Promise.all([
+      extensionCtx.dispose(),
+      blockDiagramCtx.dispose(),
+      spnbankCtx.dispose()
+    ]);
   }
 }
 

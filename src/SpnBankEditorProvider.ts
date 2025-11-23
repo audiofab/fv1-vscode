@@ -279,7 +279,7 @@ export class SpnBankEditorProvider implements vscode.CustomTextEditorProvider {
      */
     private getHtmlForWebview(webview: vscode.Webview): string {
         const scriptUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(this.context.extensionUri, 'out', 'spnbank-webview.js')
+            vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'spnbank-webview.js')
         );
 
         const nonce = getNonce();

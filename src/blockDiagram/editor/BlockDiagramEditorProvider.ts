@@ -13,7 +13,7 @@ import { BlockDiagramDocumentManager } from '../BlockDiagramDocumentManager.js';
 export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvider {
     public static readonly viewType = 'fv1.blockDiagramEditor';
     
-    private static readonly webviewScriptUri = 'out/webview.js';
+    private static readonly webviewScriptUri = 'dist/webview.js';
     
     // Map from .spndiagram URI to virtual assembly document URI
     private assemblyDocuments = new Map<string, vscode.Uri>();
@@ -296,7 +296,7 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
     private getHtmlForWebview(webview: vscode.Webview): string {
         // Get the path to the webview script
         const scriptUri = webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'out', 'webview.js'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'dist', 'webview.js'))
         );
         
         // Use a nonce to whitelist which scripts can be run
