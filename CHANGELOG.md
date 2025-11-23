@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.2.8]
+
+- Fix broken node-hid packaging
+
 ## [1.2.7]
 
 - Bundle the extension by following the bundling guide
