@@ -4,7 +4,6 @@ node_modules/**
 .github/
 out/
 src/
-doc/
 test/
 tsconfig.json
 webpack.config.js
