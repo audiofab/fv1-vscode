@@ -169,21 +169,14 @@ function handleDrop(e: DragEvent) {
         const uris = uriListData.split('\n').filter(u => u.trim());
         if (uris.length > 0) {
             const uri = uris[0].trim();
-            // Extract just the filename from the URI
-            const match = uri.match(/[^/\\]+$/);
-            if (match) {
-                const fileName = match[0];
-                
-                // Check if it's a .spn or .spndiagram file
-                if (!fileName.endsWith('.spn') && !fileName.endsWith('.spndiagram')) {
-                    alert('Only .spn and .spndiagram files can be assigned to slots');
-                    return;
-                }
-                
-                // Update the slot with just the filename
-                assignSlot(slotNumber, fileName);
-                return;
-            }
+            
+            // Send the full URI to the extension for proper relative path calculation
+            vscode.postMessage({ 
+                type: 'assignSlotFromUri', 
+                slotNumber: slotNumber,
+                uri: uri
+            });
+            return;
         }
     }
     

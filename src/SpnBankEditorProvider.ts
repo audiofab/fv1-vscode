@@ -61,6 +61,10 @@ export class SpnBankEditorProvider implements vscode.CustomTextEditorProvider {
                     this.openSlotFile(document, e.slotPath);
                     return;
                 
+                case 'assignSlotFromUri':
+                    await this.assignSlotFromUri(document, e.slotNumber, e.uri, webviewPanel);
+                    return;
+                
                 case 'programSlot':
                     await this.programSlot(document, e.slotNumber);
                     return;
@@ -135,6 +139,52 @@ export class SpnBankEditorProvider implements vscode.CustomTextEditorProvider {
         await vscode.workspace.applyEdit(edit);
         // Auto-save after applying the edit
         await document.save();
+    }
+
+    /**
+     * Assign a slot from a dropped URI (calculates relative path)
+     */
+    private async assignSlotFromUri(
+        document: vscode.TextDocument, 
+        slotNumber: number, 
+        uriString: string,
+        webviewPanel: vscode.WebviewPanel
+    ) {
+        try {
+            // Parse the URI
+            const fileUri = vscode.Uri.parse(uriString);
+            const fileName = path.basename(fileUri.fsPath);
+            
+            // Check if it's a .spn or .spndiagram file
+            if (!fileName.endsWith('.spn') && !fileName.endsWith('.spndiagram')) {
+                vscode.window.showErrorMessage('Only .spn and .spndiagram files can be assigned to slots');
+                return;
+            }
+            
+            // Calculate relative path from bank file to dropped file
+            const bankDir = path.dirname(document.uri.fsPath);
+            const relativePath = path.relative(bankDir, fileUri.fsPath);
+            
+            // Update the bank data
+            const bankData = this.parseDocument(document);
+            const updatedSlots = bankData.slots.map(slot =>
+                slot.slot === slotNumber ? { ...slot, path: relativePath } : slot
+            );
+            
+            const updatedData: BankData = {
+                ...bankData,
+                slots: updatedSlots
+            };
+            
+            // Save to document
+            await this.updateDocument(document, updatedData);
+            
+            // Update webview
+            webviewPanel.webview.postMessage({ type: 'update', data: updatedData });
+            
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to assign slot: ${error}`);
+        }
     }
 
     /**

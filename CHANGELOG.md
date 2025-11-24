@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.3.0]
+
+- Fix a relative path issue in the bank editor
+
 ## [1.2.9]
 
 - node-hid packaging was still broken in the deployed extension - attempt #2
