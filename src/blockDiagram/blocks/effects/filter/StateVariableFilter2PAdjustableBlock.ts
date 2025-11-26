@@ -148,7 +148,7 @@ export class StateVariableFilter2PAdjustableBlock extends BaseBlock {
 
             ctx.pushMainCode(`; Scale Q control input`);
             ctx.pushMainCode(`rdax ${qCtrlReg}, ${this.formatS1_14(1.0)}`);
-            ctx.pushMainCode(`sof ${this.formatS1_14(-q)}, ${this.formatS1_14(-y)}`);
+            ctx.pushMainCode(`sof ${this.formatS1_14(-q)}, ${this.formatS10(-y)}`);
             ctx.pushMainCode(`wrax ${scaledQReg}, ${zero}`);
 
             // Apply scaled Q to z1

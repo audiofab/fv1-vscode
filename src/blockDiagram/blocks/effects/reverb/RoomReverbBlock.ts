@@ -218,7 +218,7 @@ export class RoomReverbBlock extends BaseBlock {
         if (preDelayReg) {
             ctx.pushMainCode(`rdax ${preDelayReg}, ${this.formatS1_14(0.1)}`);
         } else {
-            ctx.pushMainCode(`sof ${zero}, ${this.formatS1_14(0.025)}`);
+            ctx.pushMainCode(`sof ${zero}, ${this.formatS10(0.025)}`);
         }
         ctx.pushMainCode(`wrax ADDR_PTR, ${zero}`);
         

@@ -74,7 +74,7 @@ export class Crossfade2Block extends BaseBlock {
         if (input1Reg) {
             ctx.pushMainCode(`; Calculate gain for Input 1`);
             ctx.pushMainCode(`rdax ${controlReg}, ${this.formatS1_14(1.0)}`);
-            ctx.pushMainCode(`sof ${this.formatS1_14(1.0)}, ${this.formatS1_14(-1.0)}`);
+            ctx.pushMainCode(`sof ${this.formatS1_14(1.0)}, ${this.formatS10(-1.0)}`);
             ctx.pushMainCode(`sof ${this.formatS1_14(-2.0)}, ${zero}`);
             ctx.pushMainCode(`mulx ${input1Reg}`);
         }

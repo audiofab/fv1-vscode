@@ -77,7 +77,7 @@ export class TremolizerBlock extends BaseBlock {
         }
 
         // Invert the signal
-        ctx.pushMainCode(`sof ${this.formatS1_14(-0.999)}, ${this.formatS1_14(0.999)}`);
+        ctx.pushMainCode(`sof ${this.formatS1_14(-0.999)}, ${this.formatS10(0.999)}`);
         ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);
         ctx.pushMainCode('');
     }

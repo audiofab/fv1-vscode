@@ -47,7 +47,7 @@ export class InvertBlock extends BaseBlock {
 
         ctx.pushMainCode(`; ${this.name}`);
         ctx.pushMainCode(`rdax ${inputReg}, ${this.formatS1_14(1.0)}`);
-        ctx.pushMainCode(`sof ${this.formatS1_14(-0.999)}, ${this.formatS1_14(0.999)}`);
+        ctx.pushMainCode(`sof ${this.formatS1_14(-0.999)}, ${this.formatS10(0.999)}`);
         ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);
         ctx.pushMainCode('');
     }

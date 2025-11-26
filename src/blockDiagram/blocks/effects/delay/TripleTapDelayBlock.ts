@@ -212,7 +212,7 @@ export class TripleTapDelayBlock extends BaseBlock {
             const offset = (delayOffset + (0.05 * tap.ratio * delayLength)) / 32768.0;
             
             // SOF: Scale and offset - this calculates the delay address
-            ctx.pushMainCode(`sof ${this.formatS1_14(scale)}, ${this.formatS1_14(offset)}`);
+            ctx.pushMainCode(`sof ${this.formatS1_14(scale)}, ${this.formatS10(offset)}`);
             
             // Write to ADDR_PTR register to set read address
             ctx.pushMainCode(`wrax ADDR_PTR, ${zero}`);

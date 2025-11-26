@@ -68,18 +68,18 @@ export class Crossfade3Block extends BaseBlock {
         
         // Test if control is between 0 and 0.5
         ctx.pushMainCode(`rdax ${controlReg}, ${this.formatS1_14(1.0)}`);
-        ctx.pushMainCode(`sof ${this.formatS1_14(1.0)}, ${this.formatS1_14(-0.5)}`);
+        ctx.pushMainCode(`sof ${this.formatS1_14(1.0)}, ${this.formatS10(-0.5)}`);
         ctx.pushMainCode(`skp neg, ${labelZeroFifty}`);
 
         // Here, controlIn is between 0.5 and 1.0
         ctx.pushMainCode(`; Control range 0.5 to 1.0`);
         ctx.pushMainCode(`rdax ${controlReg}, ${this.formatS1_14(0.586)}`);
-        ctx.pushMainCode(`sof ${this.formatS1_14(1.0)}, ${this.formatS1_14(0.414)}`);
+        ctx.pushMainCode(`sof ${this.formatS1_14(1.0)}, ${this.formatS10(0.414)}`);
         ctx.pushMainCode(`mulx ${input2Reg}`);
         ctx.pushMainCode(`wrax ${tempReg}, ${zero}`);
         
         ctx.pushMainCode(`rdax ${controlReg}, ${this.formatS1_14(1.0)}`);
-        ctx.pushMainCode(`sof ${this.formatS1_14(0.707)}, ${this.formatS1_14(-0.707)}`);
+        ctx.pushMainCode(`sof ${this.formatS1_14(0.707)}, ${this.formatS10(-0.707)}`);
         ctx.pushMainCode(`sof ${this.formatS1_14(-2.0)}, ${zero}`);
         ctx.pushMainCode(`mulx ${input1Reg}`);
         ctx.pushMainCode(`rdax ${tempReg}, ${this.formatS1_14(1.0)}`);
@@ -93,7 +93,7 @@ export class Crossfade3Block extends BaseBlock {
         ctx.pushMainCode(`wrax ${tempReg}, ${zero}`);
         
         ctx.pushMainCode(`rdax ${controlReg}, ${this.formatS1_14(-0.586)}`);
-        ctx.pushMainCode(`sof ${this.formatS1_14(0.999)}, ${this.formatS1_14(0.999)}`);
+        ctx.pushMainCode(`sof ${this.formatS1_14(0.999)}, ${this.formatS10(0.999)}`);
         ctx.pushMainCode(`mulx ${input2Reg}`);
         ctx.pushMainCode(`rdax ${tempReg}, ${this.formatS1_14(1.0)}`);
 

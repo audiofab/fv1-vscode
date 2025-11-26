@@ -86,7 +86,7 @@ export class PowerBlock extends BaseBlock {
         // Apply invert if enabled
         if (invert) {
             ctx.pushMainCode(`; ---Invert`);
-            ctx.pushMainCode(`sof ${this.formatS1_14(-0.9990234375)}, ${this.formatS1_14(0.9990234375)}`);
+            ctx.pushMainCode(`sof ${this.formatS1_14(-0.9990234375)}, ${this.formatS10(0.9990234375)}`);
         }
 
         // Store value for multiplication
@@ -100,7 +100,7 @@ export class PowerBlock extends BaseBlock {
         // Apply flip if enabled
         if (flip) {
             ctx.pushMainCode(`; ---Flip`);
-            ctx.pushMainCode(`sof ${this.formatS1_14(-0.9990234375)}, ${this.formatS1_14(0.9990234375)}`);
+            ctx.pushMainCode(`sof ${this.formatS1_14(-0.9990234375)}, ${this.formatS10(0.9990234375)}`);
         }
 
         ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);

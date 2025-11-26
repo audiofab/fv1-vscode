@@ -66,7 +66,7 @@ export class ConstantBlock extends BaseBlock {
         const zero = ctx.getStandardConstant(0.0);
         
         ctx.pushMainCode(`; Constant value generator`);
-        ctx.pushMainCode(`sof ${zero}, ${this.formatS1_14(constant)}`);
+        ctx.pushMainCode(`sof ${zero}, ${this.formatS10(constant)}`);
         ctx.pushMainCode(`wrax ${valueReg}, ${zero}`);
         ctx.pushMainCode('');
     }

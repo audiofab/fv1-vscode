@@ -126,7 +126,7 @@ export class ScaleOffsetBlock extends BaseBlock {
         ctx.pushMainCode(`; Input range: ${inLow.toFixed(2)} to ${inHigh.toFixed(2)}`);
         ctx.pushMainCode(`; Output range: ${outLow.toFixed(2)} to ${outHigh.toFixed(2)}`);
         ctx.pushMainCode(`rdax ${inputReg}, ${this.formatS1_14(1.0)}`);
-        ctx.pushMainCode(`sof ${this.formatS1_14(scale)}, ${this.formatS1_14(offset)}`);
+        ctx.pushMainCode(`sof ${this.formatS1_14(scale)}, ${this.formatS10(offset)}`);
         ctx.pushMainCode(`wrax ${outputReg}, ${zero}`);
         ctx.pushMainCode('');
     }

@@ -101,7 +101,7 @@ export class ToneGenAdjustableBlock extends BaseBlock {
         const labelInit = `tonegen_${this.sanitizeLabelForAsm(this.type)}_init`;
         ctx.pushInitCode(`; Tone Generator init`);
         ctx.pushInitCode(`skp run, ${labelInit}`);
-        ctx.pushInitCode(`sof ${this.formatS1_14(0.0)}, ${this.formatS1_14(0.5)}`);
+        ctx.pushInitCode(`sof ${this.formatS1_14(0.0)}, ${this.formatS10(0.5)}`);
         ctx.pushInitCode(`wrax ${sReg}, ${zero}`);
         ctx.pushInitCode(`${labelInit}:`);
         
@@ -112,11 +112,11 @@ export class ToneGenAdjustableBlock extends BaseBlock {
         if (fineFreqReg) {
             ctx.pushMainCode(`rdax ${fineFreqReg}, ${this.formatS1_14(1.0)}`);
         } else {
-            ctx.pushMainCode(`sof ${this.formatS1_14(0.0)}, ${this.formatS1_14(fineFreq)}`);
+            ctx.pushMainCode(`sof ${this.formatS1_14(0.0)}, ${this.formatS10(fineFreq)}`);
         }
         
         // Scale to exponential limits: scale to 0.01, offset by -0.005
-        ctx.pushMainCode(`sof ${this.formatS1_14(0.01)}, ${this.formatS1_14(-0.005)}`);
+        ctx.pushMainCode(`sof ${this.formatS1_14(0.01)}, ${this.formatS10(-0.005)}`);
         
         // Add coarse frequency control (or parameter)
         if (coarseFreqReg) {
@@ -126,10 +126,10 @@ export class ToneGenAdjustableBlock extends BaseBlock {
         }
         
         // Scale and offset: sof 1, -0.66
-        ctx.pushMainCode(`sof ${this.formatS1_14(1.0)}, ${this.formatS1_14(-0.66)}`);
+        ctx.pushMainCode(`sof ${this.formatS1_14(1.0)}, ${this.formatS10(-0.66)}`);
         
         // Exponential conversion
-        ctx.pushMainCode(`exp ${this.formatS1_14(1.0)}, ${this.formatS1_14(0.0)}`);
+        ctx.pushMainCode(`exp ${this.formatS1_14(1.0)}, ${this.formatS10(0.0)}`);
         
         // Filter the frequency control
         ctx.pushMainCode(`rdfx ${p0filReg}, ${this.formatS1_14(0.01)}`);
@@ -143,14 +143,14 @@ export class ToneGenAdjustableBlock extends BaseBlock {
         if (amplitudeReg) {
             ctx.pushMainCode(`rdax ${amplitudeReg}, ${this.formatS1_14(15.0/16.0)}`);
         } else {
-            ctx.pushMainCode(`sof ${this.formatS1_14(0.0)}, ${this.formatS1_14((15.0/16.0) * amplitude)}`);
+            ctx.pushMainCode(`sof ${this.formatS1_14(0.0)}, ${this.formatS10((15.0/16.0) * amplitude)}`);
         }
         
         // Filter amplitude control
         ctx.pushMainCode(`rdfx ${p2filReg}, ${this.formatS1_14(0.01)}`);
         ctx.pushMainCode(`wrax ${p2filReg}, ${this.formatS1_14(1.0)}`);
-        ctx.pushMainCode(`sof ${this.formatS1_14(1.0)}, ${this.formatS1_14(-15.0/16.0)}`);
-        ctx.pushMainCode(`exp ${this.formatS1_14(1.0)}, ${this.formatS1_14(0.0)}`);
+        ctx.pushMainCode(`sof ${this.formatS1_14(1.0)}, ${this.formatS10(-15.0/16.0)}`);
+        ctx.pushMainCode(`exp ${this.formatS1_14(1.0)}, ${this.formatS10(0.0)}`);
         ctx.pushMainCode(`wrax ${ampReg}, ${zero}`);
         
         // Oversample the oscillator 4x (rotation matrix iteration)

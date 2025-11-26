@@ -147,7 +147,7 @@ export class SinCosLFOBlock extends BaseBlock {
             ctx.pushMainCode(`cho rdal, ${lfoSel === 0 ? 'SIN0' : 'SIN1'}`);
             if (outputRange === 1) {
                 // Scale from -1..1 to 0..1
-                ctx.pushMainCode(`sof ${this.formatS1_14(0.5)}, ${this.formatS1_14(0.5)}`);
+                ctx.pushMainCode(`sof ${this.formatS1_14(0.5)}, ${this.formatS10(0.5)}`);
             }
             ctx.pushMainCode(`wrax ${sineReg}, ${zero}`);
         }
@@ -159,7 +159,7 @@ export class SinCosLFOBlock extends BaseBlock {
             ctx.pushMainCode(`cho rdal, ${lfoSel === 0 ? 'COS0' : 'COS1'}`);
             if (outputRange === 1) {
                 // Scale from -1..1 to 0..1
-                ctx.pushMainCode(`sof ${this.formatS1_14(0.5)}, ${this.formatS1_14(0.5)}`);
+                ctx.pushMainCode(`sof ${this.formatS1_14(0.5)}, ${this.formatS10(0.5)}`);
             }
             ctx.pushMainCode(`wrax ${cosineReg}, ${zero}`);
         }

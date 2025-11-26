@@ -98,7 +98,7 @@ export class CoarseDelayBlock extends BaseBlock {
             // scale = (delayLength - 1) / 32768, offset = delayOffset / 32768
             const scale = (delayLength - 1) / 32768.0;
             const offset = delayOffset / 32768.0;
-            ctx.pushMainCode(`sof ${this.formatS1_14(scale)}, ${this.formatS1_14(offset)}`);
+            ctx.pushMainCode(`sof ${this.formatS1_14(scale)}, ${this.formatS10(offset)}`);
         } else {
             // No control - read from end of delay line (full delay)
             const address = (delayOffset + delayLength - 1) / 32768.0;
