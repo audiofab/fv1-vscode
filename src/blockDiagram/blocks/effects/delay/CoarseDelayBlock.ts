@@ -103,7 +103,7 @@ export class CoarseDelayBlock extends BaseBlock {
             // No control - read from end of delay line (full delay)
             const address = (delayOffset + delayLength - 1) / 32768.0;
             ctx.pushMainCode(`clr`);
-            ctx.pushMainCode(`sof ${zero}, ${this.formatS1_14(address)}`);
+            ctx.pushMainCode(`sof ${zero}, ${this.formatS10(address)}`);
         }
         
         // Write to ADDR_PTR and read with RMPA

@@ -3,6 +3,7 @@
  * Orchestrates the compilation of a block diagram to FV-1 assembly
  */
 
+import * as vscode from 'vscode';
 import { BlockGraph } from '../types/Graph.js';
 import { Block } from '../types/Block.js';
 import { BlockRegistry } from '../blocks/BlockRegistry.js';
@@ -218,7 +219,10 @@ export class GraphCompiler {
         // 7. Assemble the code to get accurate instruction count
         let instructions = 0;
         try {
-            const assembler = new FV1Assembler({ fv1AsmMemBug: true });
+            const assembler = new FV1Assembler({
+                fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
+                clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true
+            });
             const assemblyResult = assembler.assemble(optimizerResult.code.join('\n'));
             
             // Count actual instructions from machine code (exclude NOP padding)
