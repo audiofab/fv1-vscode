@@ -1,0 +1,68 @@
+;================================================================================
+; test
+; Created: 11/23/2025
+; Generated at 11/25/2025, 8:07:35 PM by the Audiofab Easy Spin (FV-1)
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Potentiometer Assignments
+;--------------------------------------------------------------------------------
+; POT0: Coarse Delay (Delay Time)
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Constants
+equ	k_one	1
+equ	k_zero	0
+equ	k_neg_one	-1
+equ	k_0_75	0.75
+equ	k_neg_0_75	-0.75
+equ	k_0_001	0.001
+
+; Register Aliases
+equ	adc_out	REG0
+equ	coarse_audio_output	REG1
+equ	pot0_out	REG2
+equ	pot0_filter	REG3
+
+; Memory Allocations
+mem	coarse_mem	32765
+
+
+; Input Section
+;--------------------------------------------------------------------------------
+; Left ADC Input
+rdax	ADCL,	k_one
+wrax	adc_out,	k_zero
+
+; Potentiometer 0
+; POT filtering
+rdax	POT0,	k_one
+rdfx	pot0_filter,	k_0_001
+wrhx	pot0_filter,	k_neg_0_75
+rdax	pot0_out,	k_0_75
+wrax	pot0_out,	k_zero	; Write to output
+
+
+; Main Program
+;--------------------------------------------------------------------------------
+; Coarse Delay - length=999.9ms (32765 samples)
+rdax adc_out, 1.0
+wra coarse_mem, 0.0
+; Set up variable delay read pointer
+clr
+or $7fff00
+mulx pot0_out
+sof 0.99990845, 0.0
+wrax ADDR_PTR, 0.0
+rmpa 1.0
+; wrax coarse_audio_output, 0.0	
+wrax	coarse_audio_output,	k_one	; Optimization: accumulator forwarded
+
+
+; Output Section
+;--------------------------------------------------------------------------------
+; Left DAC Output
+; rdax	coarse_audio_output,	k_one	; rdax not needed with accumulator forwarding optimization
+wrax	DACL,	k_zero
+

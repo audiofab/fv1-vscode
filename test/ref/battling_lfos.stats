@@ -1,0 +1,24 @@
+
+
+NO ERRORS
+
+LABELS:
+
+
+EQUATES:
+S1		32
+C1		33
+S2		34
+C2		35
+S3		36
+C3		37
+S4		38
+C4		39
+K1		40
+K2		41
+K3		42
+
+
+MEMORY MAP:
+
+SRAM Memory Unallocated:	32768 Locations

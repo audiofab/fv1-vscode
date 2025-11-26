@@ -429,9 +429,12 @@ class FV1Assembler {
     const totalDelayMemory = this.allocateDelayMemory();
     // Resolve any memory addresses in EQU values
     for (const sym of this.symbols) {
-      const addr = this.parseDelayMemoryAddress(sym.value);
-      if (addr !== null) {
-        sym.value = addr.toString();
+      if (isNaN(parseFloat(sym.value))) {
+        // Doesn't look like a number, so try parsing as a delay memory address
+        const addr = this.parseDelayMemoryAddress(sym.value);
+        if (addr !== null) {
+          sym.value = addr.toString();
+        }
       }
     }
 
@@ -453,6 +456,7 @@ class FV1Assembler {
           lines.set(lineNumber, rest.trim());
         } else {
           lines.delete(lineNumber); // Remove line if only label
+          instructionLine--;        // Adjust instruction line count as this was a label
         }
       }
       instructionLine++;

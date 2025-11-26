@@ -1,0 +1,129 @@
+0000		80200011	:skp run, endinit
+0001		00F00512	:wlds sin0,15,40
+0002	endinit:
+0002		40000204	:rdax pot0,1
+0003		19990CCD	:sof 0.4,0.1
+0004		000004A6	:wrax kfil,0
+0005		40000224	:rdax pot1,1
+0006		0999598D	:sof 0.15,0.7
+0007		00000466	:wrax KRT,0
+0008		40000284	:rdax adcl, 1
+0009		40000406	:wrax mono, 1
+0010		369704C5	:rdfx lpf1 , 0.853
+0011		E00004C8	:wrlx lpf1 , -0.5
+0012		06F904E5	:rdfx hpf1 , 0.109
+0013		E00004E7	:wrhx hpf1 , -0.5
+0014		40000486	:wrax revin, 1
+0015		40016040	:rda d1#, 1
+0016		0000046A	:mulx  KRT
+0017		23330425	:rdfx lp1, KRF
+0018		C0000428	:wrlx lp1, KRS
+0019		26603280	:rda lap1a#, KLAP
+0020		D9A00003	:wrap lap1a, -KLAP
+0021		2660AB80	:rda lap1b#, KLAP
+0022		D9A032A3	:wrap lap1b, -KLAP
+0023		40000484	:rdax revin, 1
+0024		00021C42	:wra d2, 0
+0025		40029AE0	:rda d2#, 1
+0026		0000046A	:mulx  KRT
+0027		23330445	:rdfx lp2, KRF
+0028		C0000448	:wrlx lp2, KRS
+0029		2661AC60	:rda lap2a#, KLAP
+0030		D9A16063	:wrap lap2a, -KLAP
+0031		26621C20	:rda lap2b#, KLAP
+0032		D9A1AC83	:wrap lap2b, -KLAP
+0033		40000484	:rdax revin, 1
+0034		0000ABA2	:wra d1, 0
+0035		40000424	:rdax lp1,1
+0036		40000444	:rdax lp2,1
+0037		D9A29BA0	:rda ap1#, KAP
+0038		26629B03	:wrap ap1, -KAP
+0039		D9A29C60	:rda ap2#, KAP
+0040		26629BC3	:wrap ap2, -KAP
+0041		D9A29D20	:rda ap3#, KAP
+0042		26629C83	:wrap ap3, -KAP
+0043		D9A29DE0	:rda ap4#, KAP
+0044		26629D43	:wrap ap4, -KAP
+0045		D9A29EA0	:rda ap5#, KAP
+0046		26629E03	:wrap ap5, -KAP
+0047		D9A29F60	:rda ap6#, KAP
+0048		26629EC3	:wrap ap6, -KAP
+0049		D9A2A020	:rda ap7#, KAP
+0050		26629F83	:wrap ap7,-KAP
+0051		D9A2A100	:rda ap8#, KAP
+0052		2662A043	:wrap ap8, -KAP
+0053		D9A2A1E0	:rda ap9#, KAP
+0054		2662A123	:wrap ap9, -KAP
+0055		D9A2A2C0	:rda ap10#, KAP
+0056		2662A203	:wrap ap10, -KAP
+0057		D9A2A3A0	:rda ap11#, KAP
+0058		2662A2E3	:wrap ap11, -KAP
+0059		D9A2A480	:rda ap12#, KAP
+0060		2662A3C3	:wrap ap12, -KAP
+0061		D9A2A560	:rda ap13#, KAP
+0062		2662A4A3	:wrap ap13, -KAP
+0063		D9A2A640	:rda ap14#, KAP
+0064		2662A583	:wrap ap14, -KAP
+0065		D9A2A720	:rda ap15#, KAP
+0066		2662A663	:wrap ap15, -KAP
+0067		D9A2A800	:rda ap16#, KAP
+0068		2662A743	:wrap ap16, -KAP
+0069		D9A2A8E0	:rda ap17#, KAP
+0070		2662A823	:wrap ap17, -KAP
+0071		D9A2A9C0	:rda ap18#, KAP
+0072		2662A903	:wrap ap18, -KAP
+0073		D9A2AAA0	:rda ap19#, KAP
+0074		2662A9E3	:wrap ap19, -KAP
+0075		D9A2AB80	:rda ap20#, KAP
+0076		2662AAC3	:wrap ap20, -KAP
+0077		D9A2AC60	:rda ap21#, KAP
+0078		2662ABA3	:wrap ap21, -KAP
+0079		D9A2AD60	:rda ap22#, KAP
+0080		2662AC83	:wrap ap22, -KAP
+0081		D9A2AE60	:rda ap23#, KAP
+0082		2662AD83	:wrap ap23, -KAP
+0083		D9A2AF60	:rda ap24#, KAP
+0084		2662AE83	:wrap ap24, -KAP
+0085		D9A2B060	:rda ap25#, KAP
+0086		2662AF83	:wrap ap25, -KAP
+0087		D9A2B160	:rda ap26#, KAP
+0088		2662B083	:wrap ap26, -KAP
+0089		D9A2B260	:rda ap27#, KAP
+0090		2662B183	:wrap ap27, -KAP
+0091		D9A2B360	:rda ap28#, KAP
+0092		2662B283	:wrap ap28, -KAP
+0093		D9A2B460	:rda ap29#, KAP
+0094		2662B383	:wrap ap29, -KAP
+0095		D9A2B560	:rda ap30#, KAP
+0096		2662B483	:wrap ap30, -KAP
+0097		D9A2B660	:rda ap31#, KAP
+0098		2662B583	:wrap ap31, -KAP
+0099		D9A2B760	:rda ap32#, KAP
+0100		2662B683	:wrap ap32, -KAP
+0101		D9A2B860	:rda ap33#, KAP
+0102		2662B783	:wrap ap33, -KAP
+0103		D9A2B960	:rda ap34#, KAP
+0104		2662B883	:wrap ap34, -KAP
+0105		D9A2BA60	:rda ap35#, KAP
+0106		2662B983	:wrap ap35, -KAP
+0107		D9A2BB80	:rda ap36#, KAP
+0108		2662BA83	:wrap ap36, -KAP
+0109		D9A2BCA0	:rda ap37#, KAP
+0110		2662BBA3	:wrap ap37, -KAP
+0111		C0000544	:rdax temp, -1
+0112		000004AA	:mulx kfil
+0113		40000544	:rdax temp, 1
+0114		40000546	:wrax temp, 1
+0115		00000506	:wrax spring,0
+0116		C0000404	:rdax mono, -1
+0117		40000504	:rdax spring,1
+0118		0000024A	:mulx pot2
+0119		40000404	:rdax mono,1
+0120		400002C6	:wrax dacl, 1
+0121		000002E6	:wrax dacr, 0
+0122		060035D4	:cho rda,sin0,sin|reg|compc,lap1b+25
+0123		000035F4	:cho rda,sin0,sin,lap1b+26
+0124		000038E2	:wra lap1b+50,0
+0125		0701AFB4	:cho rda,sin0,cos|reg|compc,lap2b+25
+0126		0101AFD4	:cho rda,sin0,cos,lap2b+26
+0127		0001B2C2	:wra lap2b+50,0

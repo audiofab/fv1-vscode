@@ -88,18 +88,23 @@ export class CoarseDelayBlock extends BaseBlock {
 
         // Set up delay read pointer
         ctx.pushMainCode(`; Set up variable delay read pointer`);
-        ctx.pushMainCode(`clr`);
-        ctx.pushMainCode(`or $${(32767 * 256).toString(16)}`);
-
+        
         if (delayTimeReg) {
             // Control input is connected - use it to modulate delay time (0-1 → 0-delayLength)
-            ctx.pushMainCode(`mulx ${delayTimeReg}`);
+            // Load control signal and scale to delay range
+            ctx.pushMainCode(`rdax ${delayTimeReg}, ${this.formatS1_14(1.0)}`);
+            
+            // Scale control (0-1) to actual delay range and add offset
+            // scale = (delayLength - 1) / 32768, offset = delayOffset / 32768
+            const scale = (delayLength - 1) / 32768.0;
+            const offset = delayOffset / 32768.0;
+            ctx.pushMainCode(`sof ${this.formatS1_14(scale)}, ${this.formatS1_14(offset)}`);
+        } else {
+            // No control - read from end of delay line (full delay)
+            const address = (delayOffset + delayLength - 1) / 32768.0;
+            ctx.pushMainCode(`clr`);
+            ctx.pushMainCode(`sof ${zero}, ${this.formatS1_14(address)}`);
         }
-
-        // Scale to actual delay range (0 to delayLength) and add offset
-        const scale = delayLength / 32768.0;
-        const offset = delayOffset / 32768.0;
-        ctx.pushMainCode(`sof ${this.formatS1_14(scale)}, ${this.formatS1_14(offset)}`);
         
         // Write to ADDR_PTR and read with RMPA
         ctx.pushMainCode(`wrax ADDR_PTR, ${zero}`);

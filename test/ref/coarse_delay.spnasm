@@ -1,0 +1,17 @@
+0000		40000284	:rdax ADCL, k_one
+0001		00000406	:wrax adc_out, k_zero
+0002		40000204	:rdax POT0, k_one
+0003		00100465	:rdfx pot0_filter, k_0_001
+0004		D0000467	:wrhx pot0_filter, k_neg_0_75
+0005		30000444	:rdax pot0_out, k_0_75
+0006		00000446	:wrax pot0_out, k_zero
+0007		40000404	:rdax adc_out, 1.0
+0008		00000002	:wra coarse_mem, 0.0
+0009		0000000E	:clr
+0010		7FFF000F	:or $7fff00
+0011		0000044A	:mulx pot0_out
+0012		3FFE000D	:sof 0.99990845, 0.0
+0013		00000306	:wrax ADDR_PTR, 0.0
+0014		40000001	:rmpa 1.0
+0015		40000426	:wrax coarse_audio_output, k_one
+0016		000002C6	:wrax DACL, k_zero
