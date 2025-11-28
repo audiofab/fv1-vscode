@@ -94,7 +94,7 @@ export interface CodeGenContext {
     allocateMemory(blockId: string, size: number): { name: string; address: number; size: number };
     
     // Register an EQU constant declaration
-    registerEqu(name: string, value: string | number): void;
+    registerEqu(name: string, value: string | number): string;
     
     // Get or create a standard constant name for common values
     getStandardConstant(value: number): string;

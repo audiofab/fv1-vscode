@@ -12,8 +12,8 @@
 ; Initialization
 ;--------------------------------------------------------------------------------
 ; Constants
-equ	k_one	1
-equ	k_zero	0
+equ	k_1	1
+equ	k_0	0
 equ	k_neg_one	-1
 equ	k_0_75	0.75
 equ	k_neg_0_75	-0.75
@@ -32,16 +32,16 @@ mem	coarse_mem	32765
 ; Input Section
 ;--------------------------------------------------------------------------------
 ; Left ADC Input
-rdax	ADCL,	k_one
-wrax	adc_out,	k_zero
+rdax	ADCL,	k_1
+wrax	adc_out,	k_0
 
 ; Potentiometer 0
 ; POT filtering
-rdax	POT0,	k_one
+rdax	POT0,	k_1
 rdfx	pot0_filter,	k_0_001
 wrhx	pot0_filter,	k_neg_0_75
 rdax	pot0_out,	k_0_75
-wrax	pot0_out,	k_zero	; Write to output
+wrax	pot0_out,	k_0	; Write to output
 
 
 ; Main Program
@@ -57,12 +57,12 @@ sof 0.99990845, 0.0
 wrax ADDR_PTR, 0.0
 rmpa 1.0
 ; wrax coarse_audio_output, 0.0	
-wrax	coarse_audio_output,	k_one	; Optimization: accumulator forwarded
+wrax	coarse_audio_output,	k_1	; Optimization: accumulator forwarded
 
 
 ; Output Section
 ;--------------------------------------------------------------------------------
 ; Left DAC Output
-; rdax	coarse_audio_output,	k_one	; rdax not needed with accumulator forwarding optimization
-wrax	DACL,	k_zero
+; rdax	coarse_audio_output,	k_1	; rdax not needed with accumulator forwarding optimization
+wrax	DACL,	k_0
 

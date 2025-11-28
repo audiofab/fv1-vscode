@@ -26,7 +26,7 @@ export class CodeOptimizer {
             details.push(inputClearResult.detail);
         }
         
-        // Optimization 2: Accumulator forwarding (removes wrax k_zero + rdax k_one pairs)
+        // Optimization 2: Accumulator forwarding (removes wrax k_0 + rdax k_1 pairs)
         const beforeForwarding = optimizedCode.length;
         optimizedCode = this.optimizeAccumulatorForwarding(optimizedCode);
         const forwardingCount = beforeForwarding - optimizedCode.length;
@@ -99,15 +99,15 @@ export class CodeOptimizer {
             const coefficient = wraxMatch[2].trim();
             
             // If coefficient is not already zero, change it to zero
-            if (coefficient !== 'k_zero' && coefficient !== '0' && coefficient !== '0.0') {
+            if (coefficient !== 'k_0' && coefficient !== '0' && coefficient !== '0.0') {
                 const newCode = [...code];
                 const comment = lastInstruction.includes(';') ? 
                     lastInstruction.substring(lastInstruction.indexOf(';')) : '';
-                newCode[lastInstructionIndex] = `wrax\t${register},\tk_zero${comment ? '\t' + comment : ''}\t; Optimized: clear accumulator`;
+                newCode[lastInstructionIndex] = `wrax\t${register},\t0${comment ? '\t' + comment : ''}\t; Optimized: clear accumulator`;
                 return { 
                     code: newCode, 
                     applied: true, 
-                    detail: `Changed wrax coefficient to k_zero for accumulator clear (was ${coefficient})` 
+                    detail: `Changed wrax coefficient to 0 for accumulator clear (was ${coefficient})` 
                 };
             }
             // If already zero, accumulator is cleared - no action needed
@@ -128,11 +128,11 @@ export class CodeOptimizer {
      * Optimization 2: Accumulator forwarding
      * 
      * Replaces the pattern:
-     *   wrax <SYMBOL>, k_zero
-     *   rdax <SYMBOL>, k_one
+     *   wrax <SYMBOL>, k_0
+     *   rdax <SYMBOL>, k_1
      * 
      * With:
-     *   wrax <SYMBOL>, k_one  ; Optimized: accumulator forwarded
+     *   wrax <SYMBOL>, k_1  ; Optimized: accumulator forwarded
      * 
      * This eliminates the unnecessary clear + reload when the value is already in ACC.
      */
@@ -147,8 +147,8 @@ export class CodeOptimizer {
         while (i < code.length) {
             const currentLine = code[i].trim();
             
-            // Check if this is a WRAX instruction with k_zero
-            const wraxMatch = currentLine.match(/^wrax\s+(\w+),\s*(k_zero|0|0\.0)(?:\s*;.*)?$/i);
+            // Check if this is a WRAX instruction with k_0
+            const wraxMatch = currentLine.match(/^wrax\s+(\w+),\s*(k_0|0|0\.0)(?:\s*;.*)?$/i);
             
             if (wraxMatch && i + 1 < code.length) {
                 const wraxRegister = wraxMatch[1];
@@ -166,8 +166,8 @@ export class CodeOptimizer {
                 if (nextInstructionIndex < code.length) {
                     const nextLine = code[nextInstructionIndex].trim();
                     
-                    // Check if next instruction is RDAX of the same register with k_one
-                    const rdaxMatch = nextLine.match(/^rdax\s+(\w+),\s*(k_one|1|1\.0)(?:\s*;.*)?$/i);
+                    // Check if next instruction is RDAX of the same register with k_1
+                    const rdaxMatch = nextLine.match(/^rdax\s+(\w+),\s*(k_1|1|1\.0)(?:\s*;.*)?$/i);
                     
                     if (rdaxMatch && rdaxMatch[1] === wraxRegister) {
                         // Found the pattern! Optimize it
@@ -178,7 +178,7 @@ export class CodeOptimizer {
                         // Add the optimized wrax with k_one coefficient
                         const existingComment = currentLine.includes(';') ? 
                             currentLine.substring(currentLine.indexOf(';')) : '';
-                        optimized.push(`wrax\t${wraxRegister},\tk_one${existingComment ? '\t' + existingComment : ''}\t; Optimization: accumulator forwarded`);
+                        optimized.push(`wrax\t${wraxRegister},\t${rdaxMatch[2].trim()}${existingComment ? '\t' + existingComment : ''}\t; Optimization: accumulator forwarded`);
                         
                         // Add any comments between wrax and rdax
                         for (let j = i + 1; j < nextInstructionIndex; j++) {

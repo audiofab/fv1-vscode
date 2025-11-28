@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.3.2]
+
+- Fix plate and spring reverb blocks
+
 ## [1.3.1]
 
 - Fix an assembler bug I introduced when resolving memory addresses in EQU values

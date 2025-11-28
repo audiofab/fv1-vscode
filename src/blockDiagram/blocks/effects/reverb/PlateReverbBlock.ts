@@ -170,11 +170,10 @@ export class PlateReverbBlock extends BaseBlock {
         ctx.pushMainCode(`; Calculate reverb level (squared)`);
         if (mixCVReg) {
             ctx.pushMainCode(`rdax\t${mixCVReg},\t${one}\t; Read mix from CV input`);
-            ctx.pushMainCode(`mulx\t${mixCVReg}`);
+            ctx.pushMainCode(`mulx\t${mixCVReg}\t; Square it`);
         } else {
-            const mixParam = ctx.getStandardConstant(mix);
-            ctx.pushMainCode(`rdax\t${mixParam},\t${one}`);
-            ctx.pushMainCode(`mulx\t${mixParam}`);
+            ctx.pushMainCode(`sof\t${zero},\t${mix}\t; Read mix from parameter`);
+            ctx.pushMainCode(`sof\t${mix},\t${zero}\t; Square it`);
         }
         ctx.pushMainCode(`wrax\t${krlReg},\t${zero}`);
         ctx.pushMainCode('');
@@ -184,8 +183,7 @@ export class PlateReverbBlock extends BaseBlock {
         if (decayTimeCVReg) {
             ctx.pushMainCode(`rdax\t${decayTimeCVReg},\t${one}\t; Read decay time from CV input`);
         } else {
-            const decayParam = ctx.getStandardConstant(decayTime);
-            ctx.pushMainCode(`rdax\t${decayParam},\t${one}`);
+            ctx.pushMainCode(`sof\t${zero},\t${decayTime}\t; Read decay time from parameter`);
         }
         ctx.pushMainCode(`sof\t${decayLimit},\t${zero}`);
         ctx.pushMainCode(`wrax\t${decayReg},\t${one}`);
@@ -214,8 +212,7 @@ export class PlateReverbBlock extends BaseBlock {
         if (dampingCVReg) {
             ctx.pushMainCode(`rdax\t${dampingCVReg},\t${one}\t; Read damping from CV input`);
         } else {
-            const dampParam = ctx.getStandardConstant(damping);
-            ctx.pushMainCode(`rdax\t${dampParam},\t${one}`);
+            ctx.pushMainCode(`sof\t${zero},\t${damping}\t; Read damping from parameter`);
         }
         ctx.pushMainCode(`sof\t${negOne},\t${c0_99}\t; Invert damping`);
         ctx.pushMainCode(`wrax\t${dampingReg},\t${negOne}`);

@@ -121,7 +121,6 @@ export class SpringReverbBlock extends BaseBlock {
         
         const one = ctx.getStandardConstant(1.0);
         const negOne = ctx.getStandardConstant(-1.0);
-        const half = ctx.getStandardConstant(0.5);
         const zero = ctx.getStandardConstant(0.0);
         
         // RS127 filter constants
@@ -146,13 +145,13 @@ export class SpringReverbBlock extends BaseBlock {
         const LEN6 = 8;
         
         // Allocate memory for reverb delays (each needs unique name)
-        const lap1a = ctx.allocateMemory(`spring_lap1a`, 404);
-        const lap1b = ctx.allocateMemory(`spring_lap1b`, 967);
-        const d1 = ctx.allocateMemory(`spring_d1`, 1445);
+        const lap1a = ctx.allocateMemory(`lap1a`, 404);
+        const lap1b = ctx.allocateMemory(`lap1b`, 967);
+        const d1 = ctx.allocateMemory(`d1`, 1445);
         
-        const lap2a = ctx.allocateMemory(`spring_lap2a`, 608);
-        const lap2b = ctx.allocateMemory(`spring_lap2b`, 893);
-        const d2 = ctx.allocateMemory(`spring_d2`, 1013);
+        const lap2a = ctx.allocateMemory(`lap2a`, 608);
+        const lap2b = ctx.allocateMemory(`lap2b`, 893);
+        const d2 = ctx.allocateMemory(`d2`, 1013);
         
         // Allocate memory for chirp allpass filters (user-adjustable count)
         const chirpAPs: Array<{name: string; address: number; size: number}> = [];
@@ -166,9 +165,9 @@ export class SpringReverbBlock extends BaseBlock {
         ];
         
         for (let i = 0; i < chirpFilterCount; i++) {
-            chirpAPs.push(ctx.allocateMemory(`spring_ap${i + 1}`, chirpLengths[i]));
+            chirpAPs.push(ctx.allocateMemory(`ap${i + 1}`, chirpLengths[i]));
         }
-        
+
         // Initialize LFO
         ctx.pushInitCode('; Spring Reverb');
         ctx.pushInitCode('skp\tRUN,\tspringreverb_init_end');
@@ -182,22 +181,20 @@ export class SpringReverbBlock extends BaseBlock {
         // Calculate tone coefficient (kfil) from CV input or parameter
         if (toneCVReg) {
             ctx.pushMainCode(`rdax\t${toneCVReg},\t${one}\t; Read tone from CV input`);
+            ctx.pushMainCode(`sof\t${toneScale},\t${toneOffset}\t; Map [0,1] to [0.1,0.5]`);
         } else {
-            const toneParam = ctx.getStandardConstant(tone);
-            ctx.pushMainCode(`rdax\t${toneParam},\t${one}\t; Read tone parameter`);
+            ctx.pushMainCode(`sof\t${zero},\t${tone}\t; Read tone from parameter`);
         }
-        ctx.pushMainCode(`sof\t${toneScale},\t${toneOffset}\t; Map [0,1] to [0.1,0.5]`);
         ctx.pushMainCode(`wrax\t${kfilReg},\t${zero}\t; Write tone coefficient`);
         ctx.pushMainCode('');
         
         // Calculate reverb time (KRT) from CV input or parameter
         if (reverbTimeCVReg) {
             ctx.pushMainCode(`rdax\t${reverbTimeCVReg},\t${one}\t; Read reverb time from CV input`);
+            ctx.pushMainCode(`sof\t${rtScale},\t${rtOffset}\t; Map [0,1] to [0.7,0.85]`);
         } else {
-            const rtParam = ctx.getStandardConstant(reverbTime);
-            ctx.pushMainCode(`rdax\t${rtParam},\t${one}\t; Read reverb time parameter`);
+            ctx.pushMainCode(`sof\t${zero},\t${reverbTime}\t; Read reverb time from parameter`);
         }
-        ctx.pushMainCode(`sof\t${rtScale},\t${rtOffset}\t; Map [0,1] to [0.7,0.85]`);
         ctx.pushMainCode(`wrax\t${KRTReg},\t${zero}\t; Write reverb time`);
         ctx.pushMainCode('');
         
@@ -273,8 +270,7 @@ export class SpringReverbBlock extends BaseBlock {
         if (mixCVReg) {
             ctx.pushMainCode(`mulx\t${mixCVReg}\t\t; Apply mix from CV input`);
         } else {
-            const mixParam = ctx.getStandardConstant(mix);
-            ctx.pushMainCode(`mulx\t${mixParam}\t\t; Apply mix from parameter`);
+            ctx.pushMainCode(`sof\t${mix},\t${zero}\t; Apply mix from parameter`);
         }
         ctx.pushMainCode(`rdax\t${monoReg},\t${one}`);
         ctx.pushMainCode(`wrax\t${outputReg},\t${zero}`);

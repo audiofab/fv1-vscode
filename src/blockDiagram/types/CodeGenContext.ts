@@ -30,6 +30,7 @@ export class CodeGenerationContext implements CodeGenContext {
     private registerAllocations: RegisterAllocation[] = [];
     private memoryAllocations: MemoryAllocation[] = [];
     private equDeclarations: EquDeclaration[] = [];
+    private constantMap: Map<string, string> = new Map();  // Dynamic map of value -> EQU name
     private nextRegister: number = 0;  // Allocate permanent registers from REG0 upward
     private nextScratchRegister: number = 31;  // Allocate scratch registers from REG31 downward
     private nextMemoryAddress: number = 0;
@@ -327,47 +328,39 @@ export class CodeGenerationContext implements CodeGenContext {
      * Register an EQU constant declaration
      * For common values, use standardized names
      */
-    registerEqu(name: string, value: string | number): void {
+    registerEqu(name: string, value: string | number): string {
         // Check if already registered
         if (this.hasEqu(name)) {
             return; // Already registered, skip
         }
-        
         const valueStr = typeof value === 'number' ? value.toString() : value;
         this.equDeclarations.push({ name, value: valueStr });
+        this.constantMap.set(name, valueStr);
+        return name;
     }
     
     /**
-     * Get or create a standard EQU name for a common constant value
+     * Get or create a standard EQU name for a constant value
      * Returns the EQU name to use in code
+     * Dynamically builds the constant map as values are encountered
      */
     getStandardConstant(value: number): string {
-        // Map of common values to standard names
-        const standardConstants: Map<number, string> = new Map([
-            [0.001, 'k_0_001'],
-            [0.0, 'k_zero'],
-            [0.5, 'k_0_5'],
-            [1.0, 'k_one'],
-            [-1.0, 'k_neg_one'],
-            [-0.5, 'k_neg_0_5'],
-            [-0.25, 'k_neg_0_25'],
-            [0.25, 'k_0_25'],
-            [-0.75, 'k_neg_0_75'],
-            [0.75, 'k_0_75']
-        ]);
-        
-        // Check if this is a standard constant
-        const standardName = standardConstants.get(value);
-        if (standardName) {
-            // Register it if not already registered
-            if (!this.hasEqu(standardName)) {
-                this.registerEqu(standardName, value);
-            }
-            return standardName;
+        // Generate a name for this constant
+        // Convert value to a valid identifier (e.g., 0.6 -> k_0_6, -0.6 -> k_neg_0_6)
+        const valueStr = value.toString().replace('.', '_');
+        const absValueStr = valueStr.startsWith('-') ? valueStr.substring(1) : valueStr;
+        let name = value < 0 ? `k_neg_${absValueStr}` : `k_${absValueStr}`;
+
+        // Check if we already have an EQU for this value
+        const existingName = this.constantMap.get(name);
+        if (existingName) {
+            return existingName;
         }
-        
-        // For non-standard values, return the literal
-        return value.toString();
+
+        // Register the EQU
+        this.registerEqu(name, value.toString());
+
+        return name;
     }
     
     /**
@@ -397,18 +390,19 @@ export class CodeGenerationContext implements CodeGenContext {
     /**
      * Allocate delay memory for a block
      */
-    allocateMemory(blockIdOrType: string, size: number): { name: string; address: number; size: number } {
+    allocateMemory(name: string, size: number): { name: string; address: number; size: number } {
         // If blockIdOrType looks like a type (contains '.'), use current block ID
-        const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
+        const blockId = this.currentBlockId;
+
+        // I don't see why we would ever want to do this...
+        // // Check if already allocated
+        // const existing = this.memoryAllocations.find(
+        //     alloc => alloc.blockId === blockId
+        // );
         
-        // Check if already allocated
-        const existing = this.memoryAllocations.find(
-            alloc => alloc.blockId === blockId
-        );
-        
-        if (existing) {
-            return existing;
-        }
+        // if (existing) {
+        //     return existing;
+        // }
         
         // Check if enough memory available
         if (this.nextMemoryAddress + size > this.MAX_MEMORY) {
@@ -420,46 +414,48 @@ export class CodeGenerationContext implements CodeGenContext {
                 `but only ${this.MAX_MEMORY - (this.nextMemoryAddress - size)} available.`
             );
         }
-        
+
         // Generate a short, unique memory name based on block type
         // Follow same pattern as register aliases: use block type name + instance number
-        const block = this.graph.blocks.find(b => b.id === blockId);
-        let memName: string;
+        // const block = this.graph.blocks.find(b => b.id === blockId);
+        // let memName: string;
         
-        if (block) {
-            // Extract base name from block type (e.g., "effects.delay" -> "delay")
-            const typeParts = block.type.split('.');
-            const baseName = typeParts[typeParts.length - 1];
+        // if (block) {
+        //     // Extract base name from block type (e.g., "effects.delay" -> "delay")
+        //     const typeParts = block.type.split('.');
+        //     const baseName = typeParts[typeParts.length - 1];
             
-            // If there are multiple blocks of the same type, add instance number
-            const sameTypeBlocks = this.graph.blocks.filter(b => b.type === block.type);
-            let suffix = '';
-            if (sameTypeBlocks.length > 1) {
-                const index = sameTypeBlocks.findIndex(b => b.id === blockId);
-                suffix = `${index + 1}`;
-            }
+        //     // If there are multiple blocks of the same type, add instance number
+        //     const sameTypeBlocks = this.graph.blocks.filter(b => b.type === block.type);
+        //     let suffix = '';
+        //     if (sameTypeBlocks.length > 1) {
+        //         const index = sameTypeBlocks.findIndex(b => b.id === blockId);
+        //         suffix = `${index + 1}`;
+        //     }
             
-            memName = this.sanitizeIdentifier(`${baseName}${suffix}_mem`);
-        } else {
-            // Fallback to generic name with counter
-            memName = `mem${this.memoryAllocations.length}`;
-        }
+        //     memName = this.sanitizeIdentifier(`mem_${baseName}${suffix}_${name}`);
+        // } else {
+        //     // Fallback to generic name with counter
+        //     memName = `mem${this.memoryAllocations.length}_${name}`;
+        // }
+        // Just use a generic name with counter
+        let memName = `mem${this.memoryAllocations.length}_${name}`;
         
         // Ensure name doesn't exceed 32 characters (FV-1 limit)
         if (memName.length > 32) {
             memName = memName.substring(0, 32);
         }
-        
+
         const allocation = {
             blockId,
             name: memName,
             address: this.nextMemoryAddress,
             size
         };
-        
+
         this.memoryAllocations.push(allocation);
         this.nextMemoryAddress += size;
-        
+
         return allocation;
     }
     
@@ -510,6 +506,7 @@ export class CodeGenerationContext implements CodeGenContext {
         this.registerAllocations = [];
         this.memoryAllocations = [];
         this.equDeclarations = [];
+        this.constantMap.clear();
         this.initCode = [];
         this.inputCode = [];
         this.mainCode = [];
