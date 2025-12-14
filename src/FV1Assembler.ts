@@ -178,6 +178,7 @@ class FV1Assembler {
     ['LOG',   {opcode: 0b01011, numOperands: 2}],
     ['EXP',   {opcode: 0b01100, numOperands: 2}],
     ['SKP',   {opcode: 0b10001, numOperands: 2}],
+    ['JMP',   {opcode: 0b10001, numOperands: 1}],  // JMP is SKP with no flags
     ['NOP',   {opcode: 0b10001, numOperands: 0}],  // NOP is SKP with no flags and 0 offset
     // Register instructions
     ['RDAX',  {opcode: 0b00100, numOperands: 2}],
@@ -427,7 +428,9 @@ class FV1Assembler {
     // as MEM expressions which we need to resolve before replacing EQU symbols
     // globally in the code
     const totalDelayMemory = this.allocateDelayMemory();
+
     // Resolve any memory addresses in EQU values
+    // TODO: This isn't really needed except to match the SpinASM stats output
     for (const sym of this.symbols) {
       if (isNaN(parseFloat(sym.value))) {
         // Doesn't look like a number, so try parsing as a delay memory address
@@ -483,6 +486,26 @@ class FV1Assembler {
           const regex = new RegExp(`(?<=^|\\s|[^\\w])(${equ.name})(?=$|\\s|[^\\w])`, 'g');
           operands = operands.replace(regex, equ.value);
         }
+        // Resolve any memory addresses in operands
+        for (const mem of this.memories) {
+          // Replace all occurrences of memory names (with optional modifiers) in each subpart
+          {
+            const memName = mem.name + '#';
+            const regex = new RegExp(`(?<=^|\\s|[^\\w])(${mem.name}#)(?=$|\\s|[^\\w])`, 'g');
+            operands = operands.replace(regex, this.getMemoryAddressString(memName, lineNumber, mnemonic));
+          }
+          {
+            const memName = mem.name + '^';
+            const regex = new RegExp(`(?<=^|\\s|[^\\w])(${mem.name}\\^)(?=$|\\s|[^\\w])`, 'g');
+            operands = operands.replace(regex, this.getMemoryAddressString(memName, lineNumber, mnemonic));
+          }
+          {
+            const memName = mem.name;
+            const regex = new RegExp(`(?<=^|\\s|[^\\w])(${mem.name})(?=$|\\s|[^\\w])`, 'g');
+            operands = operands.replace(regex, this.getMemoryAddressString(memName, lineNumber, mnemonic));
+          }
+        }
+
         // Split on commas and trim whitespace
         const subParts = operands.split(',');
         for (const subPart of subParts) {
@@ -537,7 +560,7 @@ class FV1Assembler {
       lines.forEach((lineParts, lineNumber) => {
         errorLine = lineNumber;
         const mnemonic = lineParts[0];
-        const encoding = this.encodeInstruction(mnemonic, lineParts.slice(1), lineNumber);
+        const encoding = this.encodeInstruction(mnemonic, lineParts.slice(1), lineNumber, machineCode.length);
         if (encoding === null) {
           throw new Error('Encoding error');
         }
@@ -570,7 +593,7 @@ class FV1Assembler {
     return machineCode;
   }
 
-  private encodeInstruction(mnemonic: string, operands: string[], lineNumber: number): number | null {
+  private encodeInstruction(mnemonic: string, operands: string[], lineNumber: number, instructionLineNumber: number): number | null {
     const instruction = this.getInstruction(mnemonic, lineNumber, operands);
 
     if (instruction === null) {
@@ -623,7 +646,7 @@ class FV1Assembler {
           case this.predefinedSymbols.get('RDA'):   // 00CCCCCC0NNAAAAAAAAAAAAAAAA10100
           {
             const flags = this.parseInteger(operands[2], 6);
-            const addr = this.parseDelayMemoryAddress(operands[3], lineNumber, mnemonic);
+            const addr = this.parseInteger(operands[3]);
             if (flags === null || addr === null || n < 0 || n > 3) {
               this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
               return null;
@@ -679,15 +702,21 @@ class FV1Assembler {
       }
 
       case 'SKP': // CCCCCNNNNNN000000000000000010001
+      case 'JMP': // 00000NNNNNN000000000000000010001
       {
         // We don't range check flags as they are already left-shifted values
         // And we'll explicitly range check n to print a better error message
-        const flags = this.parseInteger(operands[0]);
-        let n = this.parseInteger(operands[1]);
+        let flags = 0;
+        let n_index = 0
+        if (mnemonic === 'SKP') {
+          flags = this.parseInteger(operands[0]);
+          n_index = 1;
+        }
+        let n = this.parseInteger(operands[n_index]);
         if (n === null) {
           // Must be a label, so try to resolve it
-          if (this.labels.has(operands[1])) {
-            n = this.labels.get(operands[1]).line - lineNumber - 1; // Relative to next instruction
+          if (this.labels.has(operands[n_index])) {
+            n = this.labels.get(operands[n_index]).instructionLine - instructionLineNumber - 1; // Relative to next instruction
           }
         }
         if (flags === null || n === null) {
@@ -736,7 +765,7 @@ class FV1Assembler {
       case 'WRA':  // CCCCCCCCCCCAAAAAAAAAAAAAAAA00010
       case 'WRAP': // CCCCCCCCCCCAAAAAAAAAAAAAAAA00011
       {
-        const addr = this.parseDelayMemoryAddress(operands[0], lineNumber, mnemonic);
+        const addr = this.parseInteger(operands[0]);
         const coeff = this.parseFixedPointNumber(operands[1], S1_9, lineNumber, mnemonic, 11);
         if (coeff === null || addr === null) {
           this.problems.push({message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
@@ -933,6 +962,25 @@ class FV1Assembler {
       }
     }
     return addr;
+  }
+
+  private getMemoryAddressString(memName: string, lineNumber?: number, mnemonic?: string): string {
+    const name = memName.toUpperCase().trim();
+    for (const mem of this.memories) {
+      if ( name === (mem.name + '#') ) {
+        return this.options.fv1AsmMemBug ? (mem.end + 1).toString() : mem.end.toString();
+      }
+      if ( name === (mem.name + '^') ) {
+        return mem.middle.toString();
+      }
+      if ( name === mem.name ) {
+        return mem.start.toString();
+      }
+    }
+    if (lineNumber !== undefined && mnemonic !== undefined) {
+      this.problems.push({message: `Line ${lineNumber}: Unknown delay memory '${memName}' in ${mnemonic} instruction`, isfatal: true, line: lineNumber});
+    }
+    return memName;
   }
 
   private getInstruction(mnemonic: string, lineNumber: number, operands: string[]): FV1Instruction | null {

@@ -59,8 +59,15 @@ export const FV1_INSTRUCTIONS: Record<string, InstructionDoc> = {
         name: 'SKP',
         syntax: 'SKP flags, N',
         description: 'Skip next N instructions based on condition flags.',
-        operands: 'flags: RUN, ZRC, ZRO, GEZ, NEG; N: number of instructions to skip',
+        operands: 'flags: RUN, ZRC, ZRO, GEZ, NEG; N: number of instructions to skip (or label)',
         example: 'SKP NEG, 2  ; Skip 2 instructions if ACC is negative'
+    },
+    'jmp': {
+        name: 'JMP',
+        syntax: 'JMP N',
+        description: 'Jump to instruction N unconditionally.',
+        operands: 'N: Instruction label to jump to',
+        example: 'JMP my_label  ; Jump to instruction at my_label'
     },
     
     // Register Instructions

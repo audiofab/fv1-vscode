@@ -60,7 +60,7 @@
             "patterns": [
                 {
                     "name": "keyword.accumulator.fv1",
-                    "match": "\\b(?i)(sof|and|or|xor|log|exp|skp)\\b"
+                    "match": "\\b(?i)(sof|and|or|xor|log|exp|skp|jmp)\\b"
                 },
                 {
                     "name": "keyword.register.fv1",
