@@ -23,6 +23,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
     
     // Graph state
     const [graph, setGraph] = useState<BlockGraph>(createEmptyGraph());
+    const graphRef = useRef<BlockGraph>(graph);
     const [blockMetadata, setBlockMetadata] = useState<BlockMetadata[]>([]);
     
     console.log('[Editor] Current graph:', graph);
@@ -75,6 +76,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                 case 'init':
                     console.log('[Editor] Initializing with graph:', message.graph);
                     setGraph(message.graph);
+                    graphRef.current = message.graph;
                     if (message.graph.canvas) {
                         setZoom(message.graph.canvas.zoom);
                         setPan({ x: message.graph.canvas.panX, y: message.graph.canvas.panY });
@@ -145,12 +147,17 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         };
         
         setGraph(updatedGraph);
-        vscode.postMessage({ 
-            type: 'update', 
-            graph: updatedGraph,
-            isDragging: options?.isDragging ?? isBlockDragging,
-            isCreatingConnection: options?.isCreatingConnection ?? (connectingFrom !== null)
-        });
+        graphRef.current = updatedGraph;
+
+        const dragging = options?.isDragging ?? isBlockDragging;
+        if (!dragging) {
+            vscode.postMessage({ 
+                type: 'update', 
+                graph: updatedGraph,
+                isDragging: false,
+                isCreatingConnection: options?.isCreatingConnection ?? (connectingFrom !== null)
+            });
+        }
     }, [vscode, zoom, pan, isBlockDragging, connectingFrom]);
     
     // Add block
@@ -684,6 +691,13 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                                 onDragStart={() => setIsBlockDragging(true)}
                                 onDragEnd={() => {
                                     setIsBlockDragging(false);
+                                    // Save final state
+                                    vscode.postMessage({ 
+                                        type: 'update', 
+                                        graph: graphRef.current,
+                                        isDragging: false,
+                                        isCreatingConnection: (connectingFrom !== null)
+                                    });
                                     // Notify extension to compile now that drag is complete
                                     vscode.postMessage({ type: 'dragEnd' });
                                 }}
