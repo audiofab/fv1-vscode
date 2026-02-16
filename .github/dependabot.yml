@@ -5,7 +5,23 @@
 
 version: 2
 updates:
-  - package-ecosystem: "npm" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  - package-ecosystem: npm
+    directory: "/"
     schedule:
-      interval: "weekly"
+      # Dependabot will only check once a month
+      interval: monthly
+
+    # Group related dependencies together so you don’t get spammed with PRs
+    groups:
+      vscode-types:
+        patterns:
+          - "@types/vscode"
+
+    # Ignore major and minor updates for @types/vscode
+    # so you only get patch-level fixes if needed
+    ignore:
+      - dependency-name: "@types/vscode"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+    # Optionally, limit the number of open PRs at once
+    open-pull-requests-limit: 5
