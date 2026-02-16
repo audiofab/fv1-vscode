@@ -126,17 +126,13 @@ export class FV1DocumentManager {
     /**
      * Register a listener to be notified when a document is assembled
      */
-    public addChangeListener(listener: (uri: vscode.Uri) => void): void {
+    public addChangeListener(listener: (uri: vscode.Uri) => void): vscode.Disposable {
         this.changeListeners.add(listener);
+        return new vscode.Disposable(() => {
+            this.changeListeners.delete(listener);
+        });
     }
-    
-    /**
-     * Remove a change listener
-     */
-    public removeChangeListener(listener: (uri: vscode.Uri) => void): void {
-        this.changeListeners.delete(listener);
-    }
-    
+
     /**
      * Notify all listeners that a document has been assembled
      */
