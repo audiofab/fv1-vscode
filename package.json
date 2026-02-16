@@ -340,7 +340,7 @@
   "devDependencies": {
     "@types/node": "25.x",
     "@types/node-hid": "^3.0.0",
-    "@types/react": "^19.2.7",
+    "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.2",
     "@types/uuid": "^11.0.0",
     "@types/vscode": "^1.75.0",
@@ -354,7 +354,7 @@
     "@johntalton/mcp2221": "^4.0.4",
     "konva": "^10.0.12",
     "node-hid": "^3.2.0",
-    "react": "^19.2.3",
+    "react": "^19.2.4",
     "react-dom": "^19.2.0",
     "react-konva": "^19.2.2",
     "uuid": "^13.0.0"
