@@ -17,26 +17,54 @@ export class FV1Simulator {
     private delayRam: Float32Array;
     private registers: Float32Array;
     private program: Uint32Array;
-    
+
     private acc: number = 0;
     private pacc: number = 0;
     private lr: number = 0;     // Last Read register
+
     private lfo: number = 0;    // Internal LFO fregister (for CHO)
     private delayPointer: number = 0; // Circular buffer pointer
     private firstRun: boolean = true;
+    private pc: number = 0;     // Program Counter
+    private breakpoints: Set<number> = new Set();
 
-    // LFO State
-    private sin0: number = 0;
-    private cos0: number = 0;
-    private sin1: number = 0;
-    private cos1: number = 0;
-    private rmp0: number = 0;
-    private rmp1: number = 0;
+    // Register aliases (Getters/Setters)
+    // 0-7: Parameters
+    private get sin0_rate(): number { return this.registers[0]; }
+    private set sin0_rate(v: number) { this.registers[0] = v; }
+    private get sin0_range(): number { return this.registers[1]; }
+    private set sin0_range(v: number) { this.registers[1] = v; }
 
-    private sin0_rate: number = 0; private sin0_range: number = 0;
-    private sin1_rate: number = 0; private sin1_range: number = 0;
-    private rmp0_rate: number = 0; private rmp0_range: number = 0;
-    private rmp1_rate: number = 0; private rmp1_range: number = 0;
+    private get sin1_rate(): number { return this.registers[2]; }
+    private set sin1_rate(v: number) { this.registers[2] = v; }
+    private get sin1_range(): number { return this.registers[3]; }
+    private set sin1_range(v: number) { this.registers[3] = v; }
+
+    private get rmp0_rate(): number { return this.registers[4]; }
+    private set rmp0_rate(v: number) { this.registers[4] = v; }
+    private get rmp0_range(): number { return this.registers[5]; }
+    private set rmp0_range(v: number) { this.registers[5] = v; }
+
+    private get rmp1_rate(): number { return this.registers[6]; }
+    private set rmp1_rate(v: number) { this.registers[6] = v; }
+    private get rmp1_range(): number { return this.registers[7]; }
+    private set rmp1_range(v: number) { this.registers[7] = v; }
+
+    // 8-13: Internal State accumulators (aliased as registers for the debugger)
+    private get sin0(): number { return this.registers[8]; }
+    private set sin0(v: number) { this.registers[8] = v; }
+    private get cos0(): number { return this.registers[9]; }
+    private set cos0(v: number) { this.registers[9] = v; }
+
+    private get sin1(): number { return this.registers[10]; }
+    private set sin1(v: number) { this.registers[10] = v; }
+    private get cos1(): number { return this.registers[11]; }
+    private set cos1(v: number) { this.registers[11] = v; }
+
+    private get rmp0(): number { return this.registers[12]; }
+    private set rmp0(v: number) { this.registers[12] = v; }
+    private get rmp1(): number { return this.registers[13]; }
+    private set rmp1(v: number) { this.registers[13] = v; }
 
     constructor() {
         this.delayRam = new Float32Array(FV1Simulator.DELAY_SIZE);
@@ -67,9 +95,10 @@ export class FV1Simulator {
         this.pacc = 0;
         this.lr = 0;
         this.lfo = 0;
+        this.pc = 0;
         this.delayPointer = 0;
         this.firstRun = true;
-        
+
         this.sin0 = 0; this.cos0 = 1.0;
         this.sin1 = 0; this.cos1 = 1.0;
         this.rmp0 = 0; this.rmp1 = 0;
@@ -77,21 +106,21 @@ export class FV1Simulator {
     }
 
     /**
+     * Set breakpoints at specific instruction addresses.
+     * @param addresses Set of addresses to break at.
+     */
+    public setBreakpoints(addresses: Set<number>) {
+        this.breakpoints = addresses;
+    }
+
+    /**
      * Process a block of audio samples.
      * Useful for real-time audio processing in AudioWorklets.
-     * 
-     * @param inputL Input Left channel samples
-     * @param inputR Input Right channel samples
-     * @param outputL Output Left channel samples (will be written to)
-     * @param outputR Output Right channel samples (will be written to)
-     * @param pot0 Potentiometer 0 value (0.0 to 1.0)
-     * @param pot1 Potentiometer 1 value (0.0 to 1.0)
-     * @param pot2 Potentiometer 2 value (0.0 to 1.0)
      */
     public processBlock(
-        inputL: Float32Array, 
-        inputR: Float32Array, 
-        outputL: Float32Array, 
+        inputL: Float32Array,
+        inputR: Float32Array,
+        outputL: Float32Array,
         outputR: Float32Array,
         pot0: number,
         pot1: number,
@@ -110,47 +139,63 @@ export class FV1Simulator {
      * Executes the entire 128-instruction program for this sample.
      */
     public step(inL: number, inR: number, pot0: number, pot1: number, pot2: number): [number, number] {
+        this.beginFrame(inL, inR, pot0, pot1, pot2);
+
+        while (this.pc < FV1Simulator.PROG_SIZE) {
+            this.stepInstruction();
+        }
+
+        return this.endFrame();
+    }
+
+    /**
+     * Prepares for a single sample frame step.
+     */
+    public beginFrame(inL: number = 0, inR: number = 0, pot0: number = 0, pot1: number = 0, pot2: number = 0) {
         // Map inputs to registers (Standard FV-1 mapping)
-        // ADCL = REG20, ADCR = REG21
         this.registers[20] = inL;
         this.registers[21] = inR;
-        
-        // Map POTs to registers (Common convention: REG16-18, or accessed via RDAX POTx)
-        // We store them here so RDAX instructions referencing them work if mapped.
         this.registers[16] = pot0;
         this.registers[17] = pot1;
         this.registers[18] = pot2;
 
-        // Execute Program
+        // Execute Program Setup
         this.acc = 0; // Accumulator is cleared at start of run
         this.lr = 0;  // LR is transient
         this.pacc = 0;
+        this.pc = 0;
+    }
 
-        let pc = 0;
-        while (pc < FV1Simulator.PROG_SIZE) {
-            const inst = this.program[pc];
-            const opcode = inst & 0x1F;
-            const preOpAcc = this.acc; // Capture ACC before modification
-
-            // Execute and get skip count (usually 0)
-            const skip = this.executeInstruction(inst);
-            
-            // Update PACC if not SKP. PACC holds the ACC value *before* the current instruction.
-            if (opcode !== 0x11) {
-                this.pacc = preOpAcc;
-            }
-            
-            pc += 1 + skip;
-        }
-
+    public endFrame(): [number, number] {
         this.firstRun = false;
         this.updateLFOs();
-        
+
         // Advance Delay Pointer (Circular Buffer)
         this.delayPointer = (this.delayPointer - 1) & 0x7FFF;
 
         // Outputs (DACL = REG22, DACR = REG23)
         return [this.registers[22], this.registers[23]];
+    }
+
+    /**
+     * Executes a single instruction at the current PC.
+     * @returns The next PC address.
+     */
+    public stepInstruction(): number {
+        if (this.pc >= FV1Simulator.PROG_SIZE) return this.pc;
+
+        const inst = this.program[this.pc];
+        const opcode = inst & 0x1F;
+        const preOpAcc = this.acc;
+
+        const skip = this.executeInstruction(inst);
+
+        if (opcode !== 0x11) { // Not SKP
+            this.pacc = preOpAcc;
+        }
+
+        this.pc += 1 + skip;
+        return this.pc;
     }
 
     private executeInstruction(inst: number): number {
@@ -241,11 +286,11 @@ export class FV1Simulator {
         // Encoding: CCCCCCCCCCCAAAAAAAAAAAAAAAA00000
         const addr = (inst >>> 5) & 0x7FFF;
         const coeff = this.decodeS1_9((inst >>> 21) & 0x7FF);
-        
+
         // Address is relative to current delay pointer in circular buffer
         const readAddr = (this.delayPointer + addr) & 0x7FFF;
         const val = this.delayRam[readAddr];
-        
+
         this.lr = val;
         this.acc += val * coeff;
         this.acc = this.saturate(this.acc);
@@ -260,7 +305,7 @@ export class FV1Simulator {
 
         const writeAddr = (this.delayPointer + addr) & 0x7FFF;
         this.delayRam[writeAddr] = this.acc;
-        
+
         this.acc *= coeff;
         this.acc = this.saturate(this.acc);
     }
@@ -275,7 +320,7 @@ export class FV1Simulator {
 
         const writeAddr = (this.delayPointer + addr) & 0x7FFF;
         this.delayRam[writeAddr] = this.acc;
-        
+
         // ACC = ACC * coeff + LR
         this.acc = this.acc * coeff + this.lr;
         this.acc = this.saturate(this.acc);
@@ -322,7 +367,7 @@ export class FV1Simulator {
         // Encoding: CCCCCCCCCCC000000000001100000001 (or similar, coeff is top)
         const coeff = this.decodeS1_9((inst >>> 21) & 0x7FF);
         const ptr = Math.floor(this.registers[24] * 32768); // Assuming REG24 is pointer
-        
+
         const readAddr = (this.delayPointer + ptr) & 0x7FFF;
         const val = this.delayRam[readAddr];
         this.lr = val;
@@ -391,10 +436,10 @@ export class FV1Simulator {
         // Encoding: CCCCCNNNNNN000000000000000010001
         const n = (inst >>> 21) & 0x3F;
         const flags = inst & 0xF8000000;
-        
+
         let conditionMet = false;
         // Flags: RUN=0x80000000, ZRC=0x40000000, ZRO=0x20000000, GEZ=0x10000000, NEG=0x08000000
-        
+
         if ((flags & 0x08000000) && this.acc < 0) conditionMet = true; // NEG
         if ((flags & 0x10000000) && this.acc >= 0) conditionMet = true; // GEZ
         if ((flags & 0x20000000) && this.acc === 0) conditionMet = true; // ZRO
@@ -472,7 +517,7 @@ export class FV1Simulator {
         const lfo = (inst >>> 29) & 0x1; // 0=SIN0, 1=SIN1
         const freq = (inst >>> 20) & 0x1FF;
         const amp = (inst >>> 5) & 0x7FFF;
-        
+
         // Map to 32-bit integer range
         // rate = f / 511.0; range = a / 32767.0;
         if (lfo === 0) {
@@ -614,30 +659,111 @@ export class FV1Simulator {
     private opCHO_RDAL(inst: number) {
         const flags = (inst >>> 24) & 0x3F;
         const lfoSelect = (inst >>> 21) & 0x3;
-        
+
         const lfoIn = this.getLfoVal(flags, lfoSelect);
         this.acc = lfoIn;
         this.acc = this.saturate(this.acc);
     }
 
+    // --- Debugging / State Access ---
+
+    public getPC(): number {
+        return this.pc;
+    }
+
+    public setPC(pc: number) {
+        this.pc = Math.max(0, Math.min(FV1Simulator.PROG_SIZE - 1, pc));
+    }
+
+    public setAcc(val: number) {
+        this.acc = this.saturate(val);
+    }
+
+    public setPacc(val: number) {
+        this.pacc = this.saturate(val);
+    }
+
+    public getState() {
+        return {
+            pc: this.pc,
+            acc: this.acc,
+            pacc: this.pacc,
+            lr: this.lr,
+            lfo: this.lfo,
+            // Official Register Naming
+            registers: Object.fromEntries(
+                Array.from({ length: 64 }, (_, i) => {
+                    let name = `[${i}]`;
+                    if (i === 0) name = "SIN0_RATE";
+                    else if (i === 1) name = "SIN0_RANGE";
+                    else if (i === 2) name = "SIN1_RATE";
+                    else if (i === 3) name = "SIN1_RANGE";
+                    else if (i === 4) name = "RMP0_RATE";
+                    else if (i === 5) name = "RMP0_RANGE";
+                    else if (i === 6) name = "RMP1_RATE";
+                    else if (i === 7) name = "RMP1_RANGE";
+                    else if (i === 8) name = "SIN0";
+                    else if (i === 9) name = "COS0";
+                    else if (i === 10) name = "SIN1";
+                    else if (i === 11) name = "COS1";
+                    else if (i === 12) name = "RMP0";
+                    else if (i === 13) name = "RMP1";
+                    else if (i === 16) name = "POT0";
+                    else if (i === 17) name = "POT1";
+                    else if (i === 18) name = "POT2";
+                    else if (i === 20) name = "ADCL";
+                    else if (i === 21) name = "ADCR";
+                    else if (i === 22) name = "DACL";
+                    else if (i === 23) name = "DACR";
+                    else if (i === 24) name = "ADDR_PTR";
+                    else if (i >= 32 && i <= 63) name = `REG${i - 32}`;
+
+                    return [name, this.registers[i]];
+                })
+            ),
+            // Flags
+            flags: {
+                RUN: this.firstRun,
+                ZRC: (this.acc * this.pacc < 0),
+                ZRO: (this.acc === 0),
+                GEZ: (this.acc >= 0),
+                NEG: (this.acc < 0)
+            },
+            // LFO Internal positions
+            lfoState: {
+                sin0: this.sin0, cos0: this.cos0,
+                sin1: this.sin1, cos1: this.cos1,
+                rmp0: this.rmp0, rmp1: this.rmp1
+            }
+        };
+    }
+
+    public getRegisters(): Float32Array {
+        return this.registers;
+    }
+
+    public getDelayRam(): Float32Array {
+        return this.delayRam;
+    }
+
     private updateLFOs() {
         // RMP0
-        this.rmp0 -= this.rmp0_rate * (1.0/4096.0);
+        this.rmp0 -= this.rmp0_rate * (1.0 / 4096.0);
         while (this.rmp0 >= 1.0) this.rmp0 -= 1.0;
-        while (this.rmp0 < 0.0) this.rmp0 += 1.0;
+        while (this.rmp0 < -1.0) this.rmp0 += 1.0; // Fixed ramp wrap
 
         // RMP1
-        this.rmp1 -= this.rmp1_rate * (1.0/4096.0);
+        this.rmp1 -= this.rmp1_rate * (1.0 / 4096.0);
         while (this.rmp1 >= 1.0) this.rmp1 -= 1.0;
-        while (this.rmp1 < 0.0) this.rmp1 += 1.0;
+        while (this.rmp1 < -1.0) this.rmp1 += 1.0; // Fixed ramp wrap
 
         // SIN0
-        let x = this.sin0_rate * (1.0/256.0);
+        let x = this.sin0_rate * (1.0 / 256.0);
         this.cos0 += x * this.sin0;
         this.sin0 -= x * this.cos0;
 
         // SIN1
-        x = this.sin1_rate * (1.0/256.0);
+        x = this.sin1_rate * (1.0 / 256.0);
         this.cos1 += x * this.sin1;
         this.sin1 -= x * this.cos1;
     }

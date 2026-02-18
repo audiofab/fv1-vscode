@@ -29,7 +29,12 @@
     "dsp",
     "audio"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onDebug",
+    "onDebugInitialConfigurations",
+    "onDebugResolve:fv1-debug",
+    "onLanguage:fv1-assembly"
+  ],
   "main": "./dist/extension.cjs",
   "contributes": {
     "viewsContainers": {
@@ -185,6 +190,11 @@
         "command": "fv1.backupPedal",
         "title": "Backup pedal",
         "category": "FV-1"
+      },
+      {
+        "command": "fv1.startDebugger",
+        "title": "Start FV-1 Debugger",
+        "category": "FV-1"
       }
     ],
     "keybindings": [
@@ -254,9 +264,18 @@
         {
           "command": "fv1.loadHexToEeprom",
           "when": "resourceExtname == .hex"
+        },
+        {
+          "command": "fv1.startDebugger",
+          "when": "resourceExtname == .spn"
         }
       ],
       "editor/context": [
+        {
+          "when": "resourceExtname == .spn",
+          "command": "fv1.startDebugger",
+          "group": "fv1@0"
+        },
         {
           "when": "resourceExtname == .spn",
           "command": "fv1.assemble",
@@ -275,6 +294,43 @@
       ],
       "explorer/context": []
     },
+    "debuggers": [
+      {
+        "type": "fv1-debug",
+        "label": "FV-1 Simulator Debugger",
+        "languages": [
+          "fv1-assembly"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Path to the .spn file to debug.",
+                "default": "${file}"
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "description": "Stop at the first instruction after launch.",
+                "default": true
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "fv1-debug",
+            "request": "launch",
+            "name": "Debug current .spn file",
+            "program": "${file}",
+            "stopOnEntry": true
+          }
+        ]
+      }
+    ],
     "configuration": {
       "title": "Audiofab FV-1",
       "properties": {
@@ -334,6 +390,7 @@
     "compile-tests": "tsc -p ./ --outDir out",
     "pretest": "npm run compile-tests",
     "test": "node test/assembler-test.mjs",
+    "test-sim": "node test/simulator-test.mjs",
     "vscode:prepublish": "npm run package",
     "package": "npm run check-types && node esbuild.cjs --production"
   },

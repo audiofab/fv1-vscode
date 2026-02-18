@@ -22,8 +22,8 @@ export class StatusBarService implements vscode.Disposable {
         this.memoryStatusBar.tooltip = 'FV-1 Delay Memory Used';
 
         this.disposables.push(
-            this.instructionsStatusBar, 
-            this.registersStatusBar, 
+            this.instructionsStatusBar,
+            this.registersStatusBar,
             this.memoryStatusBar,
             vscode.window.onDidChangeActiveTextEditor(editor => this.update(editor?.document)),
             this.blockDiagramDocumentManager.onCompilationChange(uri => this.handleUriChange(uri)),
@@ -65,7 +65,7 @@ export class StatusBarService implements vscode.Disposable {
                 const instructionCount = result.machineCode.filter(code => code !== NOP_ENCODING).length;
                 stats = {
                     instructionsUsed: instructionCount,
-                    registersUsed: 0,
+                    registersUsed: result.usedRegistersCount,
                     memoryUsed: result.memories.reduce((total, mem) => total + mem.size, 0)
                 };
             }
@@ -77,7 +77,7 @@ export class StatusBarService implements vscode.Disposable {
         }
 
         this.updateItem(this.instructionsStatusBar, stats.instructionsUsed, 128, '$(circuit-board)');
-        
+
         if (stats.registersUsed > 0 || fileName.endsWith('.spndiagram')) {
             this.updateItem(this.registersStatusBar, stats.registersUsed, 32, '$(database)');
         } else {

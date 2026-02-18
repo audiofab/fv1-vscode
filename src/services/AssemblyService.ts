@@ -11,20 +11,20 @@ export class AssemblyService {
         private outputService: OutputService,
         private fv1DocumentManager: FV1DocumentManager,
         private blockDiagramDocumentManager: BlockDiagramDocumentManager
-    ) {}
+    ) { }
 
     public async compileBlockDiagram(diagramPath: string): Promise<string | null> {
         try {
             this.outputService.log(`[INFO] 🔧 Compiling block diagram ${path.basename(diagramPath)}...`);
-            
+
             const uri = vscode.Uri.file(diagramPath);
             let document = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
             if (!document) {
                 document = await vscode.workspace.openTextDocument(uri);
             }
-            
+
             const result = this.blockDiagramDocumentManager.getCompilationResult(document);
-            
+
             if (result.success && result.assembly) {
                 const stats = result.statistics!;
                 this.outputService.log(
@@ -33,11 +33,11 @@ export class AssemblyService {
                     `Registers: ${stats.registersUsed}/32, ` +
                     `Memory: ${stats.memoryUsed}/32768`
                 );
-                
+
                 if (result.warnings && result.warnings.length > 0) {
                     result.warnings.forEach(warn => this.outputService.log(`[WARNING] ⚠ ${warn}`));
                 }
-                
+
                 return result.assembly;
             } else {
                 const errors = result.errors || ['Unknown compilation error'];
@@ -54,20 +54,20 @@ export class AssemblyService {
     public async assembleActiveDocument(): Promise<FV1AssemblerResult | undefined> {
         const verbose: boolean = vscode.workspace.getConfiguration('fv1').get<boolean>('verbose') ?? false;
         const fileUri = getActiveDocumentUri();
-        
+
         if (!fileUri) {
             vscode.window.showErrorMessage('No active editor');
             return undefined;
         }
-        
+
         const filePath = fileUri.fsPath;
-        
+
         // Handle Block Diagram
         if (filePath.endsWith('.spndiagram')) {
             const assembly = await this.compileBlockDiagram(filePath);
             if (!assembly) return undefined;
-            
-            const assembler = new FV1Assembler({ 
+
+            const assembler = new FV1Assembler({
                 fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
                 clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
             });
@@ -75,13 +75,13 @@ export class AssemblyService {
             this.logAssemblyResult(result, path.basename(filePath), verbose);
             return result;
         }
-        
+
         // Handle .spn file
         if (!filePath.endsWith('.spn')) {
             vscode.window.showErrorMessage('Active file is not an FV-1 assembly file (.spn) or block diagram (.spndiagram)');
             return undefined;
         }
-        
+
         let document = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === fileUri.toString());
         if (!document) {
             vscode.window.showErrorMessage('Could not access document');
@@ -113,7 +113,8 @@ export class AssemblyService {
 
         if (!hasErrors && result.machineCode && result.machineCode.length > 0) {
             if (verbose) this.outputService.log(FV1Assembler.formatMachineCode(result.machineCode));
-            this.outputService.log(`[SUCCESS] ✅ Assembly completed successfully - ${fileName}`);
+            const regCount = result.usedRegistersCount;
+            this.outputService.log(`[SUCCESS] ✅ Assembly completed successfully - ${fileName} (${result.machineCode.length} instructions, ${regCount}/32 registers used)`);
         } else if (hasErrors) {
             this.outputService.log(`[ERROR] ❌ Assembly failed with errors - ${fileName}`);
         } else {
@@ -126,8 +127,8 @@ export class AssemblyService {
             if (fsPath.toLowerCase().endsWith('.spndiagram')) {
                 const assembly = await this.compileBlockDiagram(fsPath);
                 if (!assembly) return undefined;
-                
-                const assembler = new FV1Assembler({ 
+
+                const assembler = new FV1Assembler({
                     fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
                     clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
                 });
