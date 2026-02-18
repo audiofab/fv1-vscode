@@ -132,6 +132,10 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                     }
                     break;
 
+                case 'evaluate':
+                    this.evaluate(request.arguments, response);
+                    break;
+
                 default:
                     response.success = false;
                     response.message = `Unsupported request: ${request.command}`;
@@ -228,7 +232,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             { name: "Registers", variablesReference: this.createVarHandle("registers", () => this.getRegistersVars()), expensive: false },
             { name: "Program Variables", variablesReference: this.createVarHandle("program", () => this.getProgramVars()), expensive: false },
             { name: "Accumulator/Flags", variablesReference: this.createVarHandle("accflags", () => this.getAccFlagsVars()), expensive: false },
-            { name: "Delay RAM (Partial)", variablesReference: this.createVarHandle("delayram", () => this.getDelayRamVars()), expensive: true }
+            { name: "Delay RAM", variablesReference: this.createVarHandle("delayram_root", () => this.getDelayRamRootVars()), expensive: true }
         ];
 
         response.body = { scopes };
@@ -358,6 +362,101 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         return `R${addr}`;
     }
 
+    private evaluate(args: any, response: any) {
+        const expression = args.expression.trim().toUpperCase();
+        const state = this.simulator.getState();
+        const ram = this.simulator.getDelayRam();
+
+        // 1. Check if it's a register
+        if (state.registers[expression] !== undefined) {
+            response.body = { result: this.formatValue(state.registers[expression]), variablesReference: 0 };
+            return;
+        }
+
+        // 2. Check if it's ACC/PACC
+        if (expression === "ACC") {
+            response.body = { result: this.formatValue(state.acc), variablesReference: 0 };
+            return;
+        }
+        if (expression === "PACC") {
+            response.body = { result: this.formatValue(state.pacc), variablesReference: 0 };
+            return;
+        }
+
+        // 3. Check symbols (EQU/MEM)
+        const sym = this.symbols.find(s => s.name.toUpperCase() === expression);
+        if (sym) {
+            const addr = parseInt(sym.value);
+            if (!isNaN(addr) && addr >= 0 && addr <= 63) {
+                response.body = { result: `REG[${addr}]: ${this.formatValue(this.simulator.getRegisters()[addr])}`, variablesReference: 0 };
+                return;
+            }
+        }
+
+        const mem = this.memories.find(m => m.name.toUpperCase() === expression);
+        if (mem && mem.start !== undefined) {
+            response.body = { result: `MEM[${mem.start}]: ${this.formatValue(ram[mem.start])} (Size: ${mem.size})`, variablesReference: 0 };
+            return;
+        }
+
+        // 4. Case: DELAY[123]
+        const delayMatch = expression.match(/^DELAY\[(\d+)\]$/);
+        if (delayMatch) {
+            const idx = parseInt(delayMatch[1]);
+            if (idx >= 0 && idx < 32768) {
+                response.body = { result: this.formatValue(ram[idx]), variablesReference: 0 };
+                return;
+            }
+        }
+
+        response.success = false;
+        response.message = "Unknown variable or register";
+    }
+
+    private getDelayRamRootVars(): any[] {
+        const vars: any[] = [];
+        // Divide 32768 into 32 groups of 1024
+        for (let i = 0; i < 32; i++) {
+            const start = i * 1024;
+            const end = start + 1023;
+            vars.push({
+                name: `Samples ${start}-${end}`,
+                value: "Group",
+                variablesReference: this.createVarHandle(`delayram_group_${i}`, () => this.getDelayRamGroupVars(i))
+            });
+        }
+        return vars;
+    }
+
+    private getDelayRamGroupVars(groupIdx: number): any[] {
+        const ram = this.simulator.getDelayRam();
+        const start = groupIdx * 1024;
+        const vars: any[] = [];
+        // Further divide into 16 sub-groups of 64 or just show 1024?
+        // Let's do 10 sub-groups of ~100 to avoid overwhelming the UI
+        for (let i = 0; i < 10; i++) {
+            const subStart = start + i * 100;
+            const subEnd = Math.min(subStart + 99, start + 1023);
+            if (subStart >= 32768) break;
+            vars.push({
+                name: `[${subStart}-${subEnd}]`,
+                value: "...",
+                variablesReference: this.createVarHandle(`delayram_sub_${groupIdx}_${i}`, () => this.getDelayRamSubGroupVars(subStart, subEnd))
+            });
+        }
+        return vars;
+    }
+
+    private getDelayRamSubGroupVars(start: number, end: number): any[] {
+        const ram = this.simulator.getDelayRam();
+        const vars: any[] = [];
+        for (let i = start; i <= end; i++) {
+            if (i >= 32768) break;
+            vars.push({ name: `[${i}]`, value: this.formatValue(ram[i]), type: "float", variablesReference: 0 });
+        }
+        return vars;
+    }
+
     private getRegistersVars(): any[] {
         const state = this.simulator.getState();
         return Object.entries(state.registers).map(([name, val]) => ({
@@ -378,16 +477,6 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         Object.entries(state.flags).forEach(([name, val]) => {
             vars.push({ name: name, value: val.toString(), type: "boolean", variablesReference: 0 });
         });
-        return vars;
-    }
-
-    private getDelayRamVars(): any[] {
-        const ram = this.simulator.getDelayRam();
-        // Only show non-zero values or a small window to avoid overwhelming
-        const vars: any[] = [];
-        for (let i = 0; i < 100; i++) { // First 100
-            vars.push({ name: `[${i}]`, value: this.formatValue(ram[i]), type: "float", variablesReference: 0 });
-        }
         return vars;
     }
 
