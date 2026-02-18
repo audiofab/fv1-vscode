@@ -171,6 +171,24 @@ const S4_6 = new SignedFixedPointNumber(4, 6, 16.0);
 class FV1Assembler {
   private NOP_ENCODING = 0x0000_0011;
 
+  public static getMiddleAddr(start: number, size: number): number {
+    if (size % 2) {
+      // Odd size, so the middle sample is (size - 1) / 2 - 1
+      return start + (size - 1) / 2 - 1;
+    } else {
+      return start + size / 2;
+    }
+  }
+
+  public static getEndAddr(start: number, size: number, fv1AsmMemBug: boolean = false): number {
+    const end = start + size - 1;
+    if (fv1AsmMemBug) {
+      // Simulate SpinASM bug where the end address is actually one more than it should be
+      return end + 1;
+    }
+    return end;
+  }
+
   private readonly instructions = new Map<string, FV1Instruction>([
     // Accumulator instructions
     ['SOF', { opcode: 0b01101, numOperands: 2 }],
@@ -543,19 +561,12 @@ class FV1Assembler {
       if (nextAvailableAddress > this.MAX_DELAY_MEMORY) {
         this.problems.push({ message: `Total delay memory exceeds ${this.MAX_DELAY_MEMORY} words`, isfatal: true, line: mem.line });
       }
-      mem.end = nextAvailableAddress - 1;
+      mem.end = FV1Assembler.getEndAddr(mem.start, mem.size); // Logical end (without bug)
       if (this.options.fv1AsmMemBug) {
-        // Simulate SpinASM bug where the next available address is
-        // actually one more than it should be, wasting a word of memory per block
-        // And also mis-calculating the end address by one
+        // Recycle the static calculation but add the extra skip if bug is on
         nextAvailableAddress += 1;
       }
-      if (mem.size % 2) {
-        // Odd size, so the middle sample is (size - 1) / 2 - 1
-        mem.middle = mem.start + (mem.size - 1) / 2 - 1;
-      } else {
-        mem.middle = mem.start + mem.size / 2;
-      }
+      mem.middle = FV1Assembler.getMiddleAddr(mem.start, mem.size);
     });
     return nextAvailableAddress;
   }
@@ -945,14 +956,9 @@ class FV1Assembler {
           if (mem.name === name || (mem.name + '#') === name || (mem.name + '^') === name) {
             base = mem.start;
             if (name.endsWith('#')) {
-              if (this.options.fv1AsmMemBug) {
-                // Simulate SpinASM bug where the end address is actually one more than it should be
-                base = mem.end + 1;
-              } else {
-                base = mem.end;
-              }
+              base = FV1Assembler.getEndAddr(mem.start, mem.size, !!this.options.fv1AsmMemBug);
             } else if (name.endsWith('^')) {
-              base = mem.middle;
+              base = FV1Assembler.getMiddleAddr(mem.start, mem.size);
             }
             break;
           }

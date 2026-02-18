@@ -14,6 +14,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
     private lineToAddressMap = new Map<number, number>();
     private maxMappedAddr = -1;
     private breakpoints = new Set<number>();
+    private rawBreakpoints: any[] = []; // Store raw breakpoint info from client
     private isRunning = false;
     private stopOnEntry = false;
     private timerHandle: any = null;
@@ -57,6 +58,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                         supportsRestartRequest: true,
                         supportsSupportTerminateDebuggee: true,
                         supportsTerminateRequest: true,
+                        supportsSetBreakpoints: true,
                     };
                     break;
 
@@ -172,6 +174,9 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         this.symbols = result.symbols;
         this.memories = result.memories;
 
+        // Pass symbols to simulator for expression resolution
+        this.simulator.setSymbols(this.symbols, this.memories, !!this.assembler['options'].fv1AsmMemBug);
+
         this.lineToAddressMap.clear();
         this.maxMappedAddr = -1;
         for (const [addr, line] of this.addressToLineMap) {
@@ -180,14 +185,43 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         }
 
         this.simulator.reset();
+
+        // Re-verify breakpoints now that we have the line map
+        this.verifyBreakpoints();
+    }
+
+    private verifyBreakpoints() {
+        this.breakpoints.clear();
+        const actualBps: any[] = [];
+
+        for (const bp of this.rawBreakpoints) {
+            const line = bp.line;
+            const addr = this.lineToAddressMap.get(line);
+            if (addr !== undefined) {
+                this.breakpoints.add(addr);
+                actualBps.push({ verified: true, line: line });
+            } else {
+                actualBps.push({ verified: false, line: line });
+            }
+        }
+
+        this.simulator.setBreakpoints(this.breakpoints);
+
+        // Send breakpoint events to update the UI
+        for (const bp of actualBps) {
+            this.sendEvent('breakpoint', {
+                reason: 'changed',
+                breakpoint: bp
+            });
+        }
     }
 
     private setBreakpoints(args: any, response: any) {
-        const clientBps = args.breakpoints || [];
+        this.rawBreakpoints = args.breakpoints || [];
         const actualBps: any[] = [];
         this.breakpoints.clear();
 
-        for (const bp of clientBps) {
+        for (const bp of this.rawBreakpoints) {
             const line = bp.line;
             const addr = this.lineToAddressMap.get(line);
             if (addr !== undefined) {
@@ -229,9 +263,9 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         this.nextVarHandle = 1;
 
         const scopes = [
-            { name: "Registers", variablesReference: this.createVarHandle("registers", () => this.getRegistersVars()), expensive: false },
-            { name: "Program Variables", variablesReference: this.createVarHandle("program", () => this.getProgramVars()), expensive: false },
             { name: "Accumulator/Flags", variablesReference: this.createVarHandle("accflags", () => this.getAccFlagsVars()), expensive: false },
+            { name: "Program Variables", variablesReference: this.createVarHandle("program", () => this.getProgramVars()), expensive: false },
+            { name: "Registers", variablesReference: this.createVarHandle("registers", () => this.getRegistersVars()), expensive: false },
             { name: "Delay RAM", variablesReference: this.createVarHandle("delayram_root", () => this.getDelayRamRootVars()), expensive: true }
         ];
 
@@ -279,40 +313,34 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         }
 
         if (info.type === 'registers') {
-            const regs = this.simulator.getRegisters();
             const state = this.simulator.getState();
             // Find index by name mapping
             const entry = Object.entries(state.registers).find(([n, _]) => n === name);
             if (entry) {
-                // If it's a REGx name, it might be in the 32-63 range
+                // Determine register index from name
                 const regIdxMatch = name.match(/^REG(\d+)$/);
                 if (regIdxMatch) {
-                    const idx = parseInt(regIdxMatch[1]);
-                    regs[32 + idx] = value;
+                    this.simulator.setRegister(32 + parseInt(regIdxMatch[1]), value);
+                } else if (name.match(/^\[(\d+)\]$/)) {
+                    this.simulator.setRegister(parseInt(name.match(/\[(\d+)\]/)![1]), value);
                 } else {
-                    // Try to find the hardware index for named registers
-                    const hwNames = ["SIN0_RATE", "SIN0_RANGE", "SIN1_RATE", "SIN1_RANGE", "RMP0_RATE", "RMP0_RANGE", "RMP1_RATE", "RMP1_RANGE"];
-                    const hwIdx = hwNames.indexOf(name);
-                    if (hwIdx !== -1) {
-                        regs[hwIdx] = value;
-                    } else {
-                        const otherNames: Record<string, number> = {
-                            "POT0": 16, "POT1": 17, "POT2": 18,
-                            "ADCL": 20, "ADCR": 21, "DACL": 22, "DACR": 23, "ADDR_PTR": 24
-                        };
-                        if (otherNames[name] !== undefined) {
-                            regs[otherNames[name]] = value;
-                        }
+                    const hwMapping: Record<string, number> = {
+                        "SIN0_RATE": 0, "SIN0_RANGE": 1, "SIN1_RATE": 2, "SIN1_RANGE": 3,
+                        "RMP0_RATE": 4, "RMP0_RANGE": 5, "RMP1_RATE": 6, "RMP1_RANGE": 7,
+                        "POT0": 16, "POT1": 17, "POT2": 18, "ADCL": 20, "ADCR": 21,
+                        "DACL": 22, "DACR": 23, "ADDR_PTR": 24
+                    };
+                    if (hwMapping[name] !== undefined) {
+                        this.simulator.setRegister(hwMapping[name], value);
                     }
                 }
             }
         } else if (info.type === 'accflags') {
             if (name === "ACC") this.simulator.setAcc(value);
             else if (name === "PACC") this.simulator.setPacc(value);
-            // Flags are usually read-only in this simple sim
         }
 
-        response.body = { value: this.formatValue(value) };
+        response.body = { value: this.formatValue(this.simulator.evaluateExpression(name)?.value ?? value) };
     }
 
     private getProgramVars(): any[] {
@@ -363,54 +391,18 @@ export class FV1DebugSession implements vscode.DebugAdapter {
     }
 
     private evaluate(args: any, response: any) {
-        const expression = args.expression.trim().toUpperCase();
-        const state = this.simulator.getState();
-        const ram = this.simulator.getDelayRam();
+        const expression = args.expression.trim();
+        const result = this.simulator.evaluateExpression(expression);
 
-        // 1. Check if it's a register
-        if (state.registers[expression] !== undefined) {
-            response.body = { result: this.formatValue(state.registers[expression]), variablesReference: 0 };
-            return;
+        if (result) {
+            response.body = {
+                result: `${result.label}: ${this.formatValue(result.value)}`,
+                variablesReference: 0
+            };
+        } else {
+            response.success = false;
+            response.message = "Unknown variable or register";
         }
-
-        // 2. Check if it's ACC/PACC
-        if (expression === "ACC") {
-            response.body = { result: this.formatValue(state.acc), variablesReference: 0 };
-            return;
-        }
-        if (expression === "PACC") {
-            response.body = { result: this.formatValue(state.pacc), variablesReference: 0 };
-            return;
-        }
-
-        // 3. Check symbols (EQU/MEM)
-        const sym = this.symbols.find(s => s.name.toUpperCase() === expression);
-        if (sym) {
-            const addr = parseInt(sym.value);
-            if (!isNaN(addr) && addr >= 0 && addr <= 63) {
-                response.body = { result: `REG[${addr}]: ${this.formatValue(this.simulator.getRegisters()[addr])}`, variablesReference: 0 };
-                return;
-            }
-        }
-
-        const mem = this.memories.find(m => m.name.toUpperCase() === expression);
-        if (mem && mem.start !== undefined) {
-            response.body = { result: `MEM[${mem.start}]: ${this.formatValue(ram[mem.start])} (Size: ${mem.size})`, variablesReference: 0 };
-            return;
-        }
-
-        // 4. Case: DELAY[123]
-        const delayMatch = expression.match(/^DELAY\[(\d+)\]$/);
-        if (delayMatch) {
-            const idx = parseInt(delayMatch[1]);
-            if (idx >= 0 && idx < 32768) {
-                response.body = { result: this.formatValue(ram[idx]), variablesReference: 0 };
-                return;
-            }
-        }
-
-        response.success = false;
-        response.message = "Unknown variable or register";
     }
 
     private getDelayRamRootVars(): any[] {

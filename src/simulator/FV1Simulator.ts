@@ -4,13 +4,14 @@
  * Simulates the Spin Semiconductor FV-1 DSP chip.
  * This class is designed to be platform-agnostic (Node.js or Browser/AudioWorklet).
  */
+import { FV1Assembler } from '../FV1Assembler.js';
 
 export class FV1Simulator {
     // Constants
     private static readonly DELAY_SIZE = 32768;
     private static readonly REG_COUNT = 64;
     private static readonly PROG_SIZE = 128;
-    private static readonly MAX_ACC = 0.999969; // Saturation limit
+    private static readonly MAX_ACC = 1.0 - (1.0 / 8388608.0); // 24-bit S.23: 1 - 2^-23
     private static readonly MIN_ACC = -1.0;
 
     // State
@@ -27,6 +28,11 @@ export class FV1Simulator {
     private firstRun: boolean = true;
     private pc: number = 0;     // Program Counter
     private breakpoints: Set<number> = new Set();
+
+    // Symbol metadata (optional, for debugging)
+    private symbols: any[] = [];
+    private memories: any[] = [];
+    private fv1AsmMemBug: boolean = false;
 
     // Register aliases (Getters/Setters)
     // 0-7: Parameters
@@ -102,7 +108,11 @@ export class FV1Simulator {
         this.sin0 = 0; this.cos0 = 1.0;
         this.sin1 = 0; this.cos1 = 1.0;
         this.rmp0 = 0; this.rmp1 = 0;
-        // Rates and ranges are typically set by the program, but could reset here too.
+
+        // Default POT values to 0.5
+        this.registers[16] = 0.5;
+        this.registers[17] = 0.5;
+        this.registers[18] = 0.5;
     }
 
     /**
@@ -111,6 +121,15 @@ export class FV1Simulator {
      */
     public setBreakpoints(addresses: Set<number>) {
         this.breakpoints = addresses;
+    }
+
+    /**
+     * Set symbol and memory metadata for expression evaluation.
+     */
+    public setSymbols(symbols: any[], memories: any[], fv1AsmMemBug: boolean = false) {
+        this.symbols = symbols;
+        this.memories = memories;
+        this.fv1AsmMemBug = fv1AsmMemBug;
     }
 
     /**
@@ -152,12 +171,20 @@ export class FV1Simulator {
      * Prepares for a single sample frame step.
      */
     public beginFrame(inL: number = 0, inR: number = 0, pot0: number = 0, pot1: number = 0, pot2: number = 0) {
+        // Saturate inputs (ADC is -1.0 to 0.999..., POT is 0 to 0.999...)
+        // POT has 10-bit resolution (1024 levels)
+        const sat = (v: number) => Math.max(-1.0, Math.min(FV1Simulator.MAX_ACC, v));
+        const satPot = (v: number) => {
+            const quantized = Math.floor(Math.max(0, Math.min(0.9999999, v)) * 1024) / 1024;
+            return quantized;
+        };
+
         // Map inputs to registers (Standard FV-1 mapping)
-        this.registers[20] = inL;
-        this.registers[21] = inR;
-        this.registers[16] = pot0;
-        this.registers[17] = pot1;
-        this.registers[18] = pot2;
+        this.registers[20] = sat(inL);
+        this.registers[21] = sat(inR);
+        this.registers[16] = satPot(pot0);
+        this.registers[17] = satPot(pot1);
+        this.registers[18] = satPot(pot2);
 
         // Execute Program Setup
         this.acc = 0; // Accumulator is cleared at start of run
@@ -681,6 +708,97 @@ export class FV1Simulator {
 
     public setPacc(val: number) {
         this.pacc = this.saturate(val);
+    }
+
+    /**
+     * Sets a register value with hardware-accurate saturation and quantization.
+     * @param idx Register index (0-63)
+     * @param val Raw value (float)
+     */
+    public setRegister(idx: number, val: number) {
+        if (idx < 0 || idx >= FV1Simulator.REG_COUNT) return;
+
+        // POT registers (16, 17, 18) are 10-bit quantized 0..1
+        if (idx >= 16 && idx <= 18) {
+            val = Math.floor(Math.max(0, Math.min(0.9999999, val)) * 1024) / 1024;
+        } else {
+            // Other registers (ADC, DAC, User) are S.23 saturated
+            val = this.saturate(val);
+        }
+        this.registers[idx] = val;
+    }
+
+    /**
+     * Evaluates a string expression (register name, symbol, memory suffix).
+     * @returns { result: string, value: number } or null
+     */
+    public evaluateExpression(expr: string): { label: string, value: number } | null {
+        let expression = expr.trim().toUpperCase();
+
+        // Handle suffixes ^ and #
+        let suffix: string = "";
+        if (expression.endsWith("^")) {
+            suffix = "^";
+            expression = expression.slice(0, -1);
+        } else if (expression.endsWith("#")) {
+            suffix = "#";
+            expression = expression.slice(0, -1);
+        }
+
+        // 1. Check if it's a register name
+        const state = this.getState();
+        if (suffix === "" && state.registers[expression] !== undefined) {
+            return { label: expression, value: state.registers[expression] };
+        }
+
+        // 2. Check if it's ACC/PACC
+        if (suffix === "" && expression === "ACC") {
+            return { label: "ACC", value: this.acc };
+        }
+        if (suffix === "" && expression === "PACC") {
+            return { label: "PACC", value: this.pacc };
+        }
+
+        // 3. Check symbols (EQU)
+        const sym = this.symbols.find(s => s.name.toUpperCase() === expression);
+        if (sym && suffix === "") {
+            const addr = parseInt(sym.value);
+            if (!isNaN(addr) && addr >= 0 && addr <= 63) {
+                return { label: `REG[${addr}] (${sym.name})`, value: this.registers[addr] };
+            }
+        }
+
+        // 4. Check memories (MEM)
+        const mem = this.memories.find(m => m.name.toUpperCase() === expression);
+        if (mem && mem.start !== undefined) {
+            let addr = mem.start;
+            let typeLabel = "";
+
+            if (suffix === "^") {
+                addr = FV1Assembler.getMiddleAddr(mem.start, mem.size);
+                typeLabel = " (Middle)";
+            } else if (suffix === "#") {
+                addr = FV1Assembler.getEndAddr(mem.start, mem.size, this.fv1AsmMemBug);
+                typeLabel = " (End)";
+            }
+
+            if (addr >= 0 && addr < FV1Simulator.DELAY_SIZE) {
+                return { label: `MEM[${addr}] (${mem.name}${typeLabel})`, value: this.delayRam[addr] };
+            }
+        }
+
+        // 5. Check DELAY[idx]
+        if (suffix === "") {
+            const delayMatch = expression.match(/^DELAY\[(\d+)\]$/);
+            if (delayMatch) {
+                const idx = parseInt(delayMatch[1]);
+                if (idx >= 0 && idx < FV1Simulator.DELAY_SIZE) {
+                    return { label: `DELAY[${idx}]`, value: this.delayRam[idx] };
+                }
+            }
+        }
+
+        return null;
     }
 
     public getState() {
