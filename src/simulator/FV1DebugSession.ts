@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as path from 'path';
 import { FV1Simulator } from './FV1Simulator.js';
 import { FV1Assembler } from '../FV1Assembler.js';
+import { FV1AudioStreamer } from './FV1AudioStreamer.js';
+import { FV1AudioEngine } from './FV1AudioEngine.js';
 
 export class FV1DebugSession implements vscode.DebugAdapter {
     private simulator: FV1Simulator;
@@ -18,6 +21,12 @@ export class FV1DebugSession implements vscode.DebugAdapter {
     private isRunning = false;
     private stopOnEntry = false;
     private timerHandle: any = null;
+    private sampleRate: number = 32768;
+
+    // Audio components
+    private audioStreamer: FV1AudioStreamer;
+    private audioEngine: FV1AudioEngine | null = null;
+    private extensionPath: string = '';
 
     // Source mapping
     private symbols: any[] = [];
@@ -27,9 +36,13 @@ export class FV1DebugSession implements vscode.DebugAdapter {
     private nextVarHandle = 1;
     private varHandles = new Map<number, { type: string, getter: () => any[] }>();
 
-    constructor() {
+    constructor(context?: vscode.ExtensionContext) {
         this.simulator = new FV1Simulator();
         this.assembler = new FV1Assembler();
+        this.audioStreamer = new FV1AudioStreamer();
+        if (context) {
+            this.extensionPath = context.extensionPath;
+        }
     }
 
     public handleMessage(message: vscode.DebugProtocolMessage): void {
@@ -156,10 +169,60 @@ export class FV1DebugSession implements vscode.DebugAdapter {
     }
 
     private async launch(args: any, response: any) {
+        this.sendEvent('output', { category: 'console', output: `Starting FV-1 Debug Session...\n` });
+
         this.sourcePath = args.program;
         this.stopOnEntry = !!args.stopOnEntry;
+        this.sampleRate = args.sampleRate || 32768;
+
         if (!this.sourcePath || !fs.existsSync(this.sourcePath)) {
-            throw new Error(`Program path does not exist: ${this.sourcePath}`);
+            response.success = false;
+            response.message = "File does not exist.";
+            return;
+        }
+
+        // Initialize Audio Engine
+        this.audioEngine = new FV1AudioEngine(this.sampleRate);
+
+        // Load Input WAV if specified or use internal default
+        let wavToLoad = args.inputWavFile;
+        if (!wavToLoad) {
+            // Default path relative to extension root
+            wavToLoad = 'src/simulator/wav/minor-chords-32k.wav';
+            console.log(`No inputWavFile specified, using default: ${wavToLoad}`);
+        }
+
+        const resolvedPath = this.resolveWavPath(wavToLoad, args.cwd);
+        if (resolvedPath) {
+            try {
+                await this.audioStreamer.loadWav(resolvedPath);
+                const msg = `WAV file loaded: ${resolvedPath} (${this.audioStreamer.getNumSamples()} samples)`;
+                console.log(msg);
+                this.sendEvent('output', { category: 'console', output: msg + '\n' });
+            } catch (e: any) {
+                const msg = `Failed to load WAV: ${e.message}`;
+                console.error(msg);
+                this.sendEvent('output', { category: 'stderr', output: msg + '\n' });
+            }
+        } else {
+            const msg = `Notice: Could not find input WAV file. Standard file resolution failed.`;
+            console.warn(msg);
+            this.sendEvent('output', { category: 'console', output: msg + '\n' });
+            // Don't show error box for internal default if it's missing, only if user explicitly asked
+            if (args.inputWavFile) {
+                vscode.window.showErrorMessage(`Missing WAV file: ${args.inputWavFile}`);
+            }
+        }
+
+        // Send initial heartbeat to Monitor UI
+        if (this.audioEngine) {
+            const lastSample = this.audioStreamer.getLastSample();
+            const metadata = {
+                loaded: this.audioStreamer.isLoaded(),
+                numSamples: this.audioStreamer.getNumSamples(),
+                currentField: this.audioStreamer.getCurrentSample()
+            };
+            this.audioEngine.playBuffer(new Float32Array(0), new Float32Array(0), lastSample.l, lastSample.r, metadata);
         }
 
         const source = fs.readFileSync(this.sourcePath, 'utf8');
@@ -188,6 +251,51 @@ export class FV1DebugSession implements vscode.DebugAdapter {
 
         // Re-verify breakpoints now that we have the line map
         this.verifyBreakpoints();
+    }
+
+    private resolveWavPath(wavPath: string, cwd?: string): string | null {
+        if (path.isAbsolute(wavPath) && fs.existsSync(wavPath)) {
+            return wavPath;
+        }
+
+        const searchPaths: string[] = [];
+
+        // 1. Try relative to provided CWD (usually workspace root)
+        if (cwd) { searchPaths.push(path.resolve(cwd, wavPath)); }
+
+        // 2. Try relative to the .spin program
+        if (this.sourcePath) { searchPaths.push(path.resolve(path.dirname(this.sourcePath), wavPath)); }
+
+        // 3. Try relative to extension (critical for internal assets)
+        if (this.extensionPath) {
+            // Try raw path relative to extension root
+            searchPaths.push(path.resolve(this.extensionPath, wavPath));
+
+            // If path starts with src/, also try relative to dist/ (because of bundling)
+            if (wavPath.startsWith('src/')) {
+                const relativeToSrc = wavPath.substring(4); // strip 'src/'
+                searchPaths.push(path.resolve(this.extensionPath, 'dist', relativeToSrc));
+                searchPaths.push(path.resolve(this.extensionPath, 'out', relativeToSrc));
+            }
+
+            // Also try looking inside dist/simulator/wav regardless of prefix
+            const basename = path.basename(wavPath);
+            searchPaths.push(path.resolve(this.extensionPath, 'dist/simulator/wav', basename));
+        }
+
+        // 4. Try relative to workspace folders
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (workspaceFolder) { searchPaths.push(path.join(workspaceFolder.uri.fsPath, wavPath)); }
+
+        for (const p of searchPaths) {
+            const exists = fs.existsSync(p);
+            const msg = `Searching for WAV at: ${p} (${exists ? 'Found!' : 'Not found'})`;
+            console.log(msg);
+            this.sendEvent('output', { category: 'console', output: msg + '\n' });
+            if (exists) return p;
+        }
+
+        return null;
     }
 
     private verifyBreakpoints() {
@@ -237,13 +345,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
     }
 
     private stackTrace(_args: any, response: any) {
-        let pc = this.simulator.getPC();
-
-        // Handle the case where we are at the end of a frame or past it
-        if (pc >= 128) {
-            pc = 0;
-        }
-
+        const pc = this.simulator.getPC();
         const line = this.addressToLineMap.get(pc) || 1;
 
         response.body = {
@@ -485,16 +587,13 @@ export class FV1DebugSession implements vscode.DebugAdapter {
     }
 
     private executeOne() {
-        this.simulator.stepInstruction();
-        const pc = this.simulator.getPC();
-
-        // If we reached the end of 128 instructions OR entered the padding zone, wrap around
-        // Padding zone is defined as pc > maxMappedAddr AND pc not in addressToLineMap
-        if (pc >= 128 || (pc > this.maxMappedAddr && !this.addressToLineMap.has(pc))) {
-            this.simulator.setPC(0);
+        if (this.simulator.getPC() >= this.simulator.getProgSize()) {
             this.simulator.endFrame();
-            this.simulator.beginFrame();
+            const sample = this.audioStreamer.isLoaded() ? this.audioStreamer.getNextSample() : { l: 0, r: 0 };
+            const regs = this.simulator.getRegisters();
+            this.simulator.beginFrame(sample.l, sample.r, regs[16], regs[17], regs[18]);
         }
+        this.simulator.stepInstruction();
     }
 
     private continueExecution(response: any) {
@@ -502,22 +601,73 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         if (this.timerHandle) {
             clearTimeout(this.timerHandle);
         }
-        this.runLoop();
+        this.runLoop(true); // Signal that we are starting from (potentially) a breakpoint
         this.sendResponse(response);
     }
 
-    private runLoop() {
+    private lastFrameTime: number = 0;
+
+    private runLoop(isFirstStep: boolean = false) {
         if (!this.isRunning) return;
 
-        this.executeOne();
-        const pc = this.simulator.getPC();
-        if (this.breakpoints.has(pc)) {
-            this.isRunning = false;
-            this.sendEvent('stopped', { reason: 'breakpoint', threadId: 1 });
-            return;
+        const startTime = Date.now();
+        const blockDurationMs = 100; // 100ms blocks significantly reduce IPC overhead
+        const samplesToProcess = Math.floor(this.sampleRate * (blockDurationMs / 1000));
+
+        const outL = new Float32Array(samplesToProcess);
+        const outR = new Float32Array(samplesToProcess);
+
+        // Get current POT values
+        const regs = this.simulator.getRegisters();
+        const pot0 = regs[16];
+        const pot1 = regs[17];
+        const pot2 = regs[18];
+
+        for (let i = 0; i < samplesToProcess; i++) {
+            const inSample = this.audioStreamer.getNextSample();
+            const skip = isFirstStep && i === 0;
+            const [oL, oR, breakpointHit] = this.simulator.step(inSample.l, inSample.r, pot0, pot1, pot2, skip);
+
+            outL[i] = oL;
+            outR[i] = oR;
+
+            if (breakpointHit) {
+                this.isRunning = false;
+                this.sendEvent('stopped', { reason: 'breakpoint', threadId: 1 });
+                if (i > 0 && this.audioEngine) {
+                    this.audioEngine.playBuffer(outL.slice(0, i), outR.slice(0, i), inSample.l, inSample.r);
+                }
+                return;
+            }
         }
 
-        this.timerHandle = setTimeout(() => this.runLoop(), 10); // Simulation speed
+        if (this.audioEngine) {
+            const lastSample = this.audioStreamer.getLastSample();
+            const metadata = {
+                loaded: this.audioStreamer.isLoaded(),
+                numSamples: this.audioStreamer.getNumSamples(),
+                currentField: this.audioStreamer.getCurrentSample()
+            };
+            this.audioEngine.playBuffer(outL, outR, lastSample.l, lastSample.r, metadata);
+        }
+
+        const elapsed = Date.now() - startTime;
+
+        // Drift-free scheduling: 
+        // We track the 'ideal' next time we should start.
+        const now = Date.now();
+        if (isFirstStep || this.lastFrameTime === 0 || now > this.lastFrameTime + blockDurationMs * 2) {
+            this.lastFrameTime = now;
+        }
+
+        this.lastFrameTime += blockDurationMs;
+        const delay = Math.max(1, this.lastFrameTime - Date.now());
+
+        if (elapsed > 40) {
+            console.log(`[FV1 PERF] Simulation heavy: ${elapsed}ms for ${blockDurationMs}ms block`);
+        }
+
+        this.timerHandle = setTimeout(() => this.runLoop(false), delay);
     }
 
     private sendResponse(response: any) {
@@ -538,5 +688,6 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             clearTimeout(this.timerHandle);
             this.timerHandle = null;
         }
+        this.audioEngine?.dispose();
     }
 }

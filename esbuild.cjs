@@ -1,4 +1,6 @@
 const esbuild = require('esbuild');
+const fs = require('fs');
+const path = require('path');
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
@@ -68,6 +70,19 @@ async function main() {
       blockDiagramCtx.dispose(),
       spnbankCtx.dispose()
     ]);
+  }
+
+  // Copy static assets
+  try {
+    const wavSrc = path.join(__dirname, 'src/simulator/wav');
+    const wavDest = path.join(__dirname, 'dist/simulator/wav');
+    if (fs.existsSync(wavSrc)) {
+      if (!fs.existsSync(path.dirname(wavDest))) fs.mkdirSync(path.dirname(wavDest), { recursive: true });
+      fs.cpSync(wavSrc, wavDest, { recursive: true, force: true });
+      console.log('Copied simulator WAV assets to dist/');
+    }
+  } catch (err) {
+    console.warn('Failed to copy WAV assets:', err.message);
   }
 }
 

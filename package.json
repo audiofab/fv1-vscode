@@ -316,6 +316,21 @@
                 "type": "boolean",
                 "description": "Stop at the first instruction after launch.",
                 "default": true
+              },
+              "inputWavFile": {
+                "type": "string",
+                "description": "Path to a .wav file to use as ADC input.",
+                "default": "src/simulator/wav/minor-chords-32k.wav"
+              },
+              "sampleRate": {
+                "type": "number",
+                "description": "The sampling rate for the simulation (Hz).",
+                "enum": [
+                  32768,
+                  44100,
+                  48000
+                ],
+                "default": 32768
               }
             }
           }
@@ -329,6 +344,11 @@
             "stopOnEntry": true
           }
         ]
+      }
+    ],
+    "breakpoints": [
+      {
+        "language": "fv1-assembly"
       }
     ],
     "configuration": {

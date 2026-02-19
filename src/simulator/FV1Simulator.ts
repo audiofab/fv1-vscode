@@ -8,9 +8,12 @@ import { FV1Assembler } from '../FV1Assembler.js';
 
 export class FV1Simulator {
     // Constants
-    private static readonly DELAY_SIZE = 32768;
-    private static readonly REG_COUNT = 64;
-    private static readonly PROG_SIZE = 128;
+    // Capabilities (Configurable)
+    private delaySize: number = 32768;
+    private delayMask: number = 32767; // For efficient circular buffer
+    private regCount: number = 64;
+    private progSize: number = 128;
+
     private static readonly MAX_ACC = 1.0 - (1.0 / 8388608.0); // 24-bit S.23: 1 - 2^-23
     private static readonly MIN_ACC = -1.0;
 
@@ -73,9 +76,25 @@ export class FV1Simulator {
     private set rmp1(v: number) { this.registers[13] = v; }
 
     constructor() {
-        this.delayRam = new Float32Array(FV1Simulator.DELAY_SIZE);
-        this.registers = new Float32Array(FV1Simulator.REG_COUNT);
-        this.program = new Uint32Array(FV1Simulator.PROG_SIZE);
+        this.delayRam = new Float32Array(this.delaySize);
+        this.registers = new Float32Array(this.regCount);
+        this.program = new Uint32Array(this.progSize);
+    }
+
+    /**
+     * Configures simulator hardware limits.
+     */
+    public setCapabilities(delaySize: number, regCount: number, progSize: number) {
+        this.delaySize = delaySize;
+        this.delayMask = delaySize - 1; // Assuming power of 2 for now, but modulo is fallback
+        this.regCount = regCount;
+        this.progSize = progSize;
+
+        // Reallocate if needed
+        this.delayRam = new Float32Array(this.delaySize);
+        this.registers = new Float32Array(this.regCount);
+        this.program = new Uint32Array(this.progSize);
+        this.reset();
     }
 
     /**
@@ -83,11 +102,11 @@ export class FV1Simulator {
      * @param code Array of 32-bit integers representing the assembled program.
      */
     public loadProgram(code: Uint32Array | number[]) {
-        if (code.length > FV1Simulator.PROG_SIZE) {
-            console.warn(`Program size (${code.length}) exceeds max size (${FV1Simulator.PROG_SIZE}). Truncating.`);
+        if (code.length > this.progSize) {
+            console.warn(`Program size (${code.length}) exceeds max size (${this.progSize}). Truncating.`);
         }
         this.program.fill(0);
-        this.program.set(code.slice(0, FV1Simulator.PROG_SIZE));
+        this.program.set(code.slice(0, this.progSize));
         this.reset();
     }
 
@@ -155,16 +174,32 @@ export class FV1Simulator {
 
     /**
      * Process a single sample frame.
-     * Executes the entire 128-instruction program for this sample.
+     * Executes instructions until the end of the program or a breakpoint is hit.
+     * @param skipCurrentBreakpoint If true, will not break on the instruction at the current PC.
+     * @returns [outL, outR, breakpointHit]
      */
-    public step(inL: number, inR: number, pot0: number, pot1: number, pot2: number): [number, number] {
-        this.beginFrame(inL, inR, pot0, pot1, pot2);
-
-        while (this.pc < FV1Simulator.PROG_SIZE) {
-            this.stepInstruction();
+    public step(inL: number, inR: number, pot0: number, pot1: number, pot2: number, skipCurrentBreakpoint: boolean = false): [number, number, boolean] {
+        // Only begin a new frame if we are at PC 0 (either start or after wrap around)
+        if (this.pc === 0) {
+            this.beginFrame(inL, inR, pot0, pot1, pot2);
         }
 
-        return this.endFrame();
+        let firstInstruction = true;
+        while (this.pc < this.progSize) {
+            if (this.breakpoints.has(this.pc)) {
+                if (!firstInstruction || !skipCurrentBreakpoint) {
+                    return [...this.getOutputs(), true];
+                }
+            }
+            this.stepInstruction();
+            firstInstruction = false;
+        }
+
+        return [...this.endFrame(), false];
+    }
+
+    private getOutputs(): [number, number] {
+        return [this.registers[22], this.registers[23]];
     }
 
     /**
@@ -194,11 +229,12 @@ export class FV1Simulator {
     }
 
     public endFrame(): [number, number] {
+        this.pc = 0;
         this.firstRun = false;
         this.updateLFOs();
 
         // Advance Delay Pointer (Circular Buffer)
-        this.delayPointer = (this.delayPointer - 1) & 0x7FFF;
+        this.delayPointer = (this.delayPointer - 1 + this.delaySize) % this.delaySize;
 
         // Outputs (DACL = REG22, DACR = REG23)
         return [this.registers[22], this.registers[23]];
@@ -209,7 +245,7 @@ export class FV1Simulator {
      * @returns The next PC address.
      */
     public stepInstruction(): number {
-        if (this.pc >= FV1Simulator.PROG_SIZE) return this.pc;
+        if (this.pc >= this.progSize) return this.pc;
 
         const inst = this.program[this.pc];
         const opcode = inst & 0x1F;
@@ -308,14 +344,12 @@ export class FV1Simulator {
     // --- Opcode Implementations ---
 
     private opRDA(inst: number) {
-        // RDA addr, coeff
-        // ACC = ACC + (Delay[addr] * coeff)
-        // Encoding: CCCCCCCCCCCAAAAAAAAAAAAAAAA00000
+        // ... (existing comments)
         const addr = (inst >>> 5) & 0x7FFF;
         const coeff = this.decodeS1_9((inst >>> 21) & 0x7FF);
 
         // Address is relative to current delay pointer in circular buffer
-        const readAddr = (this.delayPointer + addr) & 0x7FFF;
+        const readAddr = (this.delayPointer + addr) & this.delayMask;
         const val = this.delayRam[readAddr];
 
         this.lr = val;
@@ -345,7 +379,7 @@ export class FV1Simulator {
         const addr = (inst >>> 5) & 0x7FFF;
         const coeff = this.decodeS1_9((inst >>> 21) & 0x7FF);
 
-        const writeAddr = (this.delayPointer + addr) & 0x7FFF;
+        const writeAddr = (this.delayPointer + addr) & this.delayMask;
         this.delayRam[writeAddr] = this.acc;
 
         // ACC = ACC * coeff + LR
@@ -393,9 +427,9 @@ export class FV1Simulator {
         // Read memory pointer. ADDR_PTR is mapped to REG24.
         // Encoding: CCCCCCCCCCC000000000001100000001 (or similar, coeff is top)
         const coeff = this.decodeS1_9((inst >>> 21) & 0x7FF);
-        const ptr = Math.floor(this.registers[24] * 32768); // Assuming REG24 is pointer
+        const ptr = Math.floor(this.registers[24] * this.delaySize);
 
-        const readAddr = (this.delayPointer + ptr) & 0x7FFF;
+        const readAddr = (this.delayPointer + ptr) % this.delaySize;
         const val = this.delayRam[readAddr];
         this.lr = val;
         this.acc += val * coeff;
@@ -643,7 +677,7 @@ export class FV1Simulator {
             c = addr - index;
         }
 
-        const readAddr = (this.delayPointer + index + 32768) & 0x7FFF;
+        const readAddr = (this.delayPointer + index + this.delaySize) % this.delaySize;
         this.lr = this.delayRam[readAddr];
 
         if (flags & 4) { // cho_compc
@@ -698,8 +732,12 @@ export class FV1Simulator {
         return this.pc;
     }
 
+    public getProgSize(): number {
+        return this.progSize;
+    }
+
     public setPC(pc: number) {
-        this.pc = Math.max(0, Math.min(FV1Simulator.PROG_SIZE - 1, pc));
+        this.pc = Math.max(0, Math.min(this.progSize - 1, pc));
     }
 
     public setAcc(val: number) {
@@ -716,7 +754,7 @@ export class FV1Simulator {
      * @param val Raw value (float)
      */
     public setRegister(idx: number, val: number) {
-        if (idx < 0 || idx >= FV1Simulator.REG_COUNT) return;
+        if (idx < 0 || idx >= this.regCount) return;
 
         // POT registers (16, 17, 18) are 10-bit quantized 0..1
         if (idx >= 16 && idx <= 18) {
@@ -782,7 +820,7 @@ export class FV1Simulator {
                 typeLabel = " (End)";
             }
 
-            if (addr >= 0 && addr < FV1Simulator.DELAY_SIZE) {
+            if (addr >= 0 && addr < this.delaySize) {
                 return { label: `MEM[${addr}] (${mem.name}${typeLabel})`, value: this.delayRam[addr] };
             }
         }
@@ -792,7 +830,7 @@ export class FV1Simulator {
             const delayMatch = expression.match(/^DELAY\[(\d+)\]$/);
             if (delayMatch) {
                 const idx = parseInt(delayMatch[1]);
-                if (idx >= 0 && idx < FV1Simulator.DELAY_SIZE) {
+                if (idx >= 0 && idx < this.delaySize) {
                     return { label: `DELAY[${idx}]`, value: this.delayRam[idx] };
                 }
             }
@@ -810,7 +848,7 @@ export class FV1Simulator {
             lfo: this.lfo,
             // Official Register Naming
             registers: Object.fromEntries(
-                Array.from({ length: 64 }, (_, i) => {
+                Array.from({ length: this.regCount }, (_, i) => {
                     let name = `[${i}]`;
                     if (i === 0) name = "SIN0_RATE";
                     else if (i === 1) name = "SIN0_RANGE";
