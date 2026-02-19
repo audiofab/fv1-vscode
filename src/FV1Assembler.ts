@@ -1,6 +1,9 @@
 interface FV1AssemblerOptions {
   fv1AsmMemBug?: boolean;
   clampReals?: boolean;
+  regCount?: number;
+  progSize?: number;
+  delaySize?: number;
 }
 
 interface FV1AssemblerProblem {
@@ -170,6 +173,7 @@ const S4_6 = new SignedFixedPointNumber(4, 6, 16.0);
 
 class FV1Assembler {
   private NOP_ENCODING = 0x0000_0011;
+  private options: Required<FV1AssemblerOptions>;
 
   public static getMiddleAddr(start: number, size: number): number {
     if (size % 2) {
@@ -230,14 +234,7 @@ class FV1Assembler {
     ['SIN0_RATE', 0x00], ['SIN0_RANGE', 0x01], ['SIN1_RATE', 0x02], ['SIN1_RANGE', 0x03],
     ['RMP0_RATE', 0x04], ['RMP0_RANGE', 0x05], ['RMP1_RATE', 0x06], ['RMP1_RANGE', 0x07],
     ['POT0', 0x10], ['POT1', 0x11], ['POT2', 0x12], ['ADCL', 0x14], ['ADCR', 0x15],
-    ['DACL', 0x16], ['DACR', 0x17], ['ADDR_PTR', 0x18], ['REG0', 0x20], ['REG1', 0x21],
-    ['REG2', 0x22], ['REG3', 0x23], ['REG4', 0x24], ['REG5', 0x25], ['REG6', 0x26],
-    ['REG7', 0x27], ['REG8', 0x28], ['REG9', 0x29], ['REG10', 0x2A], ['REG11', 0x2B],
-    ['REG12', 0x2C], ['REG13', 0x2D], ['REG14', 0x2E], ['REG15', 0x2F],
-    ['REG16', 0x30], ['REG17', 0x31], ['REG18', 0x32], ['REG19', 0x33],
-    ['REG20', 0x34], ['REG21', 0x35], ['REG22', 0x36], ['REG23', 0x37],
-    ['REG24', 0x38], ['REG25', 0x39], ['REG26', 0x3A], ['REG27', 0x3B],
-    ['REG28', 0x3C], ['REG29', 0x3D], ['REG30', 0x3E], ['REG31', 0x3F],
+    ['DACL', 0x16], ['DACR', 0x17], ['ADDR_PTR', 0x18],
     // CHO-related
     ['SIN0', 0x00], ['SIN1', 0x01], ['RMP0', 0x02], ['RMP1', 0x03],
     ['COS0', 0x08], ['COS1', 0x09],
@@ -253,11 +250,20 @@ class FV1Assembler {
   private symbols: FV1Symbol[] = [];
   private memories: FV1Memory[] = [];
   private problems: FV1AssemblerProblem[] = [];
-  private options: FV1AssemblerOptions = {};
-  private MAX_DELAY_MEMORY = 32768;
-
   constructor(options: FV1AssemblerOptions = {}) {
-    this.options = options;
+    this.options = {
+      fv1AsmMemBug: options.fv1AsmMemBug ?? true,
+      clampReals: options.clampReals ?? true,
+      regCount: options.regCount ?? 64,
+      progSize: options.progSize ?? 128,
+      delaySize: options.delaySize ?? 32768
+    };
+
+    // Dynamically add REG0-REGx symbols
+    // user registers start at index 32 (0x20)
+    for (let i = 0; i < this.options.regCount - 32; i++) {
+      this.predefinedSymbols.set(`REG${i}`, 0x20 + i);
+    }
   }
 
   public assemble(source: string): FV1AssemblerResult {
@@ -440,8 +446,8 @@ class FV1Assembler {
             const size = this.parseInteger(sizeStr.toString());
             if (size === null) {
               this.problems.push({ message: `Invalid memory size '${sizeStr}' in MEM directive`, isfatal: true, line: lineNumber });
-            } else if (size > this.MAX_DELAY_MEMORY) {
-              this.problems.push({ message: `MEM size exceeds maximum of ${this.MAX_DELAY_MEMORY} words`, isfatal: true, line: lineNumber });
+            } else if (size > this.options.delaySize) {
+              this.problems.push({ message: `MEM size exceeds maximum of ${this.options.delaySize} words`, isfatal: true, line: lineNumber });
             } else {
               this.memories.push({ name: name.toUpperCase(), size: size, line: lineNumber, original: line });
               lines.delete(lineNumber); // Remove MEM line after processing
@@ -558,8 +564,8 @@ class FV1Assembler {
     this.memories.forEach(mem => {
       mem.start = nextAvailableAddress;
       nextAvailableAddress += mem.size;
-      if (nextAvailableAddress > this.MAX_DELAY_MEMORY) {
-        this.problems.push({ message: `Total delay memory exceeds ${this.MAX_DELAY_MEMORY} words`, isfatal: true, line: mem.line });
+      if (nextAvailableAddress > this.options.delaySize) {
+        this.problems.push({ message: `Total delay memory exceeds ${this.options.delaySize} words`, isfatal: true, line: mem.line });
       }
       mem.end = FV1Assembler.getEndAddr(mem.start, mem.size); // Logical end (without bug)
       if (this.options.fv1AsmMemBug) {
@@ -589,8 +595,8 @@ class FV1Assembler {
         }
         machineCode.push(encoding);
 
-        // Track where instruction 128 is (the first instruction that exceeds the limit)
-        if (machineCode.length === 128) {
+        // Track where instruction limit is exceeded
+        if (machineCode.length === this.options.progSize) {
           line128 = lineNumber;
         }
       });
@@ -599,17 +605,15 @@ class FV1Assembler {
       return [];
     }
 
-    if (machineCode.length > 128) {
-      // Report error at the line where instruction 128 occurs (or last line if line128 not tracked)
+    if (machineCode.length > this.options.progSize) {
+      // Report error at the line where limit was first exceeded
       const reportLine = line128 !== -1 ? line128 : errorLine;
-      this.problems.push({ message: `Program exceeds 128 instruction limit (${machineCode.length} instructions)`, isfatal: true, line: reportLine });
-      // Still return the machine code so it can be viewed in the assembly output
-      // But don't pad it, and the fatal error will prevent EEPROM/HEX operations
+      this.problems.push({ message: `Program exceeds ${this.options.progSize} instruction limit (${machineCode.length} instructions)`, isfatal: true, line: reportLine });
       return machineCode;
     }
 
-    // Pad to 128 instructions if needed (only when within limit)
-    while (machineCode.length < 128) {
+    // Pad to progSize instructions if needed
+    while (machineCode.length < this.options.progSize) {
       machineCode.push(this.NOP_ENCODING);
     }
 
@@ -974,7 +978,7 @@ class FV1Assembler {
     }
 
     if (addr !== null) {
-      if (addr > this.MAX_DELAY_MEMORY) {
+      if (addr > this.options.delaySize) {
         if (lineNumber !== undefined && mnemonic !== undefined) {
           this.problems.push({ message: `Line ${lineNumber}: Delay memory address out of range in ${mnemonic} instruction`, isfatal: true, line: lineNumber });
         }

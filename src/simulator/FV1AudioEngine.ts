@@ -10,6 +10,9 @@ export class FV1AudioEngine {
     private sampleRate: number = 32768;
     private pendingMetadata: any = null;
 
+    private _onMessage = new vscode.EventEmitter<any>();
+    public readonly onMessage = this._onMessage.event;
+
     constructor(sampleRate: number = 32768) {
         this.sampleRate = sampleRate;
         this.init();
@@ -44,6 +47,9 @@ export class FV1AudioEngine {
                     });
                     this.pendingMetadata = null;
                 }
+            } else {
+                // Relay other messages (bypass, pot change) to listeners
+                this._onMessage.fire(m);
             }
         });
 
@@ -55,18 +61,16 @@ export class FV1AudioEngine {
 
     /**
      * Sends a buffer of samples to the webview for playback.
-     * Uses structured cloning for efficiency (no Array.from required).
      */
     public playBuffer(l: Float32Array, r: Float32Array, adcL: number = 0, adcR: number = 0, metadata: any = null) {
         if (metadata) this.pendingMetadata = metadata;
 
         if (!this.isReady || !this.panel) return;
 
-        // Note: postMessage on webview supports structured cloning of TypedArrays
         this.panel.webview.postMessage({
             type: 'play',
-            l, // Float32Array
-            r, // Float32Array
+            l,
+            r,
             adcL,
             adcR,
             metadata: this.pendingMetadata
@@ -88,8 +92,31 @@ export class FV1AudioEngine {
         return `
             <!DOCTYPE html>
             <html>
-            <body style="background: #1e1e1e; color: #ccc; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; margin: 0; cursor: default;">
-                <div id="overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 100; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.3s;">
+            <head>
+                <style>
+                    body { background: #1e1e1e; color: #ccc; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; margin: 0; cursor: default; }
+                    .container { text-align: center; width: 85%; max-width: 500px; }
+                    .header { font-size: 18px; margin-bottom: 12px; font-weight: bold; color: #fff; }
+                    .meter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+                    .meter-box { background: #252525; padding: 10px; border-radius: 6px; border: 1px solid #333; }
+                    .meter-label { color: #666; font-size: 10px; text-transform: uppercase; margin-bottom: 4px; }
+                    .meter-value { font-family: monospace; font-size: 16px; }
+                    .scope-canvas { border: 1px solid #333; border-radius: 4px; background: #000; width: 100%; margin-bottom: 12px; }
+                    .info-box { background: #252525; padding: 8px; border-radius: 4px; font-size: 11px; color: #888; margin-bottom: 12px; text-align: left; }
+                    .controls-box { background: #2a2a2a; padding: 12px; border-radius: 6px; border: 1px solid #444; margin-bottom: 12px; }
+                    .pot-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+                    .pot-label { color: #eee; font-size: 11px; width: 45px; text-align: left; }
+                    .pot-slider { flex: 1; accent-color: #4facfe; cursor: pointer; }
+                    .pot-value { font-family: monospace; font-size: 11px; width: 35px; color: #aaa; }
+                    .footer { display: flex; gap: 10px; justify-content: center; align-items: center; }
+                    button { background: #333; color: #ccc; border: 1px solid #444; padding: 5px 10px; font-size: 11px; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+                    button:hover { background: #444; border-color: #555; color: #fff; }
+                    button.active { background: #4facfe; color: #000; border-color: #fff; font-weight: bold; }
+                    #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 100; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.3s; }
+                </style>
+            </head>
+            <body>
+                <div id="overlay">
                     <div style="text-align: center; pointer-events: none;">
                         <div style="font-size: 40px; margin-bottom: 10px;">🎧</div>
                         <div style="font-size: 18px; color: #fff; font-weight: bold;">Click to Enable Monitor</div>
@@ -97,36 +124,55 @@ export class FV1AudioEngine {
                     </div>
                 </div>
 
-                <div style="text-align: center; width: 80%; max-width: 500px;">
-                    <div style="font-size: 18px; margin-bottom: 12px; font-weight: bold; color: #fff;">🔊 FV-1 Audio Monitor</div>
+                <div class="container">
+                    <div class="header">🔊 FV-1 Audio Monitor</div>
                     
-                    <div id="deviceContainer" style="margin-bottom: 12px; display: none;">
-                        <select id="deviceList" title="Output Device" style="background: #252525; color: #eee; border: 1px solid #444; padding: 6px; width: 100%; border-radius: 4px; outline: none; font-size: 11px;"></select>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
-                        <div style="background: #252525; padding: 10px; border-radius: 6px; border: 1px solid #333;">
-                            <div style="color: #666; font-size: 10px; text-transform: uppercase; margin-bottom: 4px;">ADC Input</div>
-                            <div style="font-family: monospace; color: #4facfe; font-size: 16px;">
+                    <div class="meter-grid">
+                        <div class="meter-box">
+                            <div class="meter-label">ADC Input</div>
+                            <div class="meter-value" style="color: #4facfe;">
                                 L:<span id="adcL">0.000</span> R:<span id="adcR">0.000</span>
                             </div>
                         </div>
-                        <div style="background: #252525; padding: 10px; border-radius: 6px; border: 1px solid #333;">
-                            <div style="color: #666; font-size: 10px; text-transform: uppercase; margin-bottom: 4px;">DAC Output</div>
-                            <div style="font-family: monospace; color: #00ff00; font-size: 16px;">
+                        <div class="meter-box">
+                            <div class="meter-label">DAC Output</div>
+                            <div class="meter-value" style="color: #00ff00;">
                                 L:<span id="dacL">0.000</span> R:<span id="dacR">0.000</span>
                             </div>
                         </div>
                     </div>
                     
-                    <canvas id="scope" width="400" height="80" style="border: 1px solid #333; border-radius: 4px; background: #000; width: 100%; margin-bottom: 12px;"></canvas>
+                    <canvas id="scope" width="400" height="80" class="scope-canvas"></canvas>
 
-                    <div style="background: #252525; padding: 8px; border-radius: 4px; font-size: 11px; color: #888; margin-bottom: 12px; text-align: left;">
+                    <div class="controls-box">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <span style="font-size: 12px; font-weight: bold; color: #4facfe;">Interactive Controls</span>
+                            <button id="bypassBtn">BYPASS</button>
+                        </div>
+                        <div class="pot-row">
+                            <span class="pot-label">POT0</span>
+                            <input type="range" id="pot0" class="pot-slider" min="0" max="1" step="0.001" value="0.5">
+                            <span id="p0v" class="pot-value">0.50</span>
+                        </div>
+                        <div class="pot-row">
+                            <span class="pot-label">POT1</span>
+                            <input type="range" id="pot1" class="pot-slider" min="0" max="1" step="0.001" value="0.5">
+                            <span id="p1v" class="pot-value">0.50</span>
+                        </div>
+                        <div class="pot-row">
+                            <span class="pot-label">POT2</span>
+                            <input type="range" id="pot2" class="pot-slider" min="0" max="1" step="0.001" value="0.5">
+                            <span id="p2v" class="pot-value">0.50</span>
+                        </div>
+                    </div>
+
+                    <div class="info-box">
                         <div id="streamerInfo">File: Not Loading...</div>
                     </div>
 
-                    <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
-                        <button id="testBtn" style="background: #333; color: #ccc; border: 1px solid #444; padding: 5px 10px; font-size: 11px; cursor: pointer; border-radius: 4px;">Test Tone</button>
+                    <div class="footer">
+                        <select id="deviceList" title="Output Device" style="background: #252525; color: #eee; border: 1px solid #444; padding: 4px; border-radius: 4px; font-size: 10px; display: none;"></select>
+                        <button id="testBtn">Test Tone</button>
                         <div id="status" style="color: #666; font-size: 10px;">Initializing...</div>
                     </div>
                 </div>
@@ -141,8 +187,8 @@ export class FV1AudioEngine {
                     const ctx = canvas.getContext('2d');
                     const overlay = document.getElementById('overlay');
                     const deviceList = document.getElementById('deviceList');
-                    const deviceContainer = document.getElementById('deviceContainer');
                     const testBtn = document.getElementById('testBtn');
+                    const bypassBtn = document.getElementById('bypassBtn');
                     const streamerInfo = document.getElementById('streamerInfo');
                     
                     const adcL = document.getElementById('adcL');
@@ -150,6 +196,7 @@ export class FV1AudioEngine {
                     const dacL = document.getElementById('dacL');
                     const dacR = document.getElementById('dacR');
                     
+                    let bypassActive = false;
                     let bufferQueue = [];
                     let isBuffering = true;
 
@@ -157,12 +204,28 @@ export class FV1AudioEngine {
                         document.getElementById('status').innerText = msg;
                     }
 
+                    ['pot0', 'pot1', 'pot2'].forEach((id, index) => {
+                        const slider = document.getElementById(id);
+                        const valDisplay = document.getElementById('p' + index + 'v');
+                        slider.addEventListener('input', () => {
+                            const val = parseFloat(slider.value);
+                            valDisplay.innerText = val.toFixed(2);
+                            vscode.postMessage({ type: 'potChange', pot: index, value: val });
+                        });
+                    });
+
+                    bypassBtn.addEventListener('click', () => {
+                        bypassActive = !bypassActive;
+                        bypassBtn.className = bypassActive ? 'active' : '';
+                        vscode.postMessage({ type: 'bypassChange', active: bypassActive });
+                    });
+
                     async function refreshDevices() {
                         try {
                             const devices = await navigator.mediaDevices.enumerateDevices();
                             const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
                             if (audioOutputs.length > 1) {
-                                deviceContainer.style.display = 'block';
+                                deviceList.style.display = 'block';
                             }
                             deviceList.innerHTML = '';
                             audioOutputs.forEach((device, i) => {
@@ -201,7 +264,6 @@ export class FV1AudioEngine {
 
                     overlay.addEventListener('click', async () => { await initAudio(); });
                     testBtn.addEventListener('click', async (e) => {
-                        e.stopPropagation();
                         if (!audioCtx || audioCtx.state !== 'running') await initAudio();
                         if (audioCtx && audioCtx.state === 'running') {
                             const osc = audioCtx.createOscillator();
@@ -229,11 +291,8 @@ export class FV1AudioEngine {
 
                             if (!message.l || message.l.length === 0) return;
 
-                            // Queue the incoming buffer
                             bufferQueue.push({ l: message.l, r: message.r });
 
-                            // If we aren't running yet OR we are explicitly buffering, check if we have enough
-                            // 2 blocks of 100ms = 200ms of jitter buffer
                             if (isBuffering && bufferQueue.length >= 2) {
                                 isBuffering = false;
                                 if (!audioCtx || audioCtx.state !== 'running') await initAudio();
@@ -251,7 +310,7 @@ export class FV1AudioEngine {
                     });
 
                     function processQueue() {
-                        while (bufferQueue.length > 0) {
+                        while (audioCtx && audioCtx.state === 'running' && bufferQueue.length > 0) {
                             const block = bufferQueue.shift();
                             const lData = block.l;
                             const rData = block.r;
@@ -265,14 +324,12 @@ export class FV1AudioEngine {
                             source.connect(audioCtx.destination);
 
                             const now = audioCtx.currentTime;
-                            // If we fell significantly behind, reset to start "now" + 100ms
                             if (startTime < now - 0.05) {
                                 startTime = now + 0.1;
                             }
 
                             source.start(startTime);
                             
-                            // UI Update (Scope) using first block
                             if (bufferQueue.length === 0) {
                                 dacL.innerText = lData[0].toFixed(3);
                                 dacR.innerText = rData[0].toFixed(3);

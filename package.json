@@ -32,8 +32,7 @@
   "activationEvents": [
     "onDebug",
     "onDebugInitialConfigurations",
-    "onDebugResolve:fv1-debug",
-    "onLanguage:fv1-assembly"
+    "onDebugResolve:fv1-debug"
   ],
   "main": "./dist/extension.cjs",
   "contributes": {
@@ -398,6 +397,21 @@
           "type": "string",
           "default": "00DD",
           "description": "MCP2221 USB Product ID"
+        },
+        "fv1.hardware.regCount": {
+          "type": "number",
+          "default": 64,
+          "description": "Number of registers in the target FV-1 hardware (Simulator/Assembler limit)"
+        },
+        "fv1.hardware.progSize": {
+          "type": "number",
+          "default": 128,
+          "description": "Total program memory size in instructions (Simulator/Assembler limit)"
+        },
+        "fv1.hardware.delaySize": {
+          "type": "number",
+          "default": 32768,
+          "description": "Total delay memory size in samples (Simulator/Assembler limit)"
         }
       }
     }

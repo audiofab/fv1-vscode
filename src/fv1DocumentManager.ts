@@ -19,15 +19,19 @@ export class FV1DocumentManager {
     private documentCache: Map<string, DocumentInfo> = new Map();
     private diagnosticCollection: vscode.DiagnosticCollection;
     private changeListeners: Set<(uri: vscode.Uri) => void> = new Set();
-    
+
     constructor(diagnosticCollection: vscode.DiagnosticCollection) {
-        this.assembler = new FV1Assembler({ 
-            fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
-            clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
+        const config = vscode.workspace.getConfiguration('fv1');
+        this.assembler = new FV1Assembler({
+            fv1AsmMemBug: config.get<boolean>('spinAsmMemBug') ?? true,
+            clampReals: config.get<boolean>('clampReals') ?? true,
+            regCount: config.get<number>('hardware.regCount'),
+            progSize: config.get<number>('hardware.progSize'),
+            delaySize: config.get<number>('hardware.delaySize'),
         });
         this.diagnosticCollection = diagnosticCollection;
     }
-    
+
     /**
      * Get the assembly result for a document.
      * Results are cached per document version.
@@ -35,30 +39,30 @@ export class FV1DocumentManager {
     public getAssemblyResult(document: vscode.TextDocument): FV1AssemblerResult {
         const documentUri = document.uri.toString();
         const cached = this.documentCache.get(documentUri);
-        
+
         // Check if we have a valid cached result
         if (cached && cached.version === document.version) {
             return cached.result;
         }
-        
+
         // Assemble the document
         const result = this.assembleDocument(document);
-        
+
         // Cache the result
         this.documentCache.set(documentUri, {
             version: document.version,
             result: result
         });
-        
+
         // Update diagnostics
         this.updateDiagnostics(document.uri, result);
-        
+
         // Notify listeners
         this.notifyListeners(document.uri);
-        
+
         return result;
     }
-    
+
     /**
      * Assemble a document and return the result
      */
@@ -66,30 +70,30 @@ export class FV1DocumentManager {
         const content = document.getText();
         return this.assembler.assemble(content);
     }
-    
+
     /**
      * Update diagnostics for a document based on assembly result
      */
     private updateDiagnostics(uri: vscode.Uri, result: FV1AssemblerResult): void {
         const diagnostics: vscode.Diagnostic[] = [];
-        
+
         if (result.problems && result.problems.length > 0) {
             for (const problem of result.problems) {
                 const line = Math.max(0, problem.line - 1); // Convert to 0-based
                 const range = new vscode.Range(line, 0, line, Number.MAX_SAFE_INTEGER);
-                const severity = problem.isfatal 
-                    ? vscode.DiagnosticSeverity.Error 
+                const severity = problem.isfatal
+                    ? vscode.DiagnosticSeverity.Error
                     : vscode.DiagnosticSeverity.Warning;
-                
+
                 const diagnostic = new vscode.Diagnostic(range, problem.message, severity);
                 diagnostic.source = 'fv1-assembler';
                 diagnostics.push(diagnostic);
             }
         }
-        
+
         this.diagnosticCollection.set(uri, diagnostics);
     }
-    
+
     /**
      * Handle document changes
      */
@@ -97,11 +101,11 @@ export class FV1DocumentManager {
         if (document.languageId !== 'fv1-assembly') {
             return;
         }
-        
+
         // Trigger assembly and diagnostics update
         this.getAssemblyResult(document);
     }
-    
+
     /**
      * Handle document close - clean up cache
      */
@@ -110,7 +114,7 @@ export class FV1DocumentManager {
         this.documentCache.delete(documentUri);
         this.diagnosticCollection.delete(document.uri);
     }
-    
+
     /**
      * Handle document open - initial assembly
      */
@@ -118,11 +122,11 @@ export class FV1DocumentManager {
         if (document.languageId !== 'fv1-assembly') {
             return;
         }
-        
+
         // Trigger initial assembly
         this.getAssemblyResult(document);
     }
-    
+
     /**
      * Register a listener to be notified when a document is assembled
      */
@@ -141,21 +145,25 @@ export class FV1DocumentManager {
             listener(uri);
         }
     }
-    
+
     /**
      * Force re-assembly of all open documents
      * Useful when configuration changes
      */
     public refreshAll(): void {
         // Update assembler configuration
-        this.assembler = new FV1Assembler({ 
-            fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
-            clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
+        const config = vscode.workspace.getConfiguration('fv1');
+        this.assembler = new FV1Assembler({
+            fv1AsmMemBug: config.get<boolean>('spinAsmMemBug') ?? true,
+            clampReals: config.get<boolean>('clampReals') ?? true,
+            regCount: config.get<number>('hardware.regCount'),
+            progSize: config.get<number>('hardware.progSize'),
+            delaySize: config.get<number>('hardware.delaySize'),
         });
-        
+
         // Clear cache
         this.documentCache.clear();
-        
+
         // Re-assemble all open FV-1 documents
         for (const document of vscode.workspace.textDocuments) {
             if (document.languageId === 'fv1-assembly') {
@@ -163,14 +171,14 @@ export class FV1DocumentManager {
             }
         }
     }
-    
+
     /**
      * Get symbol information from the assembly result
      */
     public getSymbols(document: vscode.TextDocument): Array<{ name: string; value: string; line?: number; original?: string }> {
         const result = this.getAssemblyResult(document);
         const symbols: Array<{ name: string; value: string; line?: number; original?: string }> = [];
-        
+
         // Add EQU symbols
         if (result.symbols) {
             for (const symbol of result.symbols) {
@@ -182,7 +190,7 @@ export class FV1DocumentManager {
                 });
             }
         }
-        
+
         // Add MEM symbols
         if (result.memories) {
             for (const memory of result.memories) {
@@ -194,7 +202,7 @@ export class FV1DocumentManager {
                 });
             }
         }
-        
+
         return symbols;
     }
 }

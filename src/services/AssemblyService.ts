@@ -134,7 +134,7 @@ export class AssemblyService {
                 });
                 return assembler.assemble(assembly);
             } else {
-                const uri = vscode.Uri.file(fsPath);
+                const uri = fsPath.includes(':') && !path.isAbsolute(fsPath) ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
                 const document = await vscode.workspace.openTextDocument(uri);
                 return this.fv1DocumentManager.getAssemblyResult(document);
             }

@@ -2,13 +2,13 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { FV1Simulator } from './FV1Simulator.js';
-import { FV1Assembler } from '../FV1Assembler.js';
+import { FV1AssemblerResult } from '../FV1Assembler.js';
 import { FV1AudioStreamer } from './FV1AudioStreamer.js';
 import { FV1AudioEngine } from './FV1AudioEngine.js';
+import { AssemblyService } from '../services/AssemblyService.js';
 
 export class FV1DebugSession implements vscode.DebugAdapter {
     private simulator: FV1Simulator;
-    private assembler: FV1Assembler;
     private _sendMessage = new vscode.EventEmitter<vscode.DebugProtocolMessage>();
     public onDidSendMessage = this._sendMessage.event;
 
@@ -32,17 +32,18 @@ export class FV1DebugSession implements vscode.DebugAdapter {
     private symbols: any[] = [];
     private memories: any[] = [];
 
+    // Real-time control state
+    private bypassActive: boolean = false;
+    private potValues: number[] = [0.5, 0.5, 0.5];
+
     // Variables storage
     private nextVarHandle = 1;
     private varHandles = new Map<number, { type: string, getter: () => any[] }>();
 
-    constructor(context?: vscode.ExtensionContext) {
+    constructor(context: vscode.ExtensionContext, private assemblyService: AssemblyService) {
         this.simulator = new FV1Simulator();
-        this.assembler = new FV1Assembler();
         this.audioStreamer = new FV1AudioStreamer();
-        if (context) {
-            this.extensionPath = context.extensionPath;
-        }
+        this.extensionPath = context.extensionPath;
     }
 
     public handleMessage(message: vscode.DebugProtocolMessage): void {
@@ -175,14 +176,45 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         this.stopOnEntry = !!args.stopOnEntry;
         this.sampleRate = args.sampleRate || 32768;
 
-        if (!this.sourcePath || !fs.existsSync(this.sourcePath)) {
+        if (!this.sourcePath) {
             response.success = false;
-            response.message = "File does not exist.";
+            response.message = "No program specified.";
+            return;
+        }
+
+        // Check if sourcePath is a URI string or a local path
+        const isUri = this.sourcePath.includes(':') && !path.isAbsolute(this.sourcePath);
+        if (!isUri && !fs.existsSync(this.sourcePath)) {
+            response.success = false;
+            response.message = `File does not exist: ${this.sourcePath}`;
             return;
         }
 
         // Initialize Audio Engine
         this.audioEngine = new FV1AudioEngine(this.sampleRate);
+        this.audioEngine.onMessage(m => {
+            switch (m.type) {
+                case 'bypassChange':
+                    this.bypassActive = !!m.active;
+                    this.sendEvent('output', { category: 'console', output: `Bypass ${this.bypassActive ? 'ON' : 'OFF'}\n` });
+                    break;
+                case 'potChange':
+                    if (m.pot >= 0 && m.pot <= 2) {
+                        this.potValues[m.pot] = m.value;
+                        // Update simulator registers directly
+                        // POT0 = $10, POT1 = $11, POT2 = $12
+                        this.simulator.setRegister(0x10 + m.pot, m.value);
+                    }
+                    break;
+            }
+        });
+
+        // Apply hardware limits to simulator
+        const config = vscode.workspace.getConfiguration('fv1');
+        const regCount = config.get<number>('hardware.regCount') ?? 64;
+        const progSize = config.get<number>('hardware.progSize') ?? 128;
+        const delaySize = config.get<number>('hardware.delaySize') ?? 32768;
+        this.simulator.setCapabilities(delaySize, regCount, progSize);
 
         // Load Input WAV if specified or use internal default
         let wavToLoad = args.inputWavFile;
@@ -225,11 +257,11 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             this.audioEngine.playBuffer(new Float32Array(0), new Float32Array(0), lastSample.l, lastSample.r, metadata);
         }
 
-        const source = fs.readFileSync(this.sourcePath, 'utf8');
-        const result = this.assembler.assemble(source);
+        const result = await this.assemblyService.assembleFile(this.sourcePath);
 
-        if (result.problems.some(p => p.isfatal)) {
-            throw new Error(`Assembly failed: ${result.problems[0].message}`);
+        if (!result || result.problems.some(p => p.isfatal)) {
+            const errorMsg = result && result.problems.length > 0 ? result.problems.find(p => p.isfatal)?.message : "Unknown assembly error";
+            throw new Error(`Assembly failed: ${errorMsg}`);
         }
 
         this.simulator.loadProgram(new Uint32Array(result.machineCode));
@@ -237,8 +269,9 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         this.symbols = result.symbols;
         this.memories = result.memories;
 
-        // Pass symbols to simulator for expression resolution
-        this.simulator.setSymbols(this.symbols, this.memories, !!this.assembler['options'].fv1AsmMemBug);
+        // Pass symbols and options to simulator
+        const fv1AsmMemBug = vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true;
+        this.simulator.setSymbols(this.symbols, this.memories, fv1AsmMemBug);
 
         this.lineToAddressMap.clear();
         this.maxMappedAddr = -1;
@@ -628,8 +661,13 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             const skip = isFirstStep && i === 0;
             const [oL, oR, breakpointHit] = this.simulator.step(inSample.l, inSample.r, pot0, pot1, pot2, skip);
 
-            outL[i] = oL;
-            outR[i] = oR;
+            if (this.bypassActive) {
+                outL[i] = inSample.l;
+                outR[i] = inSample.r;
+            } else {
+                outL[i] = oL;
+                outR[i] = oR;
+            }
 
             if (breakpointHit) {
                 this.isRunning = false;
