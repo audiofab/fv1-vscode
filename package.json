@@ -400,7 +400,7 @@
         },
         "fv1.hardware.regCount": {
           "type": "number",
-          "default": 64,
+          "default": 32,
           "description": "Number of registers in the target FV-1 hardware (Simulator/Assembler limit)"
         },
         "fv1.hardware.progSize": {

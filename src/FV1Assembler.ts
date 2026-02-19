@@ -254,7 +254,7 @@ class FV1Assembler {
     this.options = {
       fv1AsmMemBug: options.fv1AsmMemBug ?? true,
       clampReals: options.clampReals ?? true,
-      regCount: options.regCount ?? 64,
+      regCount: options.regCount ?? 32,
       progSize: options.progSize ?? 128,
       delaySize: options.delaySize ?? 32768
     };
