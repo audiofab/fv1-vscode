@@ -261,7 +261,7 @@ class FV1Assembler {
 
     // Dynamically add REG0-REGx symbols
     // user registers start at index 32 (0x20)
-    for (let i = 0; i < this.options.regCount - 32; i++) {
+    for (let i = 0; i < this.options.regCount; i++) {
       this.predefinedSymbols.set(`REG${i}`, 0x20 + i);
     }
   }

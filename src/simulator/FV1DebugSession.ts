@@ -211,7 +211,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
 
         // Apply hardware limits to simulator
         const config = vscode.workspace.getConfiguration('fv1');
-        const regCount = config.get<number>('hardware.regCount') ?? 64;
+        const regCount = config.get<number>('hardware.regCount') ?? 32;
         const progSize = config.get<number>('hardware.progSize') ?? 128;
         const delaySize = config.get<number>('hardware.delaySize') ?? 32768;
         this.simulator.setCapabilities(delaySize, regCount, progSize);
@@ -656,10 +656,26 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         const pot1 = regs[17];
         const pot2 = regs[18];
 
+        const lfoSin0 = new Float32Array(Math.ceil(samplesToProcess / 128));
+        const lfoSin1 = new Float32Array(lfoSin0.length);
+        const lfoRmp0 = new Float32Array(lfoSin0.length);
+        const lfoRmp1 = new Float32Array(lfoSin0.length);
+        let lfoIdx = 0;
+
         for (let i = 0; i < samplesToProcess; i++) {
             const inSample = this.audioStreamer.getNextSample();
             const skip = isFirstStep && i === 0;
             const [oL, oR, breakpointHit] = this.simulator.step(inSample.l, inSample.r, pot0, pot1, pot2, skip);
+
+            // Sample LFOs every 128 samples
+            if (i % 128 === 0 && lfoIdx < lfoSin0.length) {
+                const regs = this.simulator.getRegisters();
+                lfoSin0[lfoIdx] = regs[8];
+                lfoSin1[lfoIdx] = regs[10];
+                lfoRmp0[lfoIdx] = regs[12];
+                lfoRmp1[lfoIdx] = regs[13];
+                lfoIdx++;
+            }
 
             if (this.bypassActive) {
                 outL[i] = inSample.l;
@@ -684,7 +700,12 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             const metadata = {
                 loaded: this.audioStreamer.isLoaded(),
                 numSamples: this.audioStreamer.getNumSamples(),
-                currentField: this.audioStreamer.getCurrentSample()
+                currentField: this.audioStreamer.getCurrentSample(),
+                // Visualization data
+                lfoSin0, lfoSin1, lfoRmp0, lfoRmp1,
+                delayPtr: this.simulator.getDelayPointer(),
+                delaySize: this.simulator.getDelaySize(),
+                memories: this.memories
             };
             this.audioEngine.playBuffer(outL, outR, lastSample.l, lastSample.r, metadata);
         }

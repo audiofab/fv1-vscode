@@ -11,7 +11,7 @@ export class FV1Simulator {
     // Capabilities (Configurable)
     private delaySize: number = 32768;
     private delayMask: number = 32767; // For efficient circular buffer
-    private regCount: number = 64;
+    private regCount: number = 32;
     private progSize: number = 128;
 
     private static readonly MAX_ACC = 1.0 - (1.0 / 8388608.0); // 24-bit S.23: 1 - 2^-23
@@ -77,7 +77,7 @@ export class FV1Simulator {
 
     constructor() {
         this.delayRam = new Float32Array(this.delaySize);
-        this.registers = new Float32Array(this.regCount);
+        this.registers = new Float32Array(32 + this.regCount);
         this.program = new Uint32Array(this.progSize);
     }
 
@@ -87,14 +87,22 @@ export class FV1Simulator {
     public setCapabilities(delaySize: number, regCount: number, progSize: number) {
         this.delaySize = delaySize;
         this.delayMask = delaySize - 1; // Assuming power of 2 for now, but modulo is fallback
-        this.regCount = regCount;
+        this.regCount = regCount; // Number of user registers
         this.progSize = progSize;
 
         // Reallocate if needed
         this.delayRam = new Float32Array(this.delaySize);
-        this.registers = new Float32Array(this.regCount);
+        this.registers = new Float32Array(32 + this.regCount); // 32 system + N user registers
         this.program = new Uint32Array(this.progSize);
         this.reset();
+    }
+
+    public getDelayPointer(): number {
+        return this.delayPointer;
+    }
+
+    public getDelaySize(): number {
+        return this.delaySize;
     }
 
     /**

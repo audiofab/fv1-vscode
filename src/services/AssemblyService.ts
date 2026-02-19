@@ -131,6 +131,7 @@ export class AssemblyService {
                 const assembler = new FV1Assembler({
                     fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
                     clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
+                    regCount: vscode.workspace.getConfiguration('fv1').get<number>('hardware.regCount') ?? 32,
                 });
                 return assembler.assemble(assembly);
             } else {
