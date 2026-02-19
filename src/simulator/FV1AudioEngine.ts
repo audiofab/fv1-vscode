@@ -150,7 +150,15 @@ export class FV1AudioEngine {
 
                     <div class="viz-grid">
                         <div class="viz-box">
-                            <div class="viz-label">LFO Oscilloscope</div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <div class="viz-label">LFO Oscilloscope</div>
+                                <div style="font-size: 8px; display: flex; gap: 4px;">
+                                    <span style="color: #4facfe;">SIN0</span>
+                                    <span style="color: #ff00ff;">SIN1</span>
+                                    <span style="color: #ffaa00;">RMP0</span>
+                                    <span style="color: #00ff00;">RMP1</span>
+                                </div>
+                            </div>
                             <canvas id="lfoScope" width="200" height="60" class="small-canvas"></canvas>
                         </div>
                         <div class="viz-box">

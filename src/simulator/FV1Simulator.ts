@@ -913,13 +913,13 @@ export class FV1Simulator {
     private updateLFOs() {
         // RMP0
         this.rmp0 -= this.rmp0_rate * (1.0 / 4096.0);
-        while (this.rmp0 >= 1.0) this.rmp0 -= 1.0;
-        while (this.rmp0 < -1.0) this.rmp0 += 1.0; // Fixed ramp wrap
+        while (this.rmp0 >= 1.0) this.rmp0 -= 2.0;
+        while (this.rmp0 < -1.0) this.rmp0 += 2.0;
 
         // RMP1
         this.rmp1 -= this.rmp1_rate * (1.0 / 4096.0);
-        while (this.rmp1 >= 1.0) this.rmp1 -= 1.0;
-        while (this.rmp1 < -1.0) this.rmp1 += 1.0; // Fixed ramp wrap
+        while (this.rmp1 >= 1.0) this.rmp1 -= 2.0;
+        while (this.rmp1 < -1.0) this.rmp1 += 2.0;
 
         // SIN0
         let x = this.sin0_rate * (1.0 / 256.0);
