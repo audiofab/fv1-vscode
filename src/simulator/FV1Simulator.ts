@@ -372,7 +372,7 @@ export class FV1Simulator {
         const addr = (inst >>> 5) & 0x7FFF;
         const coeff = this.decodeS1_9((inst >>> 21) & 0x7FF);
 
-        const writeAddr = (this.delayPointer + addr) & 0x7FFF;
+        const writeAddr = (this.delayPointer + addr) & this.delayMask;
         this.delayRam[writeAddr] = this.acc;
 
         this.acc *= coeff;
@@ -457,13 +457,16 @@ export class FV1Simulator {
         const d = this.decodeS4_6((inst >>> 5) & 0x7FF);
         const coeff = this.decodeS1_14((inst >>> 16) & 0xFFFF);
 
-        // Simplified:
         const val = Math.abs(this.acc);
-        if (val > 0.000001) {
-            this.acc = Math.log2(val) * coeff + d;
+        let logVal: number;
+        if (val > 1.52587890625e-5) { // 2^-16, approx 96dB limit
+            logVal = Math.log2(val);
         } else {
-            this.acc = -16.0 * coeff + d; // Floor approx
+            logVal = -16.0;
         }
+
+        // Result is in S4.19 format, so we divide by 16 to keep it in our S.23 float space
+        this.acc = (logVal * coeff + d) / 16.0;
         this.acc = this.saturate(this.acc);
     }
 
@@ -473,7 +476,9 @@ export class FV1Simulator {
         const d = this.decodeS_10((inst >>> 5) & 0x7FF);
         const coeff = this.decodeS1_14((inst >>> 16) & 0xFFFF);
 
-        this.acc = Math.pow(2, this.acc) * coeff + d;
+        const valS419 = this.acc * 16.0;
+        // Result is linear S.23, which naturally fits our -1..1 float range
+        this.acc = Math.pow(2, valS419) * coeff + d;
         this.acc = this.saturate(this.acc);
     }
 
@@ -494,10 +499,11 @@ export class FV1Simulator {
         const reg = (inst >>> 5) & 0x3F;
         const coeff = this.decodeS1_14((inst >>> 16) & 0xFFFF);
 
-        const val = Math.abs(this.registers[reg]) * coeff;
-        if (val > Math.abs(this.acc)) {
-            this.acc = val; // Sign? Usually magnitude check, result is magnitude?
-        }
+        const a = Math.abs(this.acc);
+        const b = Math.abs(this.registers[reg] * coeff);
+        // MAXX result is always the magnitude (absolute value)
+        this.acc = Math.max(a, b);
+        this.acc = this.saturate(this.acc);
     }
 
     private opSKP(inst: number): number {

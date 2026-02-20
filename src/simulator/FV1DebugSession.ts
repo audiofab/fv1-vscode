@@ -219,15 +219,11 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         const delaySize = config.get<number>('hardware.delaySize') ?? 32768;
         this.simulator.setCapabilities(delaySize, regCount, progSize);
 
-        // Load Input WAV if specified or use internal default
+        // Load Input WAV if specified
         let wavToLoad = args.inputWavFile;
-        if (!wavToLoad) {
-            // Default path relative to extension root
-            wavToLoad = 'src/simulator/wav/minor-chords-32k.wav';
-            console.log(`No inputWavFile specified, using default: ${wavToLoad}`);
-        }
+        // No longer using hardcoded default to ensure sync with UI (Silence)
 
-        const resolvedPath = this.resolveWavPath(wavToLoad, args.cwd);
+        const resolvedPath = wavToLoad ? this.resolveWavPath(wavToLoad, args.cwd) : null;
         if (resolvedPath) {
             try {
                 await this.audioStreamer.loadWav(resolvedPath);
@@ -662,17 +658,19 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         if (!this.isRunning) return;
 
         const startTime = Date.now();
-        const blockDurationMs = 100; // 100ms blocks significantly reduce IPC overhead
+        const blockDurationMs = 40; // 40ms blocks (25fps) for smoother visualization
         const samplesToProcess = Math.floor(this.sampleRate * (blockDurationMs / 1000));
 
         const outL = new Float32Array(samplesToProcess);
         const outR = new Float32Array(samplesToProcess);
 
-        // Get current POT values
+        // Snapshot state BEFORE processing the block for more accurate visualization
         const regs = this.simulator.getRegisters();
         const pot0 = regs[16];
         const pot1 = regs[17];
         const pot2 = regs[18];
+        const snapshotDelayPtr = this.simulator.getDelayPointer();
+        const snapshotAddrPtr = regs[24];
 
         const lfoSin0 = new Float32Array(Math.ceil(samplesToProcess / 128));
         const lfoSin1 = new Float32Array(lfoSin0.length);
@@ -719,10 +717,11 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                 loaded: this.audioStreamer.isLoaded(),
                 numSamples: this.audioStreamer.getNumSamples(),
                 currentField: this.audioStreamer.getCurrentSample(),
-                // Visualization data
+                // Visualization data - using snapshots from start of block
                 lfoSin0, lfoSin1, lfoRmp0, lfoRmp1,
-                delayPtr: this.simulator.getDelayPointer(),
+                delayPtr: snapshotDelayPtr,
                 delaySize: this.simulator.getDelaySize(),
+                addrPtr: snapshotAddrPtr,
                 memories: this.memories
             };
             this.audioEngine.playBuffer(outL, outR, lastSample.l, lastSample.r, metadata);

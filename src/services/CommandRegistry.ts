@@ -116,7 +116,7 @@ export class CommandRegistry {
             await this.programmerService.loadHexToEeprom();
         });
 
-        this.register('fv1.startDebugger', async (uri?: vscode.Uri) => {
+        this.register('fv1.startSimulator', async (uri?: vscode.Uri) => {
             let programUri = uri;
             if (!programUri) {
                 programUri = getActiveDocumentUri();

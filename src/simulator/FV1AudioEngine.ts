@@ -134,6 +134,22 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     button.active { background: #e81123; color: white; font-weight: bold; }
 
                     #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100; display: flex; align-items: center; justify-content: center; cursor: pointer; text-align: center; }
+
+                    /* Tooltip Style */
+                    #memTooltip {
+                        position: fixed;
+                        display: none;
+                        background: rgba(0, 0, 0, 0.9);
+                        color: #4facfe;
+                        padding: 4px 8px;
+                        border: 1px solid #4facfe;
+                        border-radius: 4px;
+                        font-size: 10px;
+                        pointer-events: none;
+                        z-index: 1000;
+                        white-space: nowrap;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+                    }
                 </style>
             </head>
             <body>
@@ -177,9 +193,21 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     </div>
 
                     <div class="viz-box">
-                        <div class="viz-label">Delay Memory Map</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                            <div class="viz-label">Delay Memory Map</div>
+                            <div style="font-size: 8px; display: flex; gap: 4px; opacity: 0.8;">
+                                <span style="color: rgba(255, 255, 255, 0.8);">WRITE</span>
+                                <span style="color: #ff4444;">READ</span>
+                            </div>
+                        </div>
                         <canvas id="memMap" width="200" height="60" class="small-canvas"></canvas>
+                        <div style="display: flex; justify-content: space-between; font-size: 7px; opacity: 0.5; margin-top: 1px; font-family: monospace;">
+                            <span>$7FFF</span>
+                            <span>$0000</span>
+                        </div>
                     </div>
+
+                    <div id="memTooltip"></div>
 
                     <div class="controls-box">
                         <div class="section-header">
@@ -305,7 +333,7 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                                     drawLfoScope();
                                 }
                                 if (m.delayPtr !== undefined) {
-                                    drawMemMap(m.delayPtr, m.delaySize, m.memories);
+                                    drawMemMap(m.delayPtr, m.delaySize, m.addrPtr, m.memories);
                                 }
                             }
 
@@ -396,32 +424,105 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         drawWave(lfoHistory.rmp1, '#00ff00');
                     }
 
-                    function drawMemMap(ptr, size, memories) {
+                    let lastMemories = [];
+                    const memTooltip = document.getElementById('memTooltip');
+
+                    memCanvas.addEventListener('mousemove', (e) => {
+                        if (!lastMemories || lastMemories.length === 0) return;
+                        const rect = memCanvas.getBoundingClientRect();
+                        const scaleX = memCanvas.width / rect.width;
+                        const x = (e.clientX - rect.left) * scaleX;
+                        
+                        // Hit test on memories
+                        const w = memCanvas.width;
+                        const size = 32768;
+                        const getX = (p) => ((size - 1 - (p % size)) / size) * w;
+
+                        let found = null;
+                        lastMemories.forEach(m => {
+                            // Using same logic as draw: start + size
+                            const blockX = getX(m.start + m.size);
+                            const blockWidth = (m.size / size) * w;
+                            if (x >= blockX && x <= blockX + blockWidth) {
+                                found = m;
+                            }
+                        });
+
+                        if (found) {
+                            memTooltip.style.display = 'block';
+                            memTooltip.innerText = found.name;
+                            
+                            // Smart positioning to avoid right-edge cutoff
+                            // If mouse is in right 40% of the viewport, move tooltip to the left
+                            const threshold = window.innerWidth * 0.6;
+                            if (e.clientX > threshold) {
+                                memTooltip.style.left = 'auto'; // Clear left
+                                memTooltip.style.right = (window.innerWidth - e.clientX + 10) + 'px';
+                            } else {
+                                memTooltip.style.right = 'auto'; // Clear right
+                                memTooltip.style.left = (e.clientX + 10) + 'px';
+                            }
+                            
+                            memTooltip.style.top = (e.clientY - 25) + 'px';
+                        } else {
+                            memTooltip.style.display = 'none';
+                        }
+                    });
+
+                    memCanvas.addEventListener('mouseout', () => {
+                        memTooltip.style.display = 'none';
+                    });
+
+                    function drawMemMap(ptr, size, addrPtr, memories) {
+                        lastMemories = memories || [];
                         const w = memCanvas.width;
                         const h = memCanvas.height;
                         memCtx.clearRect(0, 0, w, h);
                         memCtx.fillStyle = '#111';
                         memCtx.fillRect(0, 0, w, h);
 
+                        // Physical Coordinate Mapper (0 to size-1 mapped to 0 to width)
+                        // Note: In FV-1, ptr starts at max and decrements (scrolling right)
+                        const getX = (p) => {
+                            // Map physical index directly to screen for "Fixed RAM" view
+                            // We use (size - index) because the hardware decrements the head
+                            return ((size - 1 - (p % size)) / size) * w;
+                        };
+
                         if (memories) {
                             memCtx.fillStyle = 'rgba(79, 172, 254, 0.4)';
                             memCtx.strokeStyle = '#4facfe';
                             memCtx.lineWidth = 0.5;
                             memories.forEach(m => {
-                                const x = (m.start / size) * w;
+                                // Shaded areas are now FIXED to their physical memory indices
+                                const x = getX(m.start + m.size); // End of block (leftmost in right-scrolling view)
                                 const width = (m.size / size) * w;
                                 memCtx.fillRect(x, 2, width, h - 4);
                                 memCtx.strokeRect(x, 2, width, h - 4);
                             });
                         }
 
-                        const ptrX = ((size - ptr) / size) * w;
-                        memCtx.strokeStyle = '#ff4444';
-                        memCtx.lineWidth = 1.5;
+                        // Write Pointer (Base) - White/Light
+                        // This moves through the fixed memory regions
+                        const writeX = getX(ptr);
+                        memCtx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+                        memCtx.lineWidth = 1;
                         memCtx.beginPath();
-                        memCtx.moveTo(ptrX, 0);
-                        memCtx.lineTo(ptrX, h);
+                        memCtx.moveTo(writeX, 0);
+                        memCtx.lineTo(writeX, h);
                         memCtx.stroke();
+
+                        // Read Pointer (ADDR_PTR) - Red
+                        if (addrPtr !== undefined) {
+                            const readIdx = (ptr + Math.floor(addrPtr * size)) % size;
+                            const readX = getX(readIdx);
+                            memCtx.strokeStyle = '#ff4444';
+                            memCtx.lineWidth = 1.5;
+                            memCtx.beginPath();
+                            memCtx.moveTo(readX, 0);
+                            memCtx.lineTo(readX, h);
+                            memCtx.stroke();
+                        }
                     }
 
                     vscode.postMessage({ type: 'ready' });

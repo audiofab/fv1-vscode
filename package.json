@@ -197,8 +197,8 @@
         "category": "FV-1"
       },
       {
-        "command": "fv1.startDebugger",
-        "title": "Start FV-1 Debugger",
+        "command": "fv1.startSimulator",
+        "title": "Run In Simulator",
         "category": "FV-1"
       }
     ],
@@ -271,14 +271,14 @@
           "when": "resourceExtname == .hex"
         },
         {
-          "command": "fv1.startDebugger",
+          "command": "fv1.startSimulator",
           "when": "resourceExtname == .spn"
         }
       ],
       "editor/context": [
         {
           "when": "resourceExtname == .spn",
-          "command": "fv1.startDebugger",
+          "command": "fv1.startSimulator",
           "group": "fv1@0"
         },
         {
