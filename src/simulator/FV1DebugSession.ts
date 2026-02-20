@@ -40,10 +40,11 @@ export class FV1DebugSession implements vscode.DebugAdapter {
     private nextVarHandle = 1;
     private varHandles = new Map<number, { type: string, getter: () => any[] }>();
 
-    constructor(context: vscode.ExtensionContext, private assemblyService: AssemblyService) {
+    constructor(context: vscode.ExtensionContext, private assemblyService: AssemblyService, audioEngine?: FV1AudioEngine) {
         this.simulator = new FV1Simulator();
         this.audioStreamer = new FV1AudioStreamer();
         this.extensionPath = context.extensionPath;
+        this.audioEngine = audioEngine || null;
     }
 
     public handleMessage(message: vscode.DebugProtocolMessage): void {
@@ -190,24 +191,26 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             return;
         }
 
-        // Initialize Audio Engine
-        this.audioEngine = new FV1AudioEngine(this.sampleRate);
-        this.audioEngine.onMessage(m => {
-            switch (m.type) {
-                case 'bypassChange':
-                    this.bypassActive = !!m.active;
-                    this.sendEvent('output', { category: 'console', output: `Bypass ${this.bypassActive ? 'ON' : 'OFF'}\n` });
-                    break;
-                case 'potChange':
-                    if (m.pot >= 0 && m.pot <= 2) {
-                        this.potValues[m.pot] = m.value;
-                        // Update simulator registers directly
-                        // POT0 = $10, POT1 = $11, POT2 = $12
-                        this.simulator.setRegister(0x10 + m.pot, m.value);
-                    }
-                    break;
-            }
-        });
+        // Initialize Audio Engine listener (engine is provided by provider now)
+        if (this.audioEngine) {
+            this.audioEngine.onMessage(m => {
+                switch (m.type) {
+                    case 'bypassChange':
+                        this.bypassActive = !!m.active;
+                        this.sendEvent('output', { category: 'console', output: `Bypass ${this.bypassActive ? 'ON' : 'OFF'}\n` });
+                        break;
+                    case 'potChange':
+                        if (m.pot >= 0 && m.pot <= 2) {
+                            this.potValues[m.pot] = m.value;
+                            this.simulator.setRegister(0x10 + m.pot, m.value);
+                        }
+                        break;
+                    case 'stimulusChange':
+                        this.handleStimulusChange(m);
+                        break;
+                }
+            });
+        }
 
         // Apply hardware limits to simulator
         const config = vscode.workspace.getConfiguration('fv1');
@@ -297,7 +300,22 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         if (cwd) { searchPaths.push(path.resolve(cwd, wavPath)); }
 
         // 2. Try relative to the .spin program
-        if (this.sourcePath) { searchPaths.push(path.resolve(path.dirname(this.sourcePath), wavPath)); }
+        if (this.sourcePath) {
+            let baseDir: string;
+            if (this.sourcePath.startsWith('file:///')) {
+                baseDir = path.dirname(vscode.Uri.parse(this.sourcePath).fsPath);
+            } else if (this.sourcePath.includes(':') && !path.isAbsolute(this.sourcePath)) {
+                // Try parsing as URI if it looks like one
+                try {
+                    baseDir = path.dirname(vscode.Uri.parse(this.sourcePath).fsPath);
+                } catch {
+                    baseDir = path.dirname(this.sourcePath);
+                }
+            } else {
+                baseDir = path.dirname(this.sourcePath);
+            }
+            searchPaths.push(path.resolve(baseDir, wavPath));
+        }
 
         // 3. Try relative to extension (critical for internal assets)
         if (this.extensionPath) {
@@ -747,6 +765,26 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             clearTimeout(this.timerHandle);
             this.timerHandle = null;
         }
-        this.audioEngine?.dispose();
+    }
+
+    private async handleStimulusChange(m: any) {
+        if (m.value === 'none') {
+            this.audioStreamer.unload();
+            this.sendEvent('output', { category: 'console', output: `Input stimulus: None (Silence)\n` });
+        } else if (m.value === 'built-in') {
+            const defaultWav = 'src/simulator/wav/minor-chords-32k.wav';
+            const resolved = this.resolveWavPath(defaultWav, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
+            if (resolved) {
+                await this.audioStreamer.loadWav(resolved);
+                this.sendEvent('output', { category: 'console', output: `Input stimulus: Built-in loop\n` });
+            }
+        } else if (m.value === 'custom' && m.filePath) {
+            try {
+                await this.audioStreamer.loadWav(m.filePath);
+                this.sendEvent('output', { category: 'console', output: `Input stimulus: ${path.basename(m.filePath)}\n` });
+            } catch (e: any) {
+                this.sendEvent('output', { category: 'stderr', output: `Failed to load ${m.filePath}: ${e.message}\n` });
+            }
+        }
     }
 }

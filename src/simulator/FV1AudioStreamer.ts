@@ -109,4 +109,12 @@ export class FV1AudioStreamer {
     public getCurrentSample(): number {
         return this.currentSample;
     }
+
+    public unload() {
+        this.buffer = null;
+        this.numSamples = 0;
+        this.currentSample = 0;
+        this.lastL = 0;
+        this.lastR = 0;
+    }
 }

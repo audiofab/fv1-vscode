@@ -30,9 +30,7 @@
     "audio"
   ],
   "activationEvents": [
-    "onDebug",
-    "onDebugInitialConfigurations",
-    "onDebugResolve:fv1-debug"
+    "onView:fv1Monitor"
   ],
   "main": "./dist/extension.cjs",
   "contributes": {
@@ -40,7 +38,7 @@
       "activitybar": [
         {
           "id": "fv1-explorer",
-          "title": "Audiofab Easy Spin (FV-1) Development",
+          "title": "Audiofab Easy Spin",
           "icon": "resources/audiofab-icon.svg"
         }
       ]
@@ -51,6 +49,14 @@
           "icon": "resources/audiofab-icon.svg",
           "id": "fv1-quick-actions",
           "name": "Quick Actions"
+        }
+      ],
+      "debug": [
+        {
+          "id": "fv1Monitor",
+          "name": "FV-1 Audio Monitor",
+          "type": "webview",
+          "icon": "$(pulse)"
         }
       ]
     },

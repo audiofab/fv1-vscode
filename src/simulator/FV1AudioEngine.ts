@@ -1,11 +1,13 @@
 import * as vscode from 'vscode';
 
 /**
- * Manages audio playback using a hidden VS Code Webview and the Web Audio API.
+ * Manages audio playback using a VS Code Webview View and the Web Audio API.
  * Uses a jitter buffer to ensure smooth playback across the IPC bridge.
  */
-export class FV1AudioEngine {
-    private panel: vscode.WebviewPanel | null = null;
+export class FV1AudioEngine implements vscode.WebviewViewProvider {
+    public static readonly viewType = 'fv1Monitor';
+
+    private _view?: vscode.WebviewView;
     private isReady: boolean = false;
     private sampleRate: number = 32768;
     private pendingMetadata: any = null;
@@ -15,77 +17,90 @@ export class FV1AudioEngine {
 
     constructor(sampleRate: number = 32768) {
         this.sampleRate = sampleRate;
-        this.init();
     }
 
-    private init() {
-        this.panel = vscode.window.createWebviewPanel(
-            'fv1AudioEngine',
-            'FV1 Audio Monitor',
-            { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-            {
-                enableScripts: true,
-                enableMediaStream: true,
-                retainContextWhenHidden: true
-            } as any
-        );
+    public resolveWebviewView(
+        webviewView: vscode.WebviewView,
+        _context: vscode.WebviewViewResolveContext,
+        _token: vscode.CancellationToken,
+    ) {
+        this._view = webviewView;
 
-        this.panel.webview.html = this.getHtml();
+        webviewView.webview.options = {
+            enableScripts: true,
+            enableMediaStream: true,
+        } as any;
 
-        this.panel.webview.onDidReceiveMessage(m => {
+        webviewView.webview.html = this.getHtml();
+
+        webviewView.webview.onDidReceiveMessage(m => {
             if (m.type === 'ready') {
                 this.isReady = true;
-                console.log('FV1 Audio Engine Ready');
-                if (this.pendingMetadata && this.panel) {
-                    this.panel.webview.postMessage({
+                console.log('FV1 Audio Engine Ready (View)');
+                if (this.pendingMetadata && this._view) {
+                    this._view.webview.postMessage({
                         type: 'play',
                         l: new Float32Array(0),
                         r: new Float32Array(0),
-                        adcL: 0,
-                        adcR: 0,
                         metadata: this.pendingMetadata
                     });
                     this.pendingMetadata = null;
                 }
+            } else if (m.type === 'selectCustomFile') {
+                this.handleSelectCustomFile();
             } else {
-                // Relay other messages (bypass, pot change) to listeners
+                // Relay other messages (bypass, pot change, stimulus change) to listeners
                 this._onMessage.fire(m);
             }
         });
 
-        this.panel.onDidDispose(() => {
-            this.panel = null;
+        webviewView.onDidDispose(() => {
+            this._view = undefined;
             this.isReady = false;
         });
+    }
+
+    private async handleSelectCustomFile() {
+        const uris = await vscode.window.showOpenDialog({
+            canSelectMany: false,
+            openLabel: 'Select WAV File',
+            filters: {
+                'Audio': ['wav']
+            }
+        });
+
+        if (uris && uris[0]) {
+            this._onMessage.fire({
+                type: 'stimulusChange',
+                value: 'custom',
+                filePath: uris[0].fsPath
+            });
+
+            // Note: We could update the UI here, but we rely on the simulator to load it.
+        }
     }
 
     /**
      * Sends a buffer of samples to the webview for playback.
      */
-    public playBuffer(l: Float32Array, r: Float32Array, adcL: number = 0, adcR: number = 0, metadata: any = null) {
+    public playBuffer(l: Float32Array, r: Float32Array, _adcL: number = 0, _adcR: number = 0, metadata: any = null) {
         if (metadata) this.pendingMetadata = metadata;
 
-        if (!this.isReady || !this.panel) return;
+        if (!this.isReady || !this._view) return;
 
-        this.panel.webview.postMessage({
+        this._view.webview.postMessage({
             type: 'play',
             l,
             r,
-            adcL,
-            adcR,
             metadata: this.pendingMetadata
         });
         this.pendingMetadata = null;
     }
 
     public stop() {
-        if (this.panel) {
-            this.panel.webview.postMessage({ type: 'stop' });
+        if (this._view) {
+            this._view.webview.postMessage({ type: 'stop' });
         }
-    }
-
-    public dispose() {
-        this.panel?.dispose();
     }
 
     private getHtml() {
@@ -94,82 +109,81 @@ export class FV1AudioEngine {
             <html>
             <head>
                 <style>
-                    body { background: #1e1e1e; color: #ccc; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; margin: 0; cursor: default; }
-                    .container { text-align: center; width: 85%; max-width: 500px; }
-                    .header { font-size: 18px; margin-bottom: 12px; font-weight: bold; color: #fff; }
-                    .meter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-                    .meter-box { background: #252525; padding: 10px; border-radius: 6px; border: 1px solid #333; }
-                    .meter-label { color: #666; font-size: 10px; text-transform: uppercase; margin-bottom: 4px; }
-                    .meter-value { font-family: monospace; font-size: 16px; }
-                    .scope-canvas { border: 1px solid #333; border-radius: 4px; background: #000; width: 100%; margin-bottom: 8px; }
-                    .viz-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-                    .viz-box { background: #252525; padding: 6px; border-radius: 4px; border: 1px solid #333; }
-                    .viz-label { color: #666; font-size: 9px; text-transform: uppercase; margin-bottom: 4px; text-align: left; }
-                    .small-canvas { background: #000; border: 1px solid #1a1a1a; border-radius: 2px; width: 100%; height: 60px; }
-                    .info-box { background: #252525; padding: 8px; border-radius: 4px; font-size: 11px; color: #888; margin-bottom: 12px; text-align: left; }
-                    .controls-box { background: #2a2a2a; padding: 12px; border-radius: 6px; border: 1px solid #444; margin-bottom: 12px; }
-                    .pot-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-                    .pot-label { color: #eee; font-size: 11px; width: 45px; text-align: left; }
-                    .pot-slider { flex: 1; accent-color: #4facfe; cursor: pointer; }
-                    .pot-value { font-family: monospace; font-size: 11px; width: 35px; color: #aaa; }
-                    .footer { display: flex; gap: 10px; justify-content: center; align-items: center; }
-                    button { background: #333; color: #ccc; border: 1px solid #444; padding: 5px 10px; font-size: 11px; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
-                    button:hover { background: #444; border-color: #555; color: #fff; }
-                    button.active { background: #4facfe; color: #000; border-color: #fff; font-weight: bold; }
-                    #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 100; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.3s; }
+                    body { background: transparent; color: var(--vscode-foreground); font-family: var(--vscode-font-family); padding: 10px; overflow-x: hidden; }
+                    .container { display: flex; flex-direction: column; gap: 12px; }
+                    
+                    .viz-box { background: var(--vscode-sideBar-background); padding: 8px; border-radius: 4px; border: 1px solid var(--vscode-widget-border); }
+                    .viz-label { color: var(--vscode-descriptionForeground); font-size: 9px; text-transform: uppercase; margin-bottom: 6px; }
+                    .scope-canvas { background: #000; border-radius: 2px; width: 100%; height: 80px; margin-bottom: 4px; }
+                    .small-canvas { background: #000; border-radius: 2px; width: 100%; height: 60px; }
+                    
+                    .controls-box { background: var(--vscode-sideBar-background); padding: 10px; border-radius: 4px; border: 1px solid var(--vscode-widget-border); }
+                    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+                    .section-title { font-size: 11px; font-weight: bold; color: var(--vscode-settings-headerForeground); }
+
+                    .pot-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+                    .pot-label { color: var(--vscode-foreground); font-size: 10px; width: 35px; }
+                    .pot-slider { flex: 1; height: 2px; cursor: pointer; accent-color: var(--vscode-button-background); }
+                    .pot-value { font-family: var(--vscode-editor-font-family); font-size: 10px; width: 30px; color: var(--vscode-descriptionForeground); text-align: right; }
+
+                    .stimulus-box { margin-top: 4px; }
+                    select { background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border); width: 100%; font-size: 11px; padding: 2px; outline: none; }
+                    
+                    button { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px; }
+                    button:hover { background: var(--vscode-button-hoverBackground); }
+                    button.active { background: #e81123; color: white; font-weight: bold; }
+
+                    #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100; display: flex; align-items: center; justify-content: center; cursor: pointer; text-align: center; }
                 </style>
             </head>
             <body>
                 <div id="overlay">
-                    <div style="text-align: center; pointer-events: none;">
-                        <div style="font-size: 40px; margin-bottom: 10px;">🎧</div>
-                        <div style="font-size: 18px; color: #fff; font-weight: bold;">Click to Enable Monitor</div>
-                        <div style="font-size: 12px; color: #aaa; margin-top: 8px;">Audio starts as soon as data arrives.</div>
+                    <div style="padding: 20px;">
+                        <div style="font-size: 24px; margin-bottom: 10px;">🎧</div>
+                        <div style="font-size: 12px; color: #fff; font-weight: bold;">Click to Enable Audio Monitor</div>
                     </div>
                 </div>
 
                 <div class="container">
-                    <div class="header">🔊 FV-1 Audio Monitor</div>
-                    
-                    <div class="meter-grid">
-                        <div class="meter-box">
-                            <div class="meter-label">ADC Input</div>
-                            <div class="meter-value" style="color: #4facfe;">
-                                L:<span id="adcL">0.000</span> R:<span id="adcR">0.000</span>
-                            </div>
+                    <div class="controls-box">
+                        <div class="section-header">
+                            <div class="section-title">Input Stimulus</div>
                         </div>
-                        <div class="meter-box">
-                            <div class="meter-label">DAC Output</div>
-                            <div class="meter-value" style="color: #00ff00;">
-                                L:<span id="dacL">0.000</span> R:<span id="dacR">0.000</span>
-                            </div>
+                        <div class="stimulus-box">
+                            <select id="stimulusSelect">
+                                <option value="none">Silence (No Input)</option>
+                                <option value="built-in">Built-in: Minor Chords</option>
+                                <option value="custom">Select Custom File...</option>
+                            </select>
                         </div>
                     </div>
-                    
-                    <canvas id="scope" width="400" height="80" class="scope-canvas"></canvas>
 
-                    <div class="viz-grid">
-                        <div class="viz-box">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                                <div class="viz-label">LFO Oscilloscope</div>
-                                <div style="font-size: 8px; display: flex; gap: 4px;">
-                                    <span style="color: #4facfe;">SIN0</span>
-                                    <span style="color: #ff00ff;">SIN1</span>
-                                    <span style="color: #ffaa00;">RMP0</span>
-                                    <span style="color: #00ff00;">RMP1</span>
-                                </div>
+                    <div class="viz-box">
+                        <div class="viz-label">Output Oscilloscope (Stereo)</div>
+                        <canvas id="scope" width="400" height="80" class="scope-canvas"></canvas>
+                    </div>
+
+                    <div class="viz-box">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <div class="viz-label">LFO Oscilloscope</div>
+                            <div style="font-size: 8px; display: flex; gap: 4px; opacity: 0.8;">
+                                <span style="color: #4facfe;">S0</span>
+                                <span style="color: #ff00ff;">S1</span>
+                                <span style="color: #ffaa00;">R0</span>
+                                <span style="color: #00ff00;">R1</span>
                             </div>
-                            <canvas id="lfoScope" width="200" height="60" class="small-canvas"></canvas>
                         </div>
-                        <div class="viz-box">
-                            <div class="viz-label">Delay Memory Map</div>
-                            <canvas id="memMap" width="200" height="60" class="small-canvas"></canvas>
-                        </div>
+                        <canvas id="lfoScope" width="200" height="60" class="small-canvas"></canvas>
+                    </div>
+
+                    <div class="viz-box">
+                        <div class="viz-label">Delay Memory Map</div>
+                        <canvas id="memMap" width="200" height="60" class="small-canvas"></canvas>
                     </div>
 
                     <div class="controls-box">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <span style="font-size: 12px; font-weight: bold; color: #4facfe;">Interactive Controls</span>
+                        <div class="section-header">
+                            <div class="section-title">DSP Controls</div>
                             <button id="bypassBtn">BYPASS</button>
                         </div>
                         <div class="pot-row">
@@ -189,15 +203,7 @@ export class FV1AudioEngine {
                         </div>
                     </div>
 
-                    <div class="info-box">
-                        <div id="streamerInfo">File: Not Loading...</div>
-                    </div>
-
-                    <div class="footer">
-                        <select id="deviceList" title="Output Device" style="background: #252525; color: #eee; border: 1px solid #444; padding: 4px; border-radius: 4px; font-size: 10px; display: none;"></select>
-                        <button id="testBtn">Test Tone</button>
-                        <div id="status" style="color: #666; font-size: 10px;">Initializing...</div>
-                    </div>
+                    <div id="status" style="color: var(--vscode-descriptionForeground); font-size: 9px; text-align: center;">Initializing...</div>
                 </div>
 
                 <script>
@@ -214,15 +220,8 @@ export class FV1AudioEngine {
                     const memCtx = memCanvas.getContext('2d');
 
                     const overlay = document.getElementById('overlay');
-                    const deviceList = document.getElementById('deviceList');
-                    const testBtn = document.getElementById('testBtn');
                     const bypassBtn = document.getElementById('bypassBtn');
-                    const streamerInfo = document.getElementById('streamerInfo');
-                    
-                    const adcL = document.getElementById('adcL');
-                    const adcR = document.getElementById('adcR');
-                    const dacL = document.getElementById('dacL');
-                    const dacR = document.getElementById('dacR');
+                    const stimulusSelect = document.getElementById('stimulusSelect');
                     
                     let bypassActive = false;
                     let bufferQueue = [];
@@ -258,22 +257,13 @@ export class FV1AudioEngine {
                         vscode.postMessage({ type: 'bypassChange', active: bypassActive });
                     });
 
-                    async function refreshDevices() {
-                        try {
-                            const devices = await navigator.mediaDevices.enumerateDevices();
-                            const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
-                            if (audioOutputs.length > 1) {
-                                deviceList.style.display = 'block';
-                            }
-                            deviceList.innerHTML = '';
-                            audioOutputs.forEach((device, i) => {
-                                const option = document.createElement('option');
-                                option.value = device.deviceId;
-                                option.text = device.label || 'Output ' + (i + 1);
-                                deviceList.appendChild(option);
-                            });
-                        } catch (e) {}
-                    }
+                    stimulusSelect.addEventListener('change', () => {
+                        if (stimulusSelect.value === 'custom') {
+                            vscode.postMessage({ type: 'selectCustomFile' });
+                        } else {
+                            vscode.postMessage({ type: 'stimulusChange', value: stimulusSelect.value });
+                        }
+                    });
 
                     async function initAudio() {
                         if (audioCtx) {
@@ -283,9 +273,6 @@ export class FV1AudioEngine {
                         try {
                             const AudioContext = window.AudioContext || window.webkitAudioContext;
                             audioCtx = new AudioContext({ sampleRate });
-                            if (deviceList.value && deviceList.value !== 'default' && audioCtx.setSinkId) {
-                                await audioCtx.setSinkId(deviceList.value);
-                            }
                             updateStatus('Live | ' + audioCtx.sampleRate + 'Hz');
                             if (audioCtx.state === 'running') hideOverlay();
                             return true;
@@ -301,34 +288,13 @@ export class FV1AudioEngine {
                     }
 
                     overlay.addEventListener('click', async () => { await initAudio(); });
-                    testBtn.addEventListener('click', async (e) => {
-                        if (!audioCtx || audioCtx.state !== 'running') await initAudio();
-                        if (audioCtx && audioCtx.state === 'running') {
-                            const osc = audioCtx.createOscillator();
-                            osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-                            const gain = audioCtx.createGain();
-                            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-                            osc.connect(gain);
-                            gain.connect(audioCtx.destination);
-                            osc.start();
-                            osc.stop(audioCtx.currentTime + 0.2);
-                        }
-                    });
 
                     window.addEventListener('message', async event => {
                         const message = event.data;
                         if (message.type === 'play') {
-                            if (message.adcL !== undefined) adcL.innerText = message.adcL.toFixed(3);
-                            if (message.adcR !== undefined) adcR.innerText = message.adcR.toFixed(3);
-                            
                             if (message.metadata) {
                                 const m = message.metadata;
-                                streamerInfo.innerText = 'WAV: ' + (m.loaded ? 'Loaded (' + m.numSamples + ' smp)' : 'No File');
-                                streamerInfo.style.color = m.loaded ? '#aaa' : '#f44';
-
-                                // Visualization data
                                 if (m.lfoSin0) {
-                                    // Add points to history
                                     for (let i = 0; i < m.lfoSin0.length; i++) {
                                         lfoHistory.sin0[lfoHistory.ptr] = m.lfoSin0[i];
                                         lfoHistory.sin1[lfoHistory.ptr] = m.lfoSin1[i];
@@ -366,12 +332,9 @@ export class FV1AudioEngine {
                     function processQueue() {
                         while (audioCtx && audioCtx.state === 'running' && bufferQueue.length > 0) {
                             const block = bufferQueue.shift();
-                            const lData = block.l;
-                            const rData = block.r;
-
-                            const buffer = audioCtx.createBuffer(2, lData.length, sampleRate);
-                            buffer.getChannelData(0).set(lData);
-                            buffer.getChannelData(1).set(rData);
+                            const buffer = audioCtx.createBuffer(2, block.l.length, sampleRate);
+                            buffer.getChannelData(0).set(block.l);
+                            buffer.getChannelData(1).set(block.r);
 
                             const source = audioCtx.createBufferSource();
                             source.buffer = buffer;
@@ -385,9 +348,7 @@ export class FV1AudioEngine {
                             source.start(startTime);
                             
                             if (bufferQueue.length === 0) {
-                                dacL.innerText = lData[0].toFixed(3);
-                                dacR.innerText = rData[0].toFixed(3);
-                                drawScope(lData);
+                                drawScope(block.l);
                             }
 
                             startTime += buffer.duration;
@@ -397,7 +358,7 @@ export class FV1AudioEngine {
                     function drawScope(data) {
                         scopeCtx.clearRect(0, 0, scopeCanvas.width, scopeCanvas.height);
                         scopeCtx.beginPath();
-                        scopeCtx.lineWidth = 1.2;
+                        scopeCtx.lineWidth = 1.0;
                         scopeCtx.strokeStyle = '#00ff00';
                         const step = data.length / scopeCanvas.width;
                         for(let i = 0; i < scopeCanvas.width; i++) {
@@ -417,7 +378,7 @@ export class FV1AudioEngine {
                         const drawWave = (data, color) => {
                             lfoCtx.beginPath();
                             lfoCtx.strokeStyle = color;
-                            lfoCtx.lineWidth = 1.5;
+                            lfoCtx.lineWidth = 1.2;
                             for (let i = 0; i < LFO_HISTORY_LEN; i++) {
                                 const idx = (lfoHistory.ptr + i) % LFO_HISTORY_LEN;
                                 const val = data[idx];
@@ -439,12 +400,9 @@ export class FV1AudioEngine {
                         const w = memCanvas.width;
                         const h = memCanvas.height;
                         memCtx.clearRect(0, 0, w, h);
-
-                        // Draw background
-                        memCtx.fillStyle = '#1a1a1a';
+                        memCtx.fillStyle = '#111';
                         memCtx.fillRect(0, 0, w, h);
 
-                        // Draw allocated blocks
                         if (memories) {
                             memCtx.fillStyle = 'rgba(79, 172, 254, 0.4)';
                             memCtx.strokeStyle = '#4facfe';
@@ -457,8 +415,7 @@ export class FV1AudioEngine {
                             });
                         }
 
-                        // Draw pointer
-                        const ptrX = ((size - ptr) / size) * w; // ptr counts down in FV-1 circular buffer
+                        const ptrX = ((size - ptr) / size) * w;
                         memCtx.strokeStyle = '#ff4444';
                         memCtx.lineWidth = 1.5;
                         memCtx.beginPath();
@@ -467,7 +424,6 @@ export class FV1AudioEngine {
                         memCtx.stroke();
                     }
 
-                    refreshDevices();
                     vscode.postMessage({ type: 'ready' });
                     updateStatus('Ready');
                 </script>

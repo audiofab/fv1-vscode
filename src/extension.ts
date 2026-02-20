@@ -14,6 +14,7 @@ import { FV1HoverProvider } from './fv1HoverProvider.js';
 import { FV1DefinitionProvider } from './fv1DefinitionProvider.js';
 import { IntelHexService } from './services/IntelHexService.js';
 import { FV1DebugSession } from './simulator/FV1DebugSession.js';
+import { FV1AudioEngine } from './simulator/FV1AudioEngine.js';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Audiofab FV-1 Extension is now active!');
@@ -40,18 +41,23 @@ export function activate(context: vscode.ExtensionContext) {
     const statusBarService = new StatusBarService(fv1DocumentManager, blockDiagramDocumentManager);
     context.subscriptions.push(statusBarService);
 
+    const fv1AudioEngine = new FV1AudioEngine();
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider('fv1Monitor', fv1AudioEngine)
+    );
+
+    context.subscriptions.push(
+        vscode.debug.registerDebugConfigurationProvider('fv1-debug', new FV1DebugConfigurationProvider())
+    );
+
     // 0. Register Debugging Support
     context.subscriptions.push(
         vscode.debug.registerDebugAdapterDescriptorFactory('fv1-debug', {
             createDebugAdapterDescriptor(_session) {
                 console.log('Creating FV1 Debug Adapter Session');
-                return new vscode.DebugAdapterInlineImplementation(new FV1DebugSession(context, assemblyService));
+                return new vscode.DebugAdapterInlineImplementation(new FV1DebugSession(context, assemblyService, fv1AudioEngine));
             }
         })
-    );
-
-    context.subscriptions.push(
-        vscode.debug.registerDebugConfigurationProvider('fv1-debug', new FV1DebugConfigurationProvider())
     );
 
     // 4. Register Providers
