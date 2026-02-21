@@ -76,15 +76,20 @@ export class StatusBarService implements vscode.Disposable {
             return;
         }
 
-        this.updateItem(this.instructionsStatusBar, stats.instructionsUsed, 128, '$(circuit-board)');
+        const config = vscode.workspace.getConfiguration('fv1');
+        const maxInstructions = config.get<number>('hardware.progSize') ?? 128;
+        const maxRegisters = config.get<number>('hardware.regCount') ?? 32;
+        const maxMemory = config.get<number>('hardware.delaySize') ?? 32768;
+
+        this.updateItem(this.instructionsStatusBar, stats.instructionsUsed, maxInstructions, '$(circuit-board)');
 
         if (stats.registersUsed > 0 || fileName.endsWith('.spndiagram')) {
-            this.updateItem(this.registersStatusBar, stats.registersUsed, 32, '$(database)');
+            this.updateItem(this.registersStatusBar, stats.registersUsed, maxRegisters, '$(database)');
         } else {
             this.registersStatusBar.hide();
         }
 
-        this.updateItem(this.memoryStatusBar, stats.memoryUsed, 32768, '$(pulse)');
+        this.updateItem(this.memoryStatusBar, stats.memoryUsed, maxMemory, '$(pulse)');
     }
 
     private updateItem(item: vscode.StatusBarItem, used: number, max: number, icon: string) {

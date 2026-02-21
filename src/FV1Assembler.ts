@@ -760,7 +760,7 @@ class FV1Assembler {
       case 'MULX': // 000000000000000000000AAAAAA01010
         {
           const addr = this.parseInteger(operands[0], 6);
-          this.trackRegister(addr);
+          this.trackRegister(addr, lineNumber);
           if (addr === null) {
             this.problems.push({ message: `Line ${lineNumber}: Invalid operand in ${mnemonic} instruction`, isfatal: true, line: lineNumber });
             return null;
@@ -777,7 +777,7 @@ class FV1Assembler {
       case 'LDAX': // 000000000000000000000AAAAAA00101 (special case of RDAX)
         {
           const addr = this.parseInteger(operands[0], 6);
-          this.trackRegister(addr);
+          this.trackRegister(addr, lineNumber);
           // LDAX only has one operand, coeff is zero
           let coeff = 0;
           if (mnemonic !== 'LDAX') {
@@ -1007,8 +1007,15 @@ class FV1Assembler {
     return memName;
   }
 
-  private trackRegister(addr: number | null) {
+  private trackRegister(addr: number | null, lineNumber: number) {
     if (addr !== null && addr >= 32 && addr <= 63) {
+      if (addr - 32 >= this.options.regCount) {
+        this.problems.push({
+          message: `Register address REG${addr - 32} exceeds configured register count of ${this.options.regCount}`,
+          isfatal: true,
+          line: lineNumber
+        });
+      }
       this.usedRegisters.add(addr);
     }
   }

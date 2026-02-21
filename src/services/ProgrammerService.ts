@@ -18,13 +18,28 @@ export class ProgrammerService {
     constructor(
         private outputService: OutputService,
         private assemblyService: AssemblyService
-    ) {}
+    ) { }
+
+    private validateHardwareLimits(): boolean {
+        const config = vscode.workspace.getConfiguration('fv1');
+        const regCount = config.get<number>('hardware.regCount') ?? 32;
+        const progSize = config.get<number>('hardware.progSize') ?? 128;
+        const delaySize = config.get<number>('hardware.delaySize') ?? 32768;
+
+        if (regCount !== 32 || progSize !== 128 || delaySize !== 32768) {
+            const msg = `Hardware programming is only allowed with standard FV-1 limits (32 REGs, 128 instructions, 32k RAM). Current settings: ${regCount} REGs, ${progSize} instructions, ${delaySize} RAM.`;
+            this.outputService.log(`[ERROR] ❌ ${msg}`);
+            vscode.window.showErrorMessage(msg);
+            return false;
+        }
+        return true;
+    }
 
     public async selectProgramSlot(): Promise<number | undefined> {
-        const items = Array.from({ length: 8 }, (_, i) => i + 1).map(i => ({ 
-            label: `Program ${i}`, 
-            description: `Program into EEPROM program slot ${i}`, 
-            index: i - 1 
+        const items = Array.from({ length: 8 }, (_, i) => i + 1).map(i => ({
+            label: `Program ${i}`,
+            description: `Program into EEPROM program slot ${i}`,
+            index: i - 1
         }));
         const picked = await vscode.window.showQuickPick(items, { placeHolder: 'Select program to write to EEPROM (1-8)', canPickMany: false });
         return picked?.index;
@@ -38,22 +53,22 @@ export class ProgrammerService {
         try {
             const devices = HID.devices();
             const mcp2221Devices = devices.filter(d => d.vendorId === vendorId && d.productId === productId);
-            
-            if (mcp2221Devices.length === 0) { 
-                vscode.window.showWarningMessage('No MCP2221 devices found'); 
-                return undefined; 
+
+            if (mcp2221Devices.length === 0) {
+                vscode.window.showWarningMessage('No MCP2221 devices found');
+                return undefined;
             }
-            if (mcp2221Devices.length === 1) { 
-                return mcp2221Devices[0]; 
+            if (mcp2221Devices.length === 1) {
+                return mcp2221Devices[0];
             }
 
-            const items = mcp2221Devices.map(d => ({ 
-                label: d.product || 'MCP2221', 
-                description: d.serialNumber ? `SN: ${d.serialNumber}` : undefined, 
-                detail: d.path, 
-                device: d 
+            const items = mcp2221Devices.map(d => ({
+                label: d.product || 'MCP2221',
+                description: d.serialNumber ? `SN: ${d.serialNumber}` : undefined,
+                detail: d.path,
+                device: d
             }));
-            
+
             const picked = await vscode.window.showQuickPick(items, { placeHolder: 'Select MCP2221 device to use', canPickMany: false });
             return picked?.device;
         } catch (error) {
@@ -88,6 +103,8 @@ export class ProgrammerService {
     }
 
     public async programEeprom(machineCode: number[], forcedSlot?: number): Promise<void> {
+        if (!this.validateHardwareLimits()) return;
+
         const config = vscode.workspace.getConfiguration('fv1');
         const verifyWrites = config.get<boolean>('verifyWrites') ?? true;
 
@@ -97,14 +114,14 @@ export class ProgrammerService {
         try {
             let selectedSlot = forcedSlot;
             if (selectedSlot === undefined) selectedSlot = await this.selectProgramSlot();
-            if (selectedSlot === undefined) { 
-                vscode.window.showWarningMessage('No program slot was selected, aborting'); 
-                return; 
+            if (selectedSlot === undefined) {
+                vscode.window.showWarningMessage('No program slot was selected, aborting');
+                return;
             }
 
             const startAddress = selectedSlot * FV1_EEPROM_SLOT_SIZE_BYTES;
             const writeData = FV1Assembler.toUint8Array(machineCode);
-            
+
             if (writeData.length !== FV1_EEPROM_SLOT_SIZE_BYTES) {
                 vscode.window.showErrorMessage(`Unexpected machine code size (${writeData.length} bytes)`);
                 return;
@@ -131,19 +148,19 @@ export class ProgrammerService {
     public async backupPedal(): Promise<void> {
         try {
             this.outputService.log(`[INFO] 💾 Starting pedal backup...`);
-            
+
             const eeprom = await this.getEepromConnection();
             if (!eeprom) return;
 
             const totalBytes = 8 * FV1_EEPROM_SLOT_SIZE_BYTES;
             this.outputService.log(`[INFO] 📖 Reading ${totalBytes} bytes from EEPROM...`);
-            
+
             const readBuffer = await eeprom.read(0, totalBytes);
             const dataArray = new Uint8Array(readBuffer as any);
 
             this.outputService.log(`[SUCCESS] ✅ Successfully read ${dataArray.length} bytes`);
 
-            const segments: Array<{data: Buffer, address: number}> = [];
+            const segments: Array<{ data: Buffer, address: number }> = [];
             for (let slot = 0; slot < 8; slot++) {
                 const startOffset = slot * FV1_EEPROM_SLOT_SIZE_BYTES;
                 const slotData = dataArray.slice(startOffset, startOffset + FV1_EEPROM_SLOT_SIZE_BYTES);
@@ -170,7 +187,7 @@ export class ProgrammerService {
             if (fs.existsSync(saveUri.fsPath)) {
                 this.outputService.log(`[SUCCESS] ✅ Pedal backup saved to: ${path.basename(saveUri.fsPath)}`);
                 vscode.window.showInformationMessage(`Pedal backup successfully saved to ${path.basename(saveUri.fsPath)}`);
-                
+
                 const openFile = await vscode.window.showInformationMessage('Backup complete! Open file?', 'Open File', 'Close');
                 if (openFile === 'Open File') {
                     const doc = await vscode.workspace.openTextDocument(saveUri);
@@ -186,6 +203,8 @@ export class ProgrammerService {
     }
 
     public async loadHexToEeprom(): Promise<void> {
+        if (!this.validateHardwareLimits()) return;
+
         try {
             const activeEditor = vscode.window.activeTextEditor;
             if (!activeEditor) {
@@ -261,15 +280,17 @@ export class ProgrammerService {
     }
 
     public async programBank(item?: any): Promise<void> {
+        if (!this.validateHardwareLimits()) return;
+
         try {
             const files = item && item.resourceUri ? [item.resourceUri] : await vscode.workspace.findFiles('**/*.spnbank', '**/node_modules/**');
-            if (!files || files.length === 0) { 
-                vscode.window.showErrorMessage('No .spnbank files found'); 
-                return; 
+            if (!files || files.length === 0) {
+                vscode.window.showErrorMessage('No .spnbank files found');
+                return;
             }
 
             // Save all dirty .spn and .spndiagram files before assembling
-            const dirtyDocs = vscode.workspace.textDocuments.filter(doc => 
+            const dirtyDocs = vscode.workspace.textDocuments.filter(doc =>
                 doc.isDirty && (doc.fileName.endsWith('.spn') || doc.fileName.endsWith('.spndiagram'))
             );
             if (dirtyDocs.length > 0) {
@@ -363,6 +384,8 @@ export class ProgrammerService {
     }
 
     public async programSlotFromBank(item?: any): Promise<void> {
+        if (!this.validateHardwareLimits()) return;
+
         try {
             let bankUri: vscode.Uri | undefined;
             let slotNum: number | undefined;
@@ -372,17 +395,17 @@ export class ProgrammerService {
             const doc = await vscode.workspace.openTextDocument(bankUri!);
             const json = doc.getText() ? JSON.parse(doc.getText()) : {};
             const entry = json.slots && json.slots[slotNum - 1];
-            if (!entry || !entry.path) { 
-                vscode.window.showErrorMessage(`Slot ${slotNum} is unassigned`); 
-                return; 
+            if (!entry || !entry.path) {
+                vscode.window.showErrorMessage(`Slot ${slotNum} is unassigned`);
+                return;
             }
-            
+
             const bankDir = path.dirname(bankUri!.fsPath);
             const fsPath = path.isAbsolute(entry.path) ? entry.path : path.resolve(bankDir, entry.path);
-            
+
             this.outputService.log(`[INFO] 🔧 Assembling ${path.basename(fsPath)} for slot ${slotNum}...`);
             const result = await this.assemblyService.assembleFile(fsPath);
-            
+
             if (result && result.machineCode && result.machineCode.length > 0 && !result.problems.some(p => p.isfatal)) {
                 await this.programEeprom(result.machineCode, slotNum - 1);
             } else {

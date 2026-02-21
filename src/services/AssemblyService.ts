@@ -27,11 +27,16 @@ export class AssemblyService {
 
             if (result.success && result.assembly) {
                 const stats = result.statistics!;
+                const config = vscode.workspace.getConfiguration('fv1');
+                const maxInstructions = config.get<number>('hardware.progSize') ?? 128;
+                const maxRegisters = config.get<number>('hardware.regCount') ?? 32;
+                const maxMemory = config.get<number>('hardware.delaySize') ?? 32768;
+
                 this.outputService.log(
                     `[SUCCESS] ✅ Block diagram compiled successfully - ` +
-                    `Instructions: ${stats.instructionsUsed}/128, ` +
-                    `Registers: ${stats.registersUsed}/32, ` +
-                    `Memory: ${stats.memoryUsed}/32768`
+                    `Instructions: ${stats.instructionsUsed}/${maxInstructions}, ` +
+                    `Registers: ${stats.registersUsed}/${maxRegisters}, ` +
+                    `Memory: ${stats.memoryUsed}/${maxMemory}`
                 );
 
                 if (result.warnings && result.warnings.length > 0) {
@@ -67,9 +72,13 @@ export class AssemblyService {
             const assembly = await this.compileBlockDiagram(filePath);
             if (!assembly) return undefined;
 
+            const config = vscode.workspace.getConfiguration('fv1');
             const assembler = new FV1Assembler({
-                fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
-                clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
+                fv1AsmMemBug: config.get<boolean>('spinAsmMemBug') ?? true,
+                clampReals: config.get<boolean>('clampReals') ?? true,
+                regCount: config.get<number>('hardware.regCount') ?? 32,
+                progSize: config.get<number>('hardware.progSize') ?? 128,
+                delaySize: config.get<number>('hardware.delaySize') ?? 32768,
             });
             const result = assembler.assemble(assembly);
             this.logAssemblyResult(result, path.basename(filePath), verbose);
@@ -114,7 +123,9 @@ export class AssemblyService {
         if (!hasErrors && result.machineCode && result.machineCode.length > 0) {
             if (verbose) this.outputService.log(FV1Assembler.formatMachineCode(result.machineCode));
             const regCount = result.usedRegistersCount;
-            this.outputService.log(`[SUCCESS] ✅ Assembly completed successfully - ${fileName} (${result.machineCode.length} instructions, ${regCount}/32 registers used)`);
+            const config = vscode.workspace.getConfiguration('fv1');
+            const maxRegisters = config.get<number>('hardware.regCount') ?? 32;
+            this.outputService.log(`[SUCCESS] ✅ Assembly completed successfully - ${fileName} (${result.machineCode.length} instructions, ${regCount}/${maxRegisters} registers used)`);
         } else if (hasErrors) {
             this.outputService.log(`[ERROR] ❌ Assembly failed with errors - ${fileName}`);
         } else {
@@ -128,10 +139,13 @@ export class AssemblyService {
                 const assembly = await this.compileBlockDiagram(fsPath);
                 if (!assembly) return undefined;
 
+                const config = vscode.workspace.getConfiguration('fv1');
                 const assembler = new FV1Assembler({
-                    fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
-                    clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
-                    regCount: vscode.workspace.getConfiguration('fv1').get<number>('hardware.regCount') ?? 32,
+                    fv1AsmMemBug: config.get<boolean>('spinAsmMemBug') ?? true,
+                    clampReals: config.get<boolean>('clampReals') ?? true,
+                    regCount: config.get<number>('hardware.regCount') ?? 32,
+                    progSize: config.get<number>('hardware.progSize') ?? 128,
+                    delaySize: config.get<number>('hardware.delaySize') ?? 32768,
                 });
                 return assembler.assemble(assembly);
             } else {
