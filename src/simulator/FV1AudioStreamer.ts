@@ -12,6 +12,8 @@ export class FV1AudioStreamer {
     private dataOffset: number = 44;
     private lastL: number = 0;
     private lastR: number = 0;
+    private toneEnabled: boolean = false;
+    private phase: number = 0;
 
     /**
      * Loads a WAV file into memory.
@@ -59,6 +61,18 @@ export class FV1AudioStreamer {
      * Returns 0s if end of file reached (or loops).
      */
     public getNextSample(): { l: number, r: number } {
+        if (this.toneEnabled) {
+            // Generate 440Hz sine wave (70% amplitude to avoid immediate numeric clipping)
+            const freq = 440.0;
+            const sample = Math.sin(2.0 * Math.PI * freq * (this.phase / this.sampleRate)) * 0.7;
+            this.lastL = sample;
+            this.lastR = sample;
+            this.phase++;
+            // Prevent phase accumulation precision issues (though not critical for 440Hz)
+            if (this.phase >= this.sampleRate) this.phase -= this.sampleRate;
+            return { l: this.lastL, r: this.lastR };
+        }
+
         if (!this.buffer || this.numSamples === 0) {
             return { l: 0, r: 0 };
         }
@@ -116,5 +130,14 @@ export class FV1AudioStreamer {
         this.currentSample = 0;
         this.lastL = 0;
         this.lastR = 0;
+        this.toneEnabled = false;
+        this.phase = 0;
+    }
+
+    public setToneEnabled(enabled: boolean) {
+        this.toneEnabled = enabled;
+        if (enabled) {
+            this.phase = 0;
+        }
     }
 }

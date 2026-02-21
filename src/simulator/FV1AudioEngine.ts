@@ -11,6 +11,7 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
     private isReady: boolean = false;
     private sampleRate: number = 32768;
     private pendingMetadata: any = null;
+    private currentStimulus: any = { type: 'stimulusChange', value: 'built-in' }; // Default to chords
 
     private _onMessage = new vscode.EventEmitter<any>();
     public readonly onMessage = this._onMessage.event;
@@ -49,6 +50,9 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
             } else if (m.type === 'selectCustomFile') {
                 this.handleSelectCustomFile();
             } else {
+                if (m.type === 'stimulusChange') {
+                    this.currentStimulus = m;
+                }
                 // Relay other messages (bypass, pot change, stimulus change) to listeners
                 this._onMessage.fire(m);
             }
@@ -70,11 +74,12 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
         });
 
         if (uris && uris[0]) {
-            this._onMessage.fire({
+            this.currentStimulus = {
                 type: 'stimulusChange',
                 value: 'custom',
                 filePath: uris[0].fsPath
-            });
+            };
+            this._onMessage.fire(this.currentStimulus);
 
             // Note: We could update the UI here, but we rely on the simulator to load it.
         }
@@ -103,6 +108,10 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
         }
     }
 
+    public getStimulus() {
+        return this.currentStimulus;
+    }
+
     private getHtml() {
         return `
             <!DOCTYPE html>
@@ -112,9 +121,9 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     body { background: transparent; color: var(--vscode-foreground); font-family: var(--vscode-font-family); padding: 10px; overflow-x: hidden; }
                     .container { display: flex; flex-direction: column; gap: 12px; }
                     
-                    .viz-box { background: var(--vscode-sideBar-background); padding: 8px; border-radius: 4px; border: 1px solid var(--vscode-widget-border); }
+                    .viz-box { background: var(--vscode-sideBar-background); padding: 8px; border-radius: 4px; border: 1px solid var(--vscode-widget-border); position: relative; }
                     .viz-label { color: var(--vscode-descriptionForeground); font-size: 9px; text-transform: uppercase; margin-bottom: 6px; }
-                    .scope-canvas { background: #000; border-radius: 2px; width: 100%; height: 80px; margin-bottom: 4px; }
+                    .scope-canvas { background: #000; border-radius: 2px; width: 100%; height: 120px; margin-bottom: 4px; }
                     .small-canvas { background: #000; border-radius: 2px; width: 100%; height: 60px; }
                     
                     .controls-box { background: var(--vscode-sideBar-background); padding: 10px; border-radius: 4px; border: 1px solid var(--vscode-widget-border); }
@@ -134,6 +143,36 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     button.active { background: #e81123; color: white; font-weight: bold; }
 
                     #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100; display: flex; align-items: center; justify-content: center; cursor: pointer; text-align: center; }
+
+                    /* Legend and Register Selector */
+                    .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+                    .legend-item { font-size: 8px; padding: 1px 4px; border-radius: 2px; cursor: pointer; border: 1px solid transparent; opacity: 0.6; transition: opacity 0.2s; }
+                    .legend-item.active { opacity: 1; border-color: currentColor; font-weight: bold; }
+                    .legend-item:hover { opacity: 0.9; background: rgba(255,255,255,0.1); }
+
+                    .selector-trigger { font-size: 8px; color: var(--vscode-button-background); cursor: pointer; text-decoration: underline; margin-top: 4px; display: inline-block; }
+                    
+                    #regSelectorModal {
+                        display: none;
+                        position: fixed;
+                        top: 20px;
+                        left: 20px;
+                        right: 20px;
+                        bottom: 20px;
+                        background: var(--vscode-sideBar-background);
+                        border: 1px solid var(--vscode-widget-border);
+                        z-index: 200;
+                        padding: 10px;
+                        flex-direction: column;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+                    }
+                    .modal-header { font-size: 11px; font-weight: bold; margin-bottom: 8px; display: flex; justify-content: space-between; }
+                    .reg-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 4px; }
+                    .reg-option { font-size: 9px; padding: 2px 4px; cursor: pointer; border: 1px solid transparent; border-radius: 2px; display: flex; align-items: center; gap: 4px; }
+                    .reg-option:hover { background: rgba(255,255,255,0.1); }
+                    .reg-option.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+                    .reg-check { width: 8px; height: 8px; border: 1px solid var(--vscode-foreground); flex-shrink: 0; }
+                    .selected .reg-check { background: var(--vscode-foreground); }
 
                     /* Tooltip Style */
                     #memTooltip {
@@ -160,6 +199,17 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     </div>
                 </div>
 
+                <div id="regSelectorModal">
+                    <div class="modal-header">
+                        <span>Select Registers to Plot</span>
+                        <span id="closeSelector" style="cursor: pointer;">✕</span>
+                    </div>
+                    <div id="regGrid" class="reg-grid"></div>
+                    <div style="margin-top: 10px; text-align: right;">
+                        <button id="applySelector">Apply</button>
+                    </div>
+                </div>
+
                 <div class="container">
                     <div class="controls-box">
                         <div class="section-header">
@@ -167,29 +217,19 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         </div>
                         <div class="stimulus-box">
                             <select id="stimulusSelect">
-                                <option value="none">Silence (No Input)</option>
-                                <option value="built-in">Built-in: Minor Chords</option>
-                                <option value="custom">Select Custom File...</option>
-                            </select>
+                            <option value="none">Silence (No Input)</option>
+                            <option value="tone">Built-in: 440Hz Test Tone</option>
+                            <option value="built-in" selected>Built-in: Minor Chords</option>
+                            <option value="custom">Select Custom File...</option>
+                        </select>
                         </div>
                     </div>
 
                     <div class="viz-box">
-                        <div class="viz-label">Output Oscilloscope (Stereo)</div>
-                        <canvas id="scope" width="400" height="80" class="scope-canvas"></canvas>
-                    </div>
-
-                    <div class="viz-box">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                            <div class="viz-label">LFO Oscilloscope</div>
-                            <div style="font-size: 8px; display: flex; gap: 4px; opacity: 0.8;">
-                                <span style="color: #4facfe;">S0</span>
-                                <span style="color: #ff00ff;">S1</span>
-                                <span style="color: #ffaa00;">R0</span>
-                                <span style="color: #00ff00;">R1</span>
-                            </div>
-                        </div>
-                        <canvas id="lfoScope" width="200" height="60" class="small-canvas"></canvas>
+                        <div class="viz-label">Oscilloscope</div>
+                        <canvas id="scope" width="400" height="120" class="scope-canvas"></canvas>
+                        <div id="scopeLegend" class="legend"></div>
+                        <div id="openSelector" class="selector-trigger">Manage Registers...</div>
                     </div>
 
                     <div class="viz-box">
@@ -242,8 +282,6 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     
                     const scopeCanvas = document.getElementById('scope');
                     const scopeCtx = scopeCanvas.getContext('2d');
-                    const lfoCanvas = document.getElementById('lfoScope');
-                    const lfoCtx = lfoCanvas.getContext('2d');
                     const memCanvas = document.getElementById('memMap');
                     const memCtx = memCanvas.getContext('2d');
 
@@ -251,19 +289,30 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     const bypassBtn = document.getElementById('bypassBtn');
                     const stimulusSelect = document.getElementById('stimulusSelect');
                     
+                    const openSelector = document.getElementById('openSelector');
+                    const closeSelector = document.getElementById('closeSelector');
+                    const applySelector = document.getElementById('applySelector');
+                    const regSelectorModal = document.getElementById('regSelectorModal');
+                    const regGrid = document.getElementById('regGrid');
+                    const scopeLegend = document.getElementById('scopeLegend');
+
                     let bypassActive = false;
                     let bufferQueue = [];
                     let isBuffering = true;
 
-                    // LFO History
-                    const LFO_HISTORY_LEN = 200;
-                    let lfoHistory = {
-                        sin0: new Float32Array(LFO_HISTORY_LEN),
-                        sin1: new Float32Array(LFO_HISTORY_LEN),
-                        rmp0: new Float32Array(LFO_HISTORY_LEN),
-                        rmp1: new Float32Array(LFO_HISTORY_LEN),
-                        ptr: 0
-                    };
+                    // Multi-Trace History
+                    const SCOPE_HISTORY_LEN = 200;
+                    let registerHistory = {}; // Map of regIdx -> Float32Array
+                    let registerPtr = 0;
+                    let selectedRegisters = [22, 23]; // Default DACL, DACR
+                    let symbols = [];
+                    let registerLabels = {}; // Cache of labels
+                    let hiddenRegisters = new Set(); // Track hidden indices
+
+                    const TRACE_COLORS = [
+                        '#00ff00', '#ff4444', '#4facfe', '#ff00ff', 
+                        '#ffaa00', '#ffffff', '#ffff00', '#00ffff'
+                    ];
 
                     function updateStatus(msg) {
                         document.getElementById('status').innerText = msg;
@@ -292,6 +341,109 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             vscode.postMessage({ type: 'stimulusChange', value: stimulusSelect.value });
                         }
                     });
+
+                    // Selector Logic
+                    openSelector.addEventListener('click', () => {
+                        renderSelectorGrid();
+                        regSelectorModal.style.display = 'flex';
+                    });
+                    closeSelector.addEventListener('click', () => regSelectorModal.style.display = 'none');
+                    applySelector.addEventListener('click', () => {
+                        const items = regGrid.querySelectorAll('.reg-option.selected');
+                        selectedRegisters = Array.from(items).map(i => parseInt(i.dataset.reg));
+                        regSelectorModal.style.display = 'none';
+                        initHistory();
+                        renderLegend();
+                        vscode.postMessage({ type: 'registerSelectionChange', selection: selectedRegisters });
+                    });
+
+                    function getRegisterLabel(idx) {
+                        if (registerLabels[idx]) return registerLabels[idx];
+                        
+                        // Check standard aliases
+                        const standard = {
+                            0: 'SIN0_RT', 1: 'SIN0_RG', 2: 'SIN1_RT', 3: 'SIN1_RG',
+                            4: 'RMP0_RT', 5: 'RMP0_RG', 6: 'RMP1_RT', 7: 'RMP1_RG',
+                            8: 'SIN0', 9: 'COS0', 10: 'SIN1', 11: 'COS1', 12: 'RMP0', 13: 'RMP1',
+                            16: 'POT0', 17: 'POT1', 18: 'POT2',
+                            20: 'ADCL', 21: 'ADCR', 22: 'DACL', 23: 'DACR', 24: 'ADDR_PTR'
+                        };
+                        if (standard[idx] !== undefined) {
+                            registerLabels[idx] = standard[idx];
+                            return standard[idx];
+                        }
+                        
+                        // Prioritize General Purpose registers (32-63) fallback logic 
+                        // if symbols are suspicious or just generally.
+                        // But let's check for symbols first, then fallback.
+                        // The user reported index 32 showing as "NA". 
+                        // Let's check symbols but ignore "NA" if found.
+                        const sym = symbols.find(s => parseInt(s.value) === idx && s.name !== 'NA');
+                        if (sym) {
+                            registerLabels[idx] = sym.name;
+                            return sym.name;
+                        }
+                        
+                        if (idx >= 32 && idx < 64) {
+                            const label = 'REG' + (idx - 32);
+                            registerLabels[idx] = label;
+                            return label;
+                        }
+                        
+                        return 'R' + idx;
+                    }
+
+                    function renderSelectorGrid() {
+                        regGrid.innerHTML = '';
+                        
+                        // Filter registers: We only want standard registers, user symbols, or General Purpose (32-63)
+                        const standardIndices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 20, 21, 22, 23, 24];
+                        const symbolIndices = symbols.map(s => parseInt(s.value));
+                        
+                        for (let i = 0; i < 64; i++) {
+                            const isStandard = standardIndices.includes(i);
+                            const isSymbol = symbolIndices.includes(i);
+                            const isGP = (i >= 32 && i < 64);
+                            
+                            if (isStandard || isSymbol || isGP) {
+                                const opt = document.createElement('div');
+                                opt.className = 'reg-option' + (selectedRegisters.includes(i) ? ' selected' : '');
+                                opt.dataset.reg = i;
+                                opt.innerHTML = '<div class="reg-check"></div>' + getRegisterLabel(i);
+                                opt.onclick = () => opt.classList.toggle('selected');
+                                regGrid.appendChild(opt);
+                            }
+                        }
+                    }
+
+                    function renderLegend() {
+                        scopeLegend.innerHTML = '';
+                        selectedRegisters.forEach((reg, i) => {
+                            const item = document.createElement('div');
+                            const isActive = !hiddenRegisters.has(reg);
+                            item.className = 'legend-item' + (isActive ? ' active' : '');
+                            item.style.color = TRACE_COLORS[i % TRACE_COLORS.length];
+                            item.innerText = getRegisterLabel(reg);
+                            item.onclick = () => {
+                                if (hiddenRegisters.has(reg)) {
+                                    hiddenRegisters.delete(reg);
+                                } else {
+                                    hiddenRegisters.add(reg);
+                                }
+                                renderLegend(); // Immediate feedback
+                                drawTraces();
+                            };
+                            scopeLegend.appendChild(item);
+                        });
+                    }
+
+                    function initHistory() {
+                        registerHistory = {};
+                        selectedRegisters.forEach(reg => {
+                            registerHistory[reg] = new Float32Array(SCOPE_HISTORY_LEN);
+                        });
+                        registerPtr = 0;
+                    }
 
                     async function initAudio() {
                         if (audioCtx) {
@@ -322,16 +474,35 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         if (message.type === 'play') {
                             if (message.metadata) {
                                 const m = message.metadata;
-                                if (m.lfoSin0) {
-                                    for (let i = 0; i < m.lfoSin0.length; i++) {
-                                        lfoHistory.sin0[lfoHistory.ptr] = m.lfoSin0[i];
-                                        lfoHistory.sin1[lfoHistory.ptr] = m.lfoSin1[i];
-                                        lfoHistory.rmp0[lfoHistory.ptr] = m.lfoRmp0[i];
-                                        lfoHistory.rmp1[lfoHistory.ptr] = m.lfoRmp1[i];
-                                        lfoHistory.ptr = (lfoHistory.ptr + 1) % LFO_HISTORY_LEN;
-                                    }
-                                    drawLfoScope();
+                                
+                                if (m.type === 'registerSelection') {
+                                    selectedRegisters = m.selection;
+                                    initHistory();
+                                    renderLegend();
+                                    return;
                                 }
+
+                                if (m.symbols) {
+                                    symbols = m.symbols;
+                                    registerLabels = {}; // Reset cache
+                                    renderLegend();
+                                }
+
+                                if (m.registerTraces) {
+                                    const traces = m.registerTraces;
+                                    const numPoints = traces[0].length;
+                                    
+                                    for (let i = 0; i < numPoints; i++) {
+                                        selectedRegisters.forEach(reg => {
+                                            if (registerHistory[reg]) {
+                                                registerHistory[reg][registerPtr] = traces[reg][i];
+                                            }
+                                        });
+                                        registerPtr = (registerPtr + 1) % SCOPE_HISTORY_LEN;
+                                    }
+                                    drawTraces();
+                                }
+
                                 if (m.delayPtr !== undefined) {
                                     drawMemMap(m.delayPtr, m.delaySize, m.addrPtr, m.memories);
                                 }
@@ -374,54 +545,43 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             }
 
                             source.start(startTime);
-                            
-                            if (bufferQueue.length === 0) {
-                                drawScope(block.l);
-                            }
-
                             startTime += buffer.duration;
                         }
                     }
 
-                    function drawScope(data) {
-                        scopeCtx.clearRect(0, 0, scopeCanvas.width, scopeCanvas.height);
-                        scopeCtx.beginPath();
-                        scopeCtx.lineWidth = 1.0;
-                        scopeCtx.strokeStyle = '#00ff00';
-                        const step = data.length / scopeCanvas.width;
-                        for(let i = 0; i < scopeCanvas.width; i++) {
-                            const val = data[Math.floor(i * step)];
-                            const y = (val + 1) * (scopeCanvas.height / 2);
-                            if (i === 0) scopeCtx.moveTo(i, y);
-                            else scopeCtx.lineTo(i, y);
-                        }
-                        scopeCtx.stroke();
-                    }
-
-                    function drawLfoScope() {
-                        const w = lfoCanvas.width;
-                        const h = lfoCanvas.height;
-                        lfoCtx.clearRect(0, 0, w, h);
+                    function drawTraces() {
+                        const w = scopeCanvas.width;
+                        const h = scopeCanvas.height;
+                        scopeCtx.clearRect(0, 0, w, h);
                         
-                        const drawWave = (data, color) => {
-                            lfoCtx.beginPath();
-                            lfoCtx.strokeStyle = color;
-                            lfoCtx.lineWidth = 1.2;
-                            for (let i = 0; i < LFO_HISTORY_LEN; i++) {
-                                const idx = (lfoHistory.ptr + i) % LFO_HISTORY_LEN;
-                                const val = data[idx];
-                                const x = (i / LFO_HISTORY_LEN) * w;
-                                const y = (1 - (val + 1) / 2) * h;
-                                if (i === 0) lfoCtx.moveTo(x, y);
-                                else lfoCtx.lineTo(x, y);
-                            }
-                            lfoCtx.stroke();
-                        };
+                        // Draw grid lines
+                        scopeCtx.strokeStyle = '#222';
+                        scopeCtx.lineWidth = 1;
+                        scopeCtx.beginPath();
+                        scopeCtx.moveTo(0, h/2); scopeCtx.lineTo(w, h/2);
+                        scopeCtx.stroke();
 
-                        drawWave(lfoHistory.sin0, '#4facfe');
-                        drawWave(lfoHistory.sin1, '#ff00ff');
-                        drawWave(lfoHistory.rmp0, '#ffaa00');
-                        drawWave(lfoHistory.rmp1, '#00ff00');
+                        selectedRegisters.forEach((reg, traceIdx) => {
+                            const data = registerHistory[reg];
+                            if (!data) return;
+
+                            // Use the hiddenRegisters set
+                            if (hiddenRegisters.has(reg)) return;
+
+                            scopeCtx.beginPath();
+                            scopeCtx.strokeStyle = TRACE_COLORS[traceIdx % TRACE_COLORS.length];
+                            scopeCtx.lineWidth = 1.2;
+                            
+                            for (let i = 0; i < SCOPE_HISTORY_LEN; i++) {
+                                const idx = (registerPtr + i) % SCOPE_HISTORY_LEN;
+                                const val = data[idx];
+                                const x = (i / SCOPE_HISTORY_LEN) * w;
+                                const y = (1 - (val + 1) / 2) * h;
+                                if (i === 0) scopeCtx.moveTo(x, y);
+                                else scopeCtx.lineTo(x, y);
+                            }
+                            scopeCtx.stroke();
+                        });
                     }
 
                     let lastMemories = [];
@@ -433,14 +593,12 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         const scaleX = memCanvas.width / rect.width;
                         const x = (e.clientX - rect.left) * scaleX;
                         
-                        // Hit test on memories
                         const w = memCanvas.width;
                         const size = 32768;
                         const getX = (p) => ((size - 1 - (p % size)) / size) * w;
 
                         let found = null;
                         lastMemories.forEach(m => {
-                            // Using same logic as draw: start + size
                             const blockX = getX(m.start + m.size);
                             const blockWidth = (m.size / size) * w;
                             if (x >= blockX && x <= blockX + blockWidth) {
@@ -451,18 +609,14 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         if (found) {
                             memTooltip.style.display = 'block';
                             memTooltip.innerText = found.name;
-                            
-                            // Smart positioning to avoid right-edge cutoff
-                            // If mouse is in right 40% of the viewport, move tooltip to the left
                             const threshold = window.innerWidth * 0.6;
                             if (e.clientX > threshold) {
-                                memTooltip.style.left = 'auto'; // Clear left
+                                memTooltip.style.left = 'auto';
                                 memTooltip.style.right = (window.innerWidth - e.clientX + 10) + 'px';
                             } else {
-                                memTooltip.style.right = 'auto'; // Clear right
+                                memTooltip.style.right = 'auto';
                                 memTooltip.style.left = (e.clientX + 10) + 'px';
                             }
-                            
                             memTooltip.style.top = (e.clientY - 25) + 'px';
                         } else {
                             memTooltip.style.display = 'none';
@@ -481,29 +635,20 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         memCtx.fillStyle = '#111';
                         memCtx.fillRect(0, 0, w, h);
 
-                        // Physical Coordinate Mapper (0 to size-1 mapped to 0 to width)
-                        // Note: In FV-1, ptr starts at max and decrements (scrolling right)
-                        const getX = (p) => {
-                            // Map physical index directly to screen for "Fixed RAM" view
-                            // We use (size - index) because the hardware decrements the head
-                            return ((size - 1 - (p % size)) / size) * w;
-                        };
+                        const getX = (p) => ((size - 1 - (p % size)) / size) * w;
 
                         if (memories) {
                             memCtx.fillStyle = 'rgba(79, 172, 254, 0.4)';
                             memCtx.strokeStyle = '#4facfe';
                             memCtx.lineWidth = 0.5;
                             memories.forEach(m => {
-                                // Shaded areas are now FIXED to their physical memory indices
-                                const x = getX(m.start + m.size); // End of block (leftmost in right-scrolling view)
+                                const x = getX(m.start + m.size);
                                 const width = (m.size / size) * w;
                                 memCtx.fillRect(x, 2, width, h - 4);
                                 memCtx.strokeRect(x, 2, width, h - 4);
                             });
                         }
 
-                        // Write Pointer (Base) - White/Light
-                        // This moves through the fixed memory regions
                         const writeX = getX(ptr);
                         memCtx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
                         memCtx.lineWidth = 1;
@@ -512,7 +657,6 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         memCtx.lineTo(writeX, h);
                         memCtx.stroke();
 
-                        // Read Pointer (ADDR_PTR) - Red
                         if (addrPtr !== undefined) {
                             const readIdx = (ptr + Math.floor(addrPtr * size)) % size;
                             const readX = getX(readIdx);
@@ -525,7 +669,11 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         }
                     }
 
+                    // Initialization
+                    initHistory();
+                    renderLegend();
                     vscode.postMessage({ type: 'ready' });
+                    vscode.postMessage({ type: 'requestRegisterSelection' });
                     updateStatus('Ready');
                 </script>
             </body>

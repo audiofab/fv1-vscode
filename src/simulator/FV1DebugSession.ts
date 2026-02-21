@@ -27,6 +27,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
     private audioStreamer: FV1AudioStreamer;
     private audioEngine: FV1AudioEngine | null = null;
     private extensionPath: string = '';
+    private context: vscode.ExtensionContext;
 
     // Source mapping
     private symbols: any[] = [];
@@ -39,8 +40,10 @@ export class FV1DebugSession implements vscode.DebugAdapter {
     // Variables storage
     private nextVarHandle = 1;
     private varHandles = new Map<number, { type: string, getter: () => any[] }>();
+    private symbolsChanged: boolean = false;
 
     constructor(context: vscode.ExtensionContext, private assemblyService: AssemblyService, audioEngine?: FV1AudioEngine) {
+        this.context = context;
         this.simulator = new FV1Simulator();
         this.audioStreamer = new FV1AudioStreamer();
         this.extensionPath = context.extensionPath;
@@ -193,6 +196,12 @@ export class FV1DebugSession implements vscode.DebugAdapter {
 
         // Initialize Audio Engine listener (engine is provided by provider now)
         if (this.audioEngine) {
+            // Apply current stimulus from engine immediately on launch
+            const currentStimulus = this.audioEngine.getStimulus();
+            if (currentStimulus) {
+                this.handleStimulusChange(currentStimulus);
+            }
+
             this.audioEngine.onMessage(m => {
                 switch (m.type) {
                     case 'bypassChange':
@@ -207,6 +216,20 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                         break;
                     case 'stimulusChange':
                         this.handleStimulusChange(m);
+                        break;
+                    case 'registerSelectionChange':
+                        if (m.selection) {
+                            this.context.workspaceState.update('fv1.registerSelection', m.selection);
+                        }
+                        break;
+                    case 'requestRegisterSelection':
+                        const saved = this.context.workspaceState.get<number[]>('fv1.registerSelection') || [22, 23];
+                        if (this.audioEngine) {
+                            this.audioEngine.playBuffer(new Float32Array(0), new Float32Array(0), 0, 0, {
+                                type: 'registerSelection',
+                                selection: saved
+                            });
+                        }
                         break;
                 }
             });
@@ -267,6 +290,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         this.addressToLineMap = result.addressToLineMap;
         this.symbols = result.symbols;
         this.memories = result.memories;
+        this.symbolsChanged = true;
 
         // Pass symbols and options to simulator
         const fv1AsmMemBug = vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true;
@@ -673,24 +697,24 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         const snapshotAddrPtr = regs[24];
 
         const lfoSin0 = new Float32Array(Math.ceil(samplesToProcess / 128));
-        const lfoSin1 = new Float32Array(lfoSin0.length);
-        const lfoRmp0 = new Float32Array(lfoSin0.length);
-        const lfoRmp1 = new Float32Array(lfoSin0.length);
-        let lfoIdx = 0;
+        const numSamplesPerTrace = lfoSin0.length;
+
+        // Trace data for all 64 registers
+        const registerTraces: Float32Array[] = Array.from({ length: 64 }, () => new Float32Array(numSamplesPerTrace));
+        let traceIdx = 0;
 
         for (let i = 0; i < samplesToProcess; i++) {
             const inSample = this.audioStreamer.getNextSample();
             const skip = isFirstStep && i === 0;
             const [oL, oR, breakpointHit] = this.simulator.step(inSample.l, inSample.r, pot0, pot1, pot2, skip);
 
-            // Sample LFOs every 128 samples
-            if (i % 128 === 0 && lfoIdx < lfoSin0.length) {
-                const regs = this.simulator.getRegisters();
-                lfoSin0[lfoIdx] = regs[8];
-                lfoSin1[lfoIdx] = regs[10];
-                lfoRmp0[lfoIdx] = regs[12];
-                lfoRmp1[lfoIdx] = regs[13];
-                lfoIdx++;
+            // Sample all registers every 128 samples
+            if (i % 128 === 0 && traceIdx < numSamplesPerTrace) {
+                const currentRegs = this.simulator.getRegisters();
+                for (let r = 0; r < 64; r++) {
+                    registerTraces[r][traceIdx] = currentRegs[r];
+                }
+                traceIdx++;
             }
 
             if (this.bypassActive) {
@@ -718,13 +742,15 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                 numSamples: this.audioStreamer.getNumSamples(),
                 currentField: this.audioStreamer.getCurrentSample(),
                 // Visualization data - using snapshots from start of block
-                lfoSin0, lfoSin1, lfoRmp0, lfoRmp1,
+                registerTraces,
                 delayPtr: snapshotDelayPtr,
                 delaySize: this.simulator.getDelaySize(),
                 addrPtr: snapshotAddrPtr,
-                memories: this.memories
+                memories: this.symbolsChanged ? this.memories : undefined,
+                symbols: this.symbolsChanged ? this.symbols : undefined
             };
             this.audioEngine.playBuffer(outL, outR, lastSample.l, lastSample.r, metadata);
+            this.symbolsChanged = false;
         }
 
         const elapsed = Date.now() - startTime;
@@ -770,7 +796,12 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         if (m.value === 'none') {
             this.audioStreamer.unload();
             this.sendEvent('output', { category: 'console', output: `Input stimulus: None (Silence)\n` });
+        } else if (m.value === 'tone') {
+            this.audioStreamer.unload();
+            this.audioStreamer.setToneEnabled(true);
+            this.sendEvent('output', { category: 'console', output: `Input stimulus: 440Hz Test Tone\n` });
         } else if (m.value === 'built-in') {
+            this.audioStreamer.unload();
             const defaultWav = 'src/simulator/wav/minor-chords-32k.wav';
             const resolved = this.resolveWavPath(defaultWav, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
             if (resolved) {
@@ -778,6 +809,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                 this.sendEvent('output', { category: 'console', output: `Input stimulus: Built-in loop\n` });
             }
         } else if (m.value === 'custom' && m.filePath) {
+            this.audioStreamer.unload();
             try {
                 await this.audioStreamer.loadWav(m.filePath);
                 this.sendEvent('output', { category: 'console', output: `Input stimulus: ${path.basename(m.filePath)}\n` });
