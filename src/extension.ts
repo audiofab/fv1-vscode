@@ -136,7 +136,28 @@ class FV1DebugConfigurationProvider implements vscode.DebugConfigurationProvider
 export function deactivate() { }
 
 class AssemblyDocumentProvider implements vscode.TextDocumentContentProvider {
-    constructor(private documentManager: BlockDiagramDocumentManager) { }
+    private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
+    readonly onDidChange = this._onDidChange.event;
+    private subscriptions: vscode.Disposable[] = [];
+
+    constructor(private documentManager: BlockDiagramDocumentManager) {
+        // Subscribe to compilation changes to trigger document refresh
+        this.subscriptions.push(
+            this.documentManager.onCompilationChange((uri) => {
+                // The virtual URI is fv1-assembly:path/to/diagram.spndiagram.spn
+                const virtualUri = vscode.Uri.from({
+                    scheme: 'fv1-assembly',
+                    path: uri.fsPath + '.spn'
+                });
+                this._onDidChange.fire(virtualUri);
+            })
+        );
+    }
+
+    dispose() {
+        this.subscriptions.forEach(s => s.dispose());
+    }
+
     provideTextDocumentContent(uri: vscode.Uri): string {
         // The URI is fv1-assembly:path/to/file.spndiagram.spn
         const diagramPath = uri.path.replace(/\.spn$/, '');

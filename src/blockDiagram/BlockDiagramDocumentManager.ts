@@ -21,12 +21,12 @@ export class BlockDiagramDocumentManager {
     private documentCache: Map<string, DocumentInfo> = new Map();
     private diagnosticCollection: vscode.DiagnosticCollection;
     private changeListeners: Set<(uri: vscode.Uri) => void> = new Set();
-    
+
     constructor(diagnosticCollection: vscode.DiagnosticCollection, registry: BlockRegistry) {
         this.compiler = new GraphCompiler(registry);
         this.diagnosticCollection = diagnosticCollection;
     }
-    
+
     /**
      * Get the compilation result for a document.
      * Results are cached per document version.
@@ -34,30 +34,30 @@ export class BlockDiagramDocumentManager {
     public getCompilationResult(document: vscode.TextDocument): CompilationResult {
         const documentUri = document.uri.toString();
         const cached = this.documentCache.get(documentUri);
-        
+
         // Check if we have a valid cached result
         if (cached && cached.version === document.version) {
             return cached.result;
         }
-        
+
         // Compile the document
         const result = this.compileDocument(document);
-        
+
         // Cache the result
         this.documentCache.set(documentUri, {
             version: document.version,
             result: result
         });
-        
+
         // Update diagnostics
         this.updateDiagnostics(document.uri, result);
-        
+
         // Notify listeners
         this.notifyListeners(document.uri);
-        
+
         return result;
     }
-    
+
     /**
      * Compile a document and return the result
      */
@@ -65,7 +65,13 @@ export class BlockDiagramDocumentManager {
         try {
             const content = document.getText();
             const graph: BlockGraph = JSON.parse(content);
-            return this.compiler.compile(graph);
+            const config = vscode.workspace.getConfiguration('fv1');
+            const hardwareOptions = {
+                regCount: config.get<number>('hardware.regCount') ?? 32,
+                progSize: config.get<number>('hardware.progSize') ?? 128,
+                delaySize: config.get<number>('hardware.delaySize') ?? 32768
+            };
+            return this.compiler.compile(graph, hardwareOptions);
         } catch (error) {
             return {
                 success: false,
@@ -73,13 +79,13 @@ export class BlockDiagramDocumentManager {
             };
         }
     }
-    
+
     /**
      * Update diagnostics for a document based on compilation result
      */
     private updateDiagnostics(uri: vscode.Uri, result: CompilationResult): void {
         const diagnostics: vscode.Diagnostic[] = [];
-        
+
         // Add errors
         if (result.errors && result.errors.length > 0) {
             for (const error of result.errors) {
@@ -92,7 +98,7 @@ export class BlockDiagramDocumentManager {
                 diagnostics.push(diagnostic);
             }
         }
-        
+
         // Add warnings
         if (result.warnings && result.warnings.length > 0) {
             for (const warning of result.warnings) {
@@ -105,10 +111,10 @@ export class BlockDiagramDocumentManager {
                 diagnostics.push(diagnostic);
             }
         }
-        
+
         this.diagnosticCollection.set(uri, diagnostics);
     }
-    
+
     /**
      * Get cached compilation result by URI (if available).
      * Returns undefined if no cached result exists.
@@ -117,7 +123,7 @@ export class BlockDiagramDocumentManager {
         const cached = this.documentCache.get(uri.toString());
         return cached?.result;
     }
-    
+
     /**
      * Handle document changes
      */
@@ -125,16 +131,16 @@ export class BlockDiagramDocumentManager {
         if (!document.fileName.toLowerCase().endsWith('.spndiagram')) {
             return;
         }
-        
+
         // Auto-save dirty documents before compilation
         if (document.isDirty) {
             await document.save();
         }
-        
+
         // Trigger compilation and diagnostics update
         this.getCompilationResult(document);
     }
-    
+
     /**
      * Register a listener for compilation changes
      */
@@ -144,7 +150,7 @@ export class BlockDiagramDocumentManager {
             this.changeListeners.delete(listener);
         });
     }
-    
+
     /**
      * Notify all listeners that a document was recompiled
      */
@@ -153,7 +159,7 @@ export class BlockDiagramDocumentManager {
             listener(uri);
         }
     }
-    
+
     /**
      * Clear cached result for a document
      */
@@ -161,7 +167,7 @@ export class BlockDiagramDocumentManager {
         this.documentCache.delete(uri.toString());
         this.diagnosticCollection.delete(uri);
     }
-    
+
     /**
      * Clear all cached results
      */
@@ -169,7 +175,7 @@ export class BlockDiagramDocumentManager {
         this.documentCache.clear();
         this.diagnosticCollection.clear();
     }
-    
+
     /**
      * Dispose of resources
      */

@@ -20,58 +20,61 @@ interface BlockDiagramEditorProps {
 
 export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }) => {
     console.log('[Editor] Component rendering...');
-    
+
     // Graph state
     const [graph, setGraph] = useState<BlockGraph>(createEmptyGraph());
     const graphRef = useRef<BlockGraph>(graph);
     const [blockMetadata, setBlockMetadata] = useState<BlockMetadata[]>([]);
-    
+
     console.log('[Editor] Current graph:', graph);
     console.log('[Editor] Block metadata count:', blockMetadata.length);
-    
+
     // Canvas state
     const [zoom, setZoom] = useState(1.0);
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
     const [isPaletteCollapsed, setIsPaletteCollapsed] = useState(false);
-    
+
     // Selection state
     const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
     const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
-    
+
     // Drag state
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [isBlockDragging, setIsBlockDragging] = useState(false);
-    
+
     // Lasso selection state
     const [isLassoSelecting, setIsLassoSelecting] = useState(false);
     const [lassoStart, setLassoStart] = useState<{ x: number; y: number } | null>(null);
     const [lassoEnd, setLassoEnd] = useState<{ x: number; y: number } | null>(null);
-    
+
     // Connection drawing state
     const [connectingFrom, setConnectingFrom] = useState<{ blockId: string; portId: string } | null>(null);
     const [connectionPreview, setConnectionPreview] = useState<{ x: number; y: number } | null>(null);
-    
+
     // Resource statistics state
     const [resourceStats, setResourceStats] = useState({
         instructionsUsed: 0,
         registersUsed: 0,
         memoryUsed: 0,
-        blocksProcessed: 0
+        blocksProcessed: 0,
+        progSize: 128,
+        regCount: 32,
+        delaySize: 32768
     });
-    
+
     const stageRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    
+
     // Handle messages from VS Code
     useEffect(() => {
         console.log('[Editor] Setting up message handler');
-        
+
         const handleMessage = (event: MessageEvent) => {
             const message = event.data;
             console.log('[Editor] Received message:', message.type, message);
-            
+
             switch (message.type) {
                 case 'init':
                     console.log('[Editor] Initializing with graph:', message.graph);
@@ -82,28 +85,28 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                         setPan({ x: message.graph.canvas.panX, y: message.graph.canvas.panY });
                     }
                     break;
-                    
+
                 case 'blockMetadata':
                     console.log('[Editor] Received block metadata:', message.metadata.length, 'blocks');
                     setBlockMetadata(message.metadata);
                     break;
-                    
+
                 case 'resourceStats':
                     console.log('[Editor] Received resource stats:', message.statistics);
                     setResourceStats(message.statistics);
                     break;
             }
         };
-        
+
         window.addEventListener('message', handleMessage);
-        
+
         // Signal that webview is ready
         console.log('[Editor] Sending ready signal...');
         vscode.postMessage({ type: 'ready' });
-        
+
         return () => window.removeEventListener('message', handleMessage);
     }, [vscode]);
-    
+
     // Update canvas size
     useEffect(() => {
         const updateSize = () => {
@@ -114,12 +117,12 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                 });
             }
         };
-        
+
         updateSize();
         window.addEventListener('resize', updateSize);
         return () => window.removeEventListener('resize', updateSize);
     }, []);
-    
+
     // Update canvas size when palette collapse state changes
     useEffect(() => {
         // Wait for CSS transition to complete (0.2s) plus a small buffer
@@ -131,10 +134,10 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                 });
             }
         }, 250); // 250ms = 200ms transition + 50ms buffer
-        
+
         return () => clearTimeout(timer);
     }, [isPaletteCollapsed]);
-    
+
     // Save graph changes
     const saveGraph = useCallback((newGraph: BlockGraph, options?: { isDragging?: boolean; isCreatingConnection?: boolean }) => {
         const updatedGraph = {
@@ -145,21 +148,21 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                 panY: pan.y
             }
         };
-        
+
         setGraph(updatedGraph);
         graphRef.current = updatedGraph;
 
         const dragging = options?.isDragging ?? isBlockDragging;
         if (!dragging) {
-            vscode.postMessage({ 
-                type: 'update', 
+            vscode.postMessage({
+                type: 'update',
                 graph: updatedGraph,
                 isDragging: false,
                 isCreatingConnection: options?.isCreatingConnection ?? (connectingFrom !== null)
             });
         }
     }, [vscode, zoom, pan, isBlockDragging, connectingFrom]);
-    
+
     // Add block
     const addBlock = useCallback((type: string, position: { x: number; y: number }) => {
         const newBlock: Block = {
@@ -168,33 +171,33 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             position,
             parameters: {}
         };
-        
+
         // Initialize default parameters
         const metadata = blockMetadata.find(m => m.type === type);
         if (metadata) {
             // This will be populated from block definition
         }
-        
+
         const newGraph = {
             ...graph,
             blocks: [...graph.blocks, newBlock]
         };
-        
-        saveGraph(newGraph);
+
+        saveGraph(newGraph, { isDragging: false, isCreatingConnection: false });
         setSelectedBlockIds([newBlock.id]);
     }, [graph, blockMetadata, saveGraph]);
-    
+
     // Update block
     const updateBlock = useCallback((blockId: string, updates: Partial<Block>) => {
         const newGraph = {
             ...graph,
-            blocks: graph.blocks.map(b => 
+            blocks: graph.blocks.map(b =>
                 b.id === blockId ? { ...b, ...updates } : b
             )
         };
         saveGraph(newGraph);
     }, [graph, saveGraph]);
-    
+
     // Update multiple blocks (for multi-select drag)
     const updateBlocks = useCallback((updates: Map<string, Partial<Block>>) => {
         const newGraph = {
@@ -206,7 +209,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         };
         saveGraph(newGraph);
     }, [graph, saveGraph]);
-    
+
     // Move block (handles multi-selection)
     const moveBlock = useCallback((blockId: string, delta: { x: number; y: number }) => {
         if (selectedBlockIds.includes(blockId) && selectedBlockIds.length > 1) {
@@ -237,7 +240,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             }
         }
     }, [selectedBlockIds, graph.blocks, updateBlock, updateBlocks]);
-    
+
     // Delete block
     const deleteBlock = useCallback((blockId: string) => {
         const newGraph = {
@@ -247,10 +250,10 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                 c => c.from.blockId !== blockId && c.to.blockId !== blockId
             )
         };
-        saveGraph(newGraph);
+        saveGraph(newGraph, { isDragging: false, isCreatingConnection: false });
         // Note: Don't clear selection here - let the caller handle it
     }, [graph, saveGraph]);
-    
+
     // Validate connection before adding
     const validateConnection = useCallback((
         from: { blockId: string; portId: string },
@@ -259,58 +262,58 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         // Find the blocks
         const fromBlock = graph.blocks.find(b => b.id === from.blockId);
         const toBlock = graph.blocks.find(b => b.id === to.blockId);
-        
+
         if (!fromBlock || !toBlock) {
             return { valid: false, error: 'Block not found' };
         }
-        
+
         // Get block metadata
         const fromMetadata = blockMetadata.find(m => m.type === fromBlock.type);
         const toMetadata = blockMetadata.find(m => m.type === toBlock.type);
-        
+
         if (!fromMetadata || !toMetadata) {
             return { valid: false, error: 'Block metadata not found' };
         }
-        
+
         // Find the ports
         const fromPort = fromMetadata.outputs.find(p => p.id === from.portId);
         const toPort = toMetadata.inputs.find(p => p.id === to.portId);
-        
+
         if (!fromPort || !toPort) {
             return { valid: false, error: 'Port not found' };
         }
-        
+
         // Rule 1: Prevent self-loops
         if (from.blockId === to.blockId) {
-            return { 
-                valid: false, 
-                error: `Cannot connect a block to itself (${fromMetadata.name})` 
+            return {
+                valid: false,
+                error: `Cannot connect a block to itself (${fromMetadata.name})`
             };
         }
-        
+
         // Rule 2: Check port type compatibility
         if (fromPort.type !== toPort.type) {
-            return { 
-                valid: false, 
-                error: `Port type mismatch: Cannot connect ${fromPort.type} output '${fromPort.name}' to ${toPort.type} input '${toPort.name}'. Types must match (audio→audio or control→control).` 
+            return {
+                valid: false,
+                error: `Port type mismatch: Cannot connect ${fromPort.type} output '${fromPort.name}' to ${toPort.type} input '${toPort.name}'. Types must match (audio→audio or control→control).`
             };
         }
-        
+
         // Rule 3: Check for multiple connections to same input
         const existingConnection = graph.connections.find(
             c => c.to.blockId === to.blockId && c.to.portId === to.portId
         );
-        
+
         if (existingConnection) {
-            return { 
-                valid: false, 
-                error: `Input '${toPort.name}' on ${toMetadata.name} is already connected. Each input can only have one source.` 
+            return {
+                valid: false,
+                error: `Input '${toPort.name}' on ${toMetadata.name} is already connected. Each input can only have one source.`
             };
         }
-        
+
         return { valid: true };
     }, [graph, blockMetadata]);
-    
+
     // Add connection
     const addConnection = useCallback((
         from: { blockId: string; portId: string },
@@ -318,90 +321,90 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
     ) => {
         // Check if connection already exists
         const exists = graph.connections.some(
-            c => c.from.blockId === from.blockId && 
-                 c.from.portId === from.portId &&
-                 c.to.blockId === to.blockId && 
-                 c.to.portId === to.portId
+            c => c.from.blockId === from.blockId &&
+                c.from.portId === from.portId &&
+                c.to.blockId === to.blockId &&
+                c.to.portId === to.portId
         );
-        
+
         if (exists) return;
-        
+
         // Validate the connection
         const validation = validateConnection(from, to);
         if (!validation.valid) {
             // Show error message to user
-            vscode.postMessage({ 
-                type: 'error', 
+            vscode.postMessage({
+                type: 'error',
                 message: validation.error
             });
             return;
         }
-        
+
         const newConnection: Connection = {
             id: `conn_${uuidv4()}`,
             from,
             to
         };
-        
+
         const newGraph = {
             ...graph,
             connections: [...graph.connections, newConnection]
         };
-        
-        saveGraph(newGraph);
+
+        saveGraph(newGraph, { isDragging: false, isCreatingConnection: false });
     }, [graph, saveGraph, validateConnection, vscode]);
-    
+
     // Delete connection
     const deleteConnection = useCallback((connectionId: string) => {
         const newGraph = {
             ...graph,
             connections: graph.connections.filter(c => c.id !== connectionId)
         };
-        saveGraph(newGraph);
+        saveGraph(newGraph, { isDragging: false, isCreatingConnection: false });
         setSelectedConnectionId(null);
     }, [selectedConnectionId, graph, saveGraph]);
-    
+
     // Handle wheel (zoom)
     const handleWheel = useCallback((e: any) => {
         e.evt.preventDefault();
-        
+
         const stage = stageRef.current;
         if (!stage) return;
-        
+
         const oldScale = zoom;
         const pointer = stage.getPointerPosition();
-        
+
         const mousePointTo = {
             x: (pointer.x - pan.x) / oldScale,
             y: (pointer.y - pan.y) / oldScale,
         };
-        
+
         const direction = e.evt.deltaY > 0 ? -1 : 1;
         const newScale = Math.max(0.1, Math.min(5, oldScale * (1 + direction * 0.05)));
-        
+
         setZoom(newScale);
         setPan({
             x: pointer.x - mousePointTo.x * newScale,
             y: pointer.y - mousePointTo.y * newScale,
         });
     }, [zoom, pan]);
-    
+
     // Handle canvas drag (pan)
     const handleCanvasMouseDown = useCallback((e: any) => {
         // Check if clicking on empty canvas (not a block or connection)
         const clickedOnEmpty = e.target === e.target.getStage();
-        
+
         if (clickedOnEmpty) {
             const stage = stageRef.current;
             if (!stage) return;
-            
+
             const pointerPos = stage.getPointerPosition();
             const canvasX = (pointerPos.x - pan.x) / zoom;
             const canvasY = (pointerPos.y - pan.y) / zoom;
-            
+
             // Deselect connections when clicking on empty canvas
             setSelectedConnectionId(null);
-            
+
             // Check if Ctrl is held - start lasso selection
             if (e.evt.ctrlKey || e.evt.metaKey) {
                 // Don't deselect - we're adding to selection with lasso
@@ -411,7 +414,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             } else {
                 // Deselect all blocks
                 setSelectedBlockIds([]);
-                
+
                 // Pan with left mouse button on empty canvas, or middle mouse, or shift+drag
                 if (e.evt.button === 0 || e.evt.button === 1 || e.evt.shiftKey) {
                     setIsDragging(true);
@@ -420,18 +423,18 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             }
         }
     }, [pan, zoom]);
-    
+
     const handleCanvasMouseMove = useCallback((e: any) => {
         const stage = stageRef.current;
         if (!stage) return;
-        
+
         if (isDragging) {
             setPan({
                 x: e.evt.clientX - dragStart.x,
                 y: e.evt.clientY - dragStart.y,
             });
         }
-        
+
         // Handle lasso selection
         if (isLassoSelecting && lassoStart) {
             const pointerPos = stage.getPointerPosition();
@@ -439,7 +442,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             const canvasY = (pointerPos.y - pan.y) / zoom;
             setLassoEnd({ x: canvasX, y: canvasY });
         }
-        
+
         // Update connection preview - use stage coordinates adjusted for zoom/pan
         if (connectingFrom) {
             const pointerPos = stage.getPointerPosition();
@@ -452,10 +455,10 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             }
         }
     }, [isDragging, dragStart, connectingFrom, pan, zoom, isLassoSelecting, lassoStart]);
-    
+
     const handleCanvasMouseUp = useCallback(() => {
         setIsDragging(false);
-        
+
         // Complete lasso selection
         if (isLassoSelecting && lassoStart && lassoEnd) {
             // Calculate lasso bounding box
@@ -463,13 +466,13 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             const maxX = Math.max(lassoStart.x, lassoEnd.x);
             const minY = Math.min(lassoStart.y, lassoEnd.y);
             const maxY = Math.max(lassoStart.y, lassoEnd.y);
-            
+
             // Find all blocks within lasso
             const blocksInLasso = graph.blocks.filter(block => {
                 const metadata = blockMetadata.find(m => m.type === block.type);
                 const blockWidth = metadata?.width || 200;
                 const blockHeight = metadata?.height || 80;
-                
+
                 // Check if block overlaps with lasso rectangle
                 return (
                     block.position.x < maxX &&
@@ -478,26 +481,26 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                     block.position.y + blockHeight > minY
                 );
             }).map(b => b.id);
-            
+
             // Add to existing selection (we're in Ctrl mode)
             setSelectedBlockIds(prev => {
                 const newSelection = new Set([...prev, ...blocksInLasso]);
                 return Array.from(newSelection);
             });
-            
+
             setIsLassoSelecting(false);
             setLassoStart(null);
             setLassoEnd(null);
         }
-        
+
         // Don't clear connecting state here - let it be cancelled by Escape or completing connection
     }, [isLassoSelecting, lassoStart, lassoEnd, graph.blocks, blockMetadata]);
-    
+
     // Handle block selection
     const handleBlockSelect = useCallback((blockId: string, ctrlKey: boolean) => {
         if (ctrlKey) {
             // Ctrl+Click: toggle block in selection
-            setSelectedBlockIds(prev => 
+            setSelectedBlockIds(prev =>
                 prev.includes(blockId)
                     ? prev.filter(id => id !== blockId)
                     : [...prev, blockId]
@@ -508,13 +511,13 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         }
         setSelectedConnectionId(null);
     }, []);
-    
+
     // Handle connection selection
     const handleConnectionSelect = useCallback((connectionId: string) => {
         setSelectedConnectionId(connectionId);
         setSelectedBlockIds([]);
     }, []);
-    
+
     // Handle port click (start connection)
     const handlePortClick = useCallback((blockId: string, portId: string, isOutput: boolean) => {
         if (isOutput) {
@@ -529,14 +532,14 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             }
         }
     }, [connectingFrom, addConnection]);
-    
+
     // Handle keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             // Check if we're typing in an input/textarea - don't handle shortcuts in that case
             const target = e.target as HTMLElement;
             const isInInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-            
+
             if (e.key === 'Delete' && !isInInput) {
                 if (selectedBlockIds.length > 0) {
                     // Delete all selected blocks in a single operation
@@ -562,11 +565,11 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                 setLassoEnd(null);
             }
         };
-        
+
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selectedBlockIds, selectedConnectionId, deleteConnection, graph, saveGraph]);
-    
+
     // Handle drag and drop from palette
     const handleCanvasDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();
@@ -578,16 +581,16 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             addBlock(blockType, { x, y });
         }
     }, [addBlock, pan, zoom]);
-    
+
     const handleCanvasDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault(); // Allow drop
     }, []);
-    
+
     // Get selected block (only show properties if exactly one block selected)
     const selectedBlock = selectedBlockIds.length === 1
         ? graph.blocks.find(b => b.id === selectedBlockIds[0])
         : null;
-    
+
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
             <BlockPalette
@@ -597,10 +600,10 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                 onToggleCollapse={() => setIsPaletteCollapsed(!isPaletteCollapsed)}
                 vscode={vscode}
             />
-            
+
             {/* View toolbar */}
             <div className="view-toolbar">
-                <button 
+                <button
                     className="view-button"
                     onClick={() => vscode.postMessage({ type: 'showAssembly' })}
                     title="Open generated assembly code in side-by-side editor"
@@ -608,18 +611,18 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                     📝 View Assembly
                 </button>
             </div>
-            
+
             {/* Diagram view */}
-            <div 
-                    ref={containerRef} 
-                    className={`canvas-container ${isPaletteCollapsed ? 'palette-collapsed' : ''}`}
-                    onDrop={handleCanvasDrop}
-                    onDragOver={handleCanvasDragOver}
-                >
-                    <Stage
-                        ref={stageRef}
-                        width={canvasSize.width}
-                        height={canvasSize.height}
+            <div
+                ref={containerRef}
+                className={`canvas-container ${isPaletteCollapsed ? 'palette-collapsed' : ''}`}
+                onDrop={handleCanvasDrop}
+                onDragOver={handleCanvasDragOver}
+            >
+                <Stage
+                    ref={stageRef}
+                    width={canvasSize.width}
+                    height={canvasSize.height}
                     scaleX={zoom}
                     scaleY={zoom}
                     x={pan.x}
@@ -645,7 +648,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                                 />
                             );
                         })}
-                        
+
                         {/* Render connection preview */}
                         {connectingFrom && connectionPreview && (
                             <ConnectionComponent
@@ -657,11 +660,11 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                                 blocks={graph.blocks}
                                 blockMetadata={blockMetadata}
                                 isSelected={false}
-                                onSelect={() => {}}
+                                onSelect={() => { }}
                                 previewEnd={connectionPreview}
                             />
                         )}
-                        
+
                         {/* Render lasso selection rectangle */}
                         {isLassoSelecting && lassoStart && lassoEnd && (
                             <Line
@@ -678,7 +681,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                                 listening={false}
                             />
                         )}
-                        
+
                         {/* Render blocks */}
                         {graph.blocks.map(block => (
                             <BlockComponent
@@ -692,8 +695,8 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                                 onDragEnd={() => {
                                     setIsBlockDragging(false);
                                     // Save final state
-                                    vscode.postMessage({ 
-                                        type: 'update', 
+                                    vscode.postMessage({
+                                        type: 'update',
                                         graph: graphRef.current,
                                         isDragging: false,
                                         isCreatingConnection: (connectingFrom !== null)
@@ -707,21 +710,40 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                         ))}
                     </Layer>
                 </Stage>
-                
+
                 {selectedBlock && (
                     <PropertyPanel
                         block={selectedBlock}
                         metadata={blockMetadata.find(m => m.type === selectedBlock.type)}
-                        onUpdate={(updates) => updateBlock(selectedBlock.id, updates)}
+                        onUpdate={(updates) => {
+                            const newGraph = {
+                                ...graph,
+                                blocks: graph.blocks.map(b =>
+                                    b.id === selectedBlock.id ? { ...b, ...updates } : b
+                                )
+                            };
+                            saveGraph(newGraph, { isDragging: false, isCreatingConnection: false });
+                        }}
                         onClose={() => setSelectedBlockIds([])}
                         vscode={vscode}
                     />
                 )}
             </div>
-            
+
             <div className="footer">
                 <div className="footer-section">
                     Blocks: {graph.blocks.length} | Connections: {graph.connections.length} | Selected: {selectedBlockIds.length}
+                </div>
+                <div className="footer-section resource-stats">
+                    <span className={resourceStats.instructionsUsed > resourceStats.progSize ? 'over-limit' : ''} title="Instruction Usage">
+                        Instr: {resourceStats.instructionsUsed}/{resourceStats.progSize}
+                    </span>
+                    <span className={resourceStats.registersUsed > resourceStats.regCount ? 'over-limit' : ''} title="Register Usage">
+                        Reg: {resourceStats.registersUsed}/{resourceStats.regCount}
+                    </span>
+                    <span className={resourceStats.memoryUsed > resourceStats.delaySize ? 'over-limit' : ''} title="Delay Memory Usage">
+                        Mem: {resourceStats.memoryUsed}/{resourceStats.delaySize}
+                    </span>
                 </div>
                 <div className="footer-section">
                     Zoom: {Math.round(zoom * 100)}%

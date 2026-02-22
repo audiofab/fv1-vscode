@@ -20,6 +20,9 @@ export class FV1DebugSession implements vscode.DebugAdapter {
     private rawBreakpoints: any[] = []; // Store raw breakpoint info from client
     private isRunning = false;
     private stopOnEntry = false;
+    private oscilloscopeEnabled: boolean = true;
+    private oscilloscopeRefreshRate: number = 1;
+    private zoomLevel: number = 1;
     private timerHandle: any = null;
     private sampleRate: number = 32768;
 
@@ -48,6 +51,35 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         this.audioStreamer = new FV1AudioStreamer();
         this.extensionPath = context.extensionPath;
         this.audioEngine = audioEngine || null;
+
+        // Initialize visualization settings from global configuration
+        const simConfig = vscode.workspace.getConfiguration('fv1.simulation');
+        this.oscilloscopeEnabled = simConfig.get<boolean>('visualizationsEnabled') ?? true;
+        this.oscilloscopeRefreshRate = simConfig.get<number>('oscilloscopeRefreshRate') ?? 1;
+
+        // Initialize session-specific state
+        this.zoomLevel = this.context.workspaceState.get<number>('fv1.zoomLevel') ?? 1;
+
+        // Listen for configuration changes
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('fv1.simulation')) {
+                const updatedConfig = vscode.workspace.getConfiguration('fv1.simulation');
+                this.oscilloscopeEnabled = updatedConfig.get<boolean>('visualizationsEnabled') ?? true;
+                this.oscilloscopeRefreshRate = updatedConfig.get<number>('oscilloscopeRefreshRate') ?? 1;
+                this.pushConfig();
+            }
+        });
+    }
+
+    private pushConfig() {
+        if (this.audioEngine) {
+            this.audioEngine.playBuffer(new Float32Array(0), new Float32Array(0), 0, 0, {
+                type: 'config',
+                oscilloscopeEnabled: this.oscilloscopeEnabled,
+                oscilloscopeRefreshRate: this.oscilloscopeRefreshRate,
+                zoomLevel: this.zoomLevel
+            });
+        }
     }
 
     public handleMessage(message: vscode.DebugProtocolMessage): void {
@@ -231,8 +263,21 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                             });
                         }
                         break;
+                    case 'configChange':
+                        // Only zoomLevel is sent from webview now
+                        if (m.zoomLevel !== undefined) {
+                            this.zoomLevel = m.zoomLevel;
+                            this.context.workspaceState.update('fv1.zoomLevel', this.zoomLevel);
+                        }
+                        break;
+                    case 'requestConfig':
+                        this.pushConfig();
+                        break;
                 }
             });
+
+            // Immediately push current config on launch
+            this.pushConfig();
         }
 
         // Apply hardware limits to simulator
@@ -696,11 +741,13 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         const snapshotDelayPtr = this.simulator.getDelayPointer();
         const snapshotAddrPtr = regs[24];
 
-        const lfoSin0 = new Float32Array(Math.ceil(samplesToProcess / 128));
+        const lfoSin0 = new Float32Array(Math.ceil(samplesToProcess / this.oscilloscopeRefreshRate));
         const numSamplesPerTrace = lfoSin0.length;
 
         // Trace data for all 64 registers
-        const registerTraces: Float32Array[] = Array.from({ length: 64 }, () => new Float32Array(numSamplesPerTrace));
+        const registerTraces: Float32Array[] = this.oscilloscopeEnabled
+            ? Array.from({ length: 64 }, () => new Float32Array(numSamplesPerTrace))
+            : [];
         let traceIdx = 0;
 
         for (let i = 0; i < samplesToProcess; i++) {
@@ -708,8 +755,8 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             const skip = isFirstStep && i === 0;
             const [oL, oR, breakpointHit] = this.simulator.step(inSample.l, inSample.r, pot0, pot1, pot2, skip);
 
-            // Sample all registers every 128 samples
-            if (i % 128 === 0 && traceIdx < numSamplesPerTrace) {
+            // Sample all registers based on refresh rate
+            if (this.oscilloscopeEnabled && i % this.oscilloscopeRefreshRate === 0 && traceIdx < numSamplesPerTrace) {
                 const currentRegs = this.simulator.getRegisters();
                 for (let r = 0; r < 64; r++) {
                     registerTraces[r][traceIdx] = currentRegs[r];
@@ -737,18 +784,26 @@ export class FV1DebugSession implements vscode.DebugAdapter {
 
         if (this.audioEngine) {
             const lastSample = this.audioStreamer.getLastSample();
-            const metadata = {
+            const elapsed = Date.now() - startTime;
+            const msPerSample = elapsed / samplesToProcess;
+
+            const metadata: any = {
                 loaded: this.audioStreamer.isLoaded(),
                 numSamples: this.audioStreamer.getNumSamples(),
                 currentField: this.audioStreamer.getCurrentSample(),
-                // Visualization data - using snapshots from start of block
-                registerTraces,
-                delayPtr: snapshotDelayPtr,
-                delaySize: this.simulator.getDelaySize(),
-                addrPtr: snapshotAddrPtr,
-                memories: this.symbolsChanged ? this.memories : undefined,
-                symbols: this.symbolsChanged ? this.symbols : undefined
+                msPerSample: msPerSample
             };
+
+            // Only send expensive metadata if visualizations are enabled
+            if (this.oscilloscopeEnabled) {
+                metadata.registerTraces = registerTraces;
+                metadata.delayPtr = snapshotDelayPtr;
+                metadata.delaySize = this.simulator.getDelaySize();
+                metadata.addrPtr = snapshotAddrPtr;
+                metadata.memories = this.symbolsChanged ? this.memories : undefined;
+                metadata.symbols = this.symbolsChanged ? this.symbols : undefined;
+            }
+
             this.audioEngine.playBuffer(outL, outR, lastSample.l, lastSample.r, metadata);
             this.symbolsChanged = false;
         }

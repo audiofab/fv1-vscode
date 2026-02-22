@@ -29,9 +29,7 @@
     "dsp",
     "audio"
   ],
-  "activationEvents": [
-    "onView:fv1Monitor"
-  ],
+  "activationEvents": [],
   "main": "./dist/extension.cjs",
   "contributes": {
     "viewsContainers": {
@@ -344,7 +342,7 @@
           {
             "type": "fv1-debug",
             "request": "launch",
-            "name": "Debug current .spn file",
+            "name": "Debug current FV-1 program",
             "program": "${file}",
             "stopOnEntry": true
           }
@@ -418,6 +416,26 @@
           "type": "number",
           "default": 32768,
           "description": "Total delay memory size in samples (Simulator/Assembler limit)"
+        },
+        "fv1.simulation.visualizationsEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable visualizations (Oscilloscope and Memory Map) in the Audio Monitor."
+        },
+        "fv1.simulation.oscilloscopeRefreshRate": {
+          "type": "number",
+          "default": 1,
+          "enum": [
+            1,
+            64,
+            128
+          ],
+          "enumDescriptions": [
+            "Every Frame (1)",
+            "64 Frames",
+            "128 Frames"
+          ],
+          "description": "The rate at which registers are sampled for the oscilloscope."
         }
       }
     }

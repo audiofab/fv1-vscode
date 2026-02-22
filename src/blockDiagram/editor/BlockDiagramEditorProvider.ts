@@ -12,17 +12,17 @@ import { BlockDiagramDocumentManager } from '../BlockDiagramDocumentManager.js';
 
 export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvider {
     public static readonly viewType = 'fv1.blockDiagramEditor';
-    
+
     private static readonly webviewScriptUri = 'dist/webview.js';
-    
+
     // Map from .spndiagram URI to virtual assembly document URI
     private assemblyDocuments = new Map<string, vscode.Uri>();
-    
+
     constructor(
         private readonly context: vscode.ExtensionContext,
         private readonly documentManager: BlockDiagramDocumentManager
-    ) {}
-    
+    ) { }
+
     /**
      * Register this custom editor provider
      */
@@ -43,7 +43,7 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
         );
         return providerRegistration;
     }
-    
+
     /**
      * Called when a custom editor is opened
      */
@@ -56,13 +56,13 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
         webviewPanel.webview.options = {
             enableScripts: true,
         };
-        
+
         // Set the HTML content
         webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
-        
+
         // Debounce timer for compilation - avoids recompiling during drag operations
         let compileTimeout: NodeJS.Timeout | undefined;
-        
+
         // Load and send the initial document content
         const updateWebview = () => {
             const graph = this.getDocumentAsGraph(document);
@@ -71,43 +71,64 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                 graph: graph
             });
         };
-        
+
         // Send resource statistics to webview
         const updateResourceStats = () => {
             const result = this.documentManager.getCompilationResult(document);
             if (result.success && result.statistics) {
+                const config = vscode.workspace.getConfiguration('fv1');
                 webviewPanel.webview.postMessage({
                     type: 'resourceStats',
-                    statistics: result.statistics
+                    statistics: {
+                        ...result.statistics,
+                        progSize: config.get<number>('hardware.progSize') ?? 128,
+                        regCount: config.get<number>('hardware.regCount') ?? 32,
+                        delaySize: config.get<number>('hardware.delaySize') ?? 32768
+                    }
                 });
             } else {
                 // Send zeros if compilation failed
+                const config = vscode.workspace.getConfiguration('fv1');
                 webviewPanel.webview.postMessage({
                     type: 'resourceStats',
                     statistics: {
                         instructionsUsed: 0,
                         registersUsed: 0,
                         memoryUsed: 0,
-                        blocksProcessed: 0
+                        blocksProcessed: 0,
+                        progSize: config.get<number>('hardware.progSize') ?? 128,
+                        regCount: config.get<number>('hardware.regCount') ?? 32,
+                        delaySize: config.get<number>('hardware.delaySize') ?? 32768
                     }
                 });
             }
         };
-        
+
         // Subscribe to compilation changes
         const compilationListener = this.documentManager.onCompilationChange((uri) => {
             if (uri.toString() === document.uri.toString()) {
                 updateResourceStats();
+
+                // Automatically regenerate the .spn file if compilation was successful
+                const result = this.documentManager.getCachedCompilationResult(document.uri);
+                if (result && result.success && result.assembly) {
+                    const spnPath = document.uri.fsPath.replace('.spndiagram', '.spn');
+                    try {
+                        fs.writeFileSync(spnPath, result.assembly, 'utf8');
+                    } catch (error) {
+                        console.error(`Failed to automatically regenerate .spn file: ${error}`);
+                    }
+                }
             }
         });
-        
+
         // Hook up event handlers
         const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(e => {
             if (e.document.uri.toString() === document.uri.toString()) {
                 updateWebview();
             }
         });
-        
+
         // Handle messages from the webview
         webviewPanel.webview.onDidReceiveMessage(async e => {
             switch (e.type) {
@@ -127,19 +148,20 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                     // Send initial resource stats
                     updateResourceStats();
                     return;
-                    
+
                 case 'update':
-                    this.updateTextDocument(document, e.graph);
-                    
-                    // Debounce compilation during interactive operations
-                    // Don't compile immediately during drag operations
-                    if (e.isDragging || e.isCreatingConnection) {
+                    await this.updateTextDocument(document, e.graph);
+
+                    // Don't compile immediately during drag or active connection operations
+                    const isInteracting = e.isDragging || e.isCreatingConnection;
+
+                    if (isInteracting) {
                         // Clear any pending compilation
                         if (compileTimeout) {
                             clearTimeout(compileTimeout);
                         }
                     } else {
-                        // Not dragging - schedule compilation after a short delay
+                        // Not interacting - schedule compilation after a short delay
                         if (compileTimeout) {
                             clearTimeout(compileTimeout);
                         }
@@ -149,7 +171,7 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                         }, 300); // 300ms debounce
                     }
                     return;
-                    
+
                 case 'dragEnd':
                     // When drag ends, trigger immediate compilation
                     if (compileTimeout) {
@@ -157,14 +179,14 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                     }
                     this.documentManager.onDocumentChange(document);
                     return;
-                    
+
                 case 'getBlockMetadata':
                     webviewPanel.webview.postMessage({
                         type: 'blockMetadata',
                         metadata: blockRegistry.getAllMetadata()
                     });
                     return;
-                    
+
                 case 'convertToDisplay':
                     // Convert code value to display value for a parameter
                     const blockDef = blockRegistry.getBlock(e.blockType);
@@ -185,7 +207,7 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                         }
                     }
                     return;
-                    
+
                 case 'convertToCode':
                     // Convert display value to code value for a parameter
                     const blockDefForCode = blockRegistry.getBlock(e.blockType);
@@ -206,7 +228,7 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                         }
                     }
                     return;
-                
+
                 case 'getCustomLabel':
                     // Get custom label for a block instance
                     const blockDefForLabel = blockRegistry.getBlock(e.blockType);
@@ -223,23 +245,23 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                         }
                     }
                     return;
-                
+
                 case 'savePaletteState':
                     // Save the expanded categories to workspace state
                     await this.context.workspaceState.update('blockDiagram.expandedCategories', e.expandedCategories);
                     return;
-                    
+
                 case 'showAssembly':
                     // Open assembly code in a side-by-side editor
                     await this.showAssemblyEditor(document);
                     return;
-                    
+
                 case 'error':
                     vscode.window.showErrorMessage(e.message);
                     return;
             }
         });
-        
+
         // Clean up when the editor is closed
         webviewPanel.onDidDispose(() => {
             if (compileTimeout) {
@@ -249,25 +271,28 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             changeDocumentSubscription.dispose();
         });
     }
-    
+
     /**
      * Show assembly code in a side-by-side editor
      */
     private async showAssemblyEditor(diagramDocument: vscode.TextDocument): Promise<void> {
         const result = this.documentManager.getCompilationResult(diagramDocument);
-        const assembly = result.success && result.assembly 
-            ? result.assembly 
+        const assembly = result.success && result.assembly
+            ? result.assembly
             : `; Compilation ${result.success ? 'produced no output' : 'failed'}\n${result.errors?.map(e => `; ${e}`).join('\n') || ''}`;
-        
+
         // Create a virtual document URI
-        const assemblyUri = vscode.Uri.parse(`fv1-assembly:${diagramDocument.uri.fsPath}.spn`);
+        const assemblyUri = vscode.Uri.from({
+            scheme: 'fv1-assembly',
+            path: diagramDocument.uri.fsPath + '.spn'
+        });
         this.assemblyDocuments.set(diagramDocument.uri.toString(), assemblyUri);
-        
+
         // Check if assembly document is already open
         const existingEditor = vscode.window.visibleTextEditors.find(
             editor => editor.document.uri.toString() === assemblyUri.toString()
         );
-        
+
         if (existingEditor) {
             // Already open, just show it
             await vscode.window.showTextDocument(existingEditor.document, existingEditor.viewColumn);
@@ -276,10 +301,10 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             const diagramEditor = vscode.window.visibleTextEditors.find(
                 editor => editor.document.uri.toString() === diagramDocument.uri.toString()
             );
-            
+
             // Open in the SAME editor group as the diagram
             const targetColumn = diagramEditor?.viewColumn ?? vscode.ViewColumn.Active;
-            
+
             // Open the assembly document in the same editor group
             const doc = await vscode.workspace.openTextDocument(assemblyUri);
             await vscode.window.showTextDocument(doc, {
@@ -289,7 +314,7 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             });
         }
     }
-    
+
     /**
      * Get the HTML content for the webview
      */
@@ -298,10 +323,10 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
         const scriptUri = webview.asWebviewUri(
             vscode.Uri.file(path.join(this.context.extensionPath, 'dist', 'webview.js'))
         );
-        
+
         // Use a nonce to whitelist which scripts can be run
         const nonce = getNonce();
-        
+
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -623,7 +648,7 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
 </body>
 </html>`;
     }
-    
+
     /**
      * Parse document text as BlockGraph
      */
@@ -632,75 +657,86 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
         if (!text.trim()) {
             return createEmptyGraph('New Program');
         }
-        
+
         try {
             return JSON.parse(text) as BlockGraph;
         } catch {
             return createEmptyGraph('New Program');
         }
     }
-    
+
     /**
      * Update the document with new graph data
      */
     private updateTextDocument(document: vscode.TextDocument, graph: BlockGraph) {
         const edit = new vscode.WorkspaceEdit();
-        
+
         // Replace entire document
         edit.replace(
             document.uri,
             new vscode.Range(0, 0, document.lineCount, 0),
             JSON.stringify(graph, null, 2)
         );
-        
+
         return vscode.workspace.applyEdit(edit);
     }
-    
+
     /**
      * Compile the graph to FV-1 assembly
      */
     private async compileGraph(document: vscode.TextDocument, graph: BlockGraph) {
         const compiler = new GraphCompiler(blockRegistry);
-        const result = compiler.compile(graph);
-        
+        const config = vscode.workspace.getConfiguration('fv1');
+        const hardwareOptions = {
+            regCount: config.get<number>('hardware.regCount') ?? 32,
+            progSize: config.get<number>('hardware.progSize') ?? 128,
+            delaySize: config.get<number>('hardware.delaySize') ?? 32768
+        };
+        const result = compiler.compile(graph, hardwareOptions);
+
         if (result.success && result.assembly) {
             // Create .spn file path
             const spnPath = document.uri.fsPath.replace('.spndiagram', '.spn');
-            
+
             // Write assembly to .spn file
             fs.writeFileSync(spnPath, result.assembly, 'utf8');
-            
+
             // Show success message with statistics
             const stats = result.statistics!;
+            const config = vscode.workspace.getConfiguration('fv1');
+            const progSize = config.get<number>('hardware.progSize') ?? 128;
+            const regCount = config.get<number>('hardware.regCount') ?? 32;
+            const delaySize = config.get<number>('hardware.delaySize') ?? 32768;
+
             vscode.window.showInformationMessage(
                 `✅ Compiled successfully! ` +
-                `Instructions: ${stats.instructionsUsed}/128, ` +
-                `Registers: ${stats.registersUsed}/32, ` +
-                `Memory: ${stats.memoryUsed}/32768`
+                `Instructions: ${stats.instructionsUsed}/${progSize}, ` +
+                `Registers: ${stats.registersUsed}/${regCount}, ` +
+                `Memory: ${stats.memoryUsed}/${delaySize}`
             );
-            
+
             // Open the .spn file (or bring existing editor to front)
             const doc = await vscode.workspace.openTextDocument(spnPath);
-            
+
             // Check if file is already open in an editor
             const existingEditor = vscode.window.visibleTextEditors.find(
                 editor => editor.document.uri.toString() === doc.uri.toString()
             );
-            
+
             if (existingEditor) {
                 // File already open - bring that editor to the front
-                await vscode.window.showTextDocument(doc, { 
-                    preview: false, 
-                    viewColumn: existingEditor.viewColumn 
+                await vscode.window.showTextDocument(doc, {
+                    preview: false,
+                    viewColumn: existingEditor.viewColumn
                 });
             } else {
                 // File not open - open beside current editor
-                await vscode.window.showTextDocument(doc, { 
-                    preview: false, 
-                    viewColumn: vscode.ViewColumn.Beside 
+                await vscode.window.showTextDocument(doc, {
+                    preview: false,
+                    viewColumn: vscode.ViewColumn.Beside
                 });
             }
-            
+
             // Show warnings if any
             if (result.warnings && result.warnings.length > 0) {
                 vscode.window.showWarningMessage(`Warnings: ${result.warnings.join(', ')}`);
@@ -709,7 +745,7 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             // Show errors
             const errors = result.errors || ['Unknown compilation error'];
             vscode.window.showErrorMessage(`Compilation failed: ${errors[0]}`);
-            
+
             // Show all errors in output channel
             const outputChannel = vscode.window.createOutputChannel('FV-1 Block Diagram');
             outputChannel.clear();

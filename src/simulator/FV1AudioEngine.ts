@@ -189,6 +189,15 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         white-space: nowrap;
                         box-shadow: 0 2px 8px rgba(0,0,0,0.5);
                     }
+
+                    .perf-stats {
+                        font-family: var(--vscode-editor-font-family);
+                        font-size: 8px;
+                        color: var(--vscode-descriptionForeground);
+                        opacity: 0.6;
+                        text-align: right;
+                        margin-top: 8px;
+                    }
                 </style>
             </head>
             <body>
@@ -225,14 +234,21 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         </div>
                     </div>
 
-                    <div class="viz-box">
-                        <div class="viz-label">Oscilloscope</div>
+                    <div id="scopeBox" class="viz-box">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                            <div class="viz-label">Oscilloscope</div>
+                            <div style="display: flex; gap: 4px;">
+                                <button id="zoomOut" title="Zoom Out" style="padding: 1px 6px;">-</button>
+                                <span id="zoomDisplay" style="font-size: 8px; min-width: 20px; text-align: center; line-height: 1.8;">1x</span>
+                                <button id="zoomIn" title="Zoom In" style="padding: 1px 6px;">+</button>
+                            </div>
+                        </div>
                         <canvas id="scope" width="400" height="120" class="scope-canvas"></canvas>
                         <div id="scopeLegend" class="legend"></div>
                         <div id="openSelector" class="selector-trigger">Manage Registers...</div>
                     </div>
 
-                    <div class="viz-box">
+                    <div id="memBox" class="viz-box">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
                             <div class="viz-label">Delay Memory Map</div>
                             <div style="font-size: 8px; display: flex; gap: 4px; opacity: 0.8;">
@@ -246,6 +262,8 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             <span>$0000</span>
                         </div>
                     </div>
+
+                    <div id="perfStats" class="perf-stats">Sim Execution: -- ms/sample</div>
 
                     <div id="memTooltip"></div>
 
@@ -288,6 +306,14 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     const overlay = document.getElementById('overlay');
                     const bypassBtn = document.getElementById('bypassBtn');
                     const stimulusSelect = document.getElementById('stimulusSelect');
+                    const scopeBox = document.getElementById('scopeBox');
+                    const memBox = document.getElementById('memBox');
+                    const perfStats = document.getElementById('perfStats');
+                    const zoomIn = document.getElementById('zoomIn');
+                    const zoomOut = document.getElementById('zoomOut');
+                    const zoomDisplay = document.getElementById('zoomDisplay');
+
+                    let currentRefreshRate = 1; // Track for display
                     
                     const openSelector = document.getElementById('openSelector');
                     const closeSelector = document.getElementById('closeSelector');
@@ -301,13 +327,14 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     let isBuffering = true;
 
                     // Multi-Trace History
-                    const SCOPE_HISTORY_LEN = 200;
+                    let SCOPE_HISTORY_LEN = 200;
                     let registerHistory = {}; // Map of regIdx -> Float32Array
                     let registerPtr = 0;
                     let selectedRegisters = [22, 23]; // Default DACL, DACR
                     let symbols = [];
                     let registerLabels = {}; // Cache of labels
                     let hiddenRegisters = new Set(); // Track hidden indices
+                    let zoomLevel = 1;
 
                     const TRACE_COLORS = [
                         '#00ff00', '#ff4444', '#4facfe', '#ff00ff', 
@@ -341,6 +368,22 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             vscode.postMessage({ type: 'stimulusChange', value: stimulusSelect.value });
                         }
                     });
+
+                    function updateZoom(newZoom) {
+                        zoomLevel = Math.max(1, Math.min(10, newZoom));
+                        SCOPE_HISTORY_LEN = 200 * zoomLevel;
+                        updateZoomDisplay();
+                        initHistory();
+                        vscode.postMessage({ type: 'configChange', zoomLevel: zoomLevel });
+                    }
+
+                    function updateZoomDisplay() {
+                        const duration = (SCOPE_HISTORY_LEN * currentRefreshRate) / sampleRate;
+                        zoomDisplay.innerText = duration.toFixed(3) + 's';
+                    }
+
+                    zoomIn.addEventListener('click', () => updateZoom(zoomLevel + 1));
+                    zoomOut.addEventListener('click', () => updateZoom(zoomLevel - 1));
 
                     // Selector Logic
                     openSelector.addEventListener('click', () => {
@@ -506,6 +549,12 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                                 if (m.delayPtr !== undefined) {
                                     drawMemMap(m.delayPtr, m.delaySize, m.addrPtr, m.memories);
                                 }
+
+                                if (m.msPerSample !== undefined) {
+                                    perfStats.innerText = 'Sim Execution: ' + m.msPerSample.toFixed(4) + ' ms/sample';
+                                } else {
+                                    perfStats.innerText = 'Sim Execution: -- ms/sample';
+                                }
                             }
 
                             if (!message.l || message.l.length === 0) return;
@@ -525,8 +574,28 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             bufferQueue = [];
                             startTime = 0;
                             updateStatus('Ready');
+                        } else if (message.type === 'config') {
+                            // Restore state
+                            if (message.oscilloscopeEnabled !== undefined) {
+                                scopeBox.style.display = message.oscilloscopeEnabled ? 'block' : 'none';
+                                memBox.style.display = message.oscilloscopeEnabled ? 'block' : 'none';
+                            }
+                            if (message.oscilloscopeRefreshRate !== undefined) {
+                                currentRefreshRate = message.oscilloscopeRefreshRate;
+                                updateZoomDisplay();
+                            }
+                            if (message.zoomLevel !== undefined) {
+                                zoomLevel = message.zoomLevel;
+                                SCOPE_HISTORY_LEN = 200 * zoomLevel;
+                                updateZoomDisplay();
+                                initHistory();
+                            }
                         }
                     });
+
+                    // Request initial config
+                    vscode.postMessage({ type: 'requestConfig' });
+                    updateZoomDisplay(); // Initial display
 
                     function processQueue() {
                         while (audioCtx && audioCtx.state === 'running' && bufferQueue.length > 0) {
