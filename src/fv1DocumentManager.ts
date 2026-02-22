@@ -191,6 +191,17 @@ export class FV1DocumentManager {
             }
         }
 
+        // Add labels
+        if (result.labels) {
+            for (const [name, info] of result.labels.entries()) {
+                symbols.push({
+                    name: name,
+                    value: `Label at PC ${info.instructionLine}`,
+                    line: info.line
+                });
+            }
+        }
+
         // Add MEM symbols
         if (result.memories) {
             for (const memory of result.memories) {

@@ -1,4 +1,9 @@
-import * as vscode from 'vscode';
+export class ParserError extends Error {
+    constructor(message: string, public line: number, public column: number) {
+        super(message);
+        this.name = 'ParserError';
+    }
+}
 
 export enum TokenType {
     IDENTIFIER,
@@ -91,7 +96,7 @@ export class Lexer {
         const startLine = this.line;
         const startCol = this.column;
 
-        while (/[a-zA-Z0-9_#^]/.test(this.peek())) {
+        while (/[a-zA-Z0-9_#^.]/.test(this.peek())) {
             value += this.advance();
         }
 
@@ -207,7 +212,7 @@ export class Parser {
         if (token.type === TokenType.DIRECTIVE) {
             const dir = this.advance();
             const id = this.match(TokenType.IDENTIFIER);
-            if (!id) throw new Error(`Expected identifier after ${dir.value} at line ${dir.line}`);
+            if (!id) throw new ParserError(`Expected identifier after ${dir.value}`, dir.line, dir.column);
             const expr = this.parseExpression();
             return { type: 'Directive', name: dir.value, identifier: id.value, expression: expr, line: dir.line };
         }
@@ -287,7 +292,7 @@ export class Parser {
         if (token.type === TokenType.LPAREN) {
             this.advance();
             const expr = this.parseExpression();
-            if (!this.match(TokenType.RPAREN)) throw new Error(`Expected ) at line ${token.line}`);
+            if (!this.match(TokenType.RPAREN)) throw new ParserError(`Expected )`, token.line, token.column);
             return expr;
         }
 
@@ -296,7 +301,7 @@ export class Parser {
             return { type: 'Unary', operator, expression: this.parsePrimary() };
         }
 
-        throw new Error(`Unexpected token ${token.value} at line ${token.line}`);
+        throw new ParserError(`Unexpected token ${token.value}`, token.line, token.column);
     }
 
     private parseNumberValue(val: string): number {

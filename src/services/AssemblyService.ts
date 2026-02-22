@@ -116,7 +116,8 @@ export class AssemblyService {
         result.problems.forEach((p: any) => {
             const prefix = p.isfatal ? '[ERROR]' : '[WARNING]';
             const icon = p.isfatal ? '❌' : '⚠';
-            this.outputService.log(`${prefix} ${icon} ${p.message}`);
+            const lineInfo = p.line > 0 ? ` (Line ${p.line})` : '';
+            this.outputService.log(`${prefix} ${icon}${lineInfo}: ${p.message}`);
             if (p.isfatal) hasErrors = true;
         });
 

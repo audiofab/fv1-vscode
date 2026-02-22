@@ -1,4 +1,4 @@
-import { Lexer, Parser, ASTNode, Expression } from './assembler/FV1Parser.js';
+import { Lexer, Parser, ASTNode, Expression, ParserError } from './assembler/FV1Parser.js';
 import { INSTRUCTION_SET, Encoder } from './assembler/FV1Encoder.js';
 
 export interface FV1AssemblerOptions {
@@ -51,6 +51,7 @@ export class FV1Assembler {
   private addressToLineMap = new Map<number, number>();
   private usedRegisters = new Set<number>();
   private userSymbols = new Set<string>();
+  private symbolLines = new Map<string, number>();
 
   private PREDEFINED_SYMBOLS: Record<string, number> = {
     'SIN0_RATE': 0x00, 'SIN0_RANGE': 0x01, 'SIN1_RATE': 0x02, 'SIN1_RANGE': 0x03,
@@ -85,7 +86,11 @@ export class FV1Assembler {
     this.addressToLineMap.clear();
     this.usedRegisters.clear();
     this.userSymbols.clear();
+    this.symbolLines.clear(); // Added this line
+    this.initSymbols();       // Added this line
+  }
 
+  private initSymbols() {
     // Load predefined symbols
     for (const [key, val] of Object.entries(this.PREDEFINED_SYMBOLS)) {
       this.symbols.set(key, val);
@@ -115,13 +120,14 @@ export class FV1Assembler {
         labels: this.labels,
         symbols: Array.from(this.symbols.entries())
           .filter(([name]) => this.userSymbols.has(name))
-          .map(([name, value]) => ({ name, value: value.toString() })),
+          .map(([name, value]) => ({ name, value: value.toString(), line: this.symbolLines.get(name) })),
         memories: this.memories,
         addressToLineMap: this.addressToLineMap,
         usedRegistersCount: this.usedRegisters.size
       };
     } catch (e) {
-      this.problems.push({ message: `Parser error: ${e instanceof Error ? e.message : String(e)}`, isfatal: true, line: 0 });
+      const line = (e instanceof ParserError) ? e.line : 1;
+      this.problems.push({ message: `Parser error: ${e instanceof Error ? e.message : String(e)}`, isfatal: true, line });
       return {
         machineCode: [],
         problems: this.problems,
@@ -142,6 +148,7 @@ export class FV1Assembler {
           const value = this.evaluateExpression(node.expression, node.line);
           this.symbols.set(node.identifier, value);
           this.userSymbols.add(node.identifier);
+          this.symbolLines.set(node.identifier, node.line);
         } else if (node.name === 'MEM') {
           const size = this.evaluateExpression(node.expression, node.line);
           const start = nextDelayAddr;
@@ -287,7 +294,9 @@ export class FV1Assembler {
         }
       case 'Unary':
         const val = this.evaluateExpression(expr.expression, line);
-        return expr.operator === '-' ? -val : val;
+        if (expr.operator === '-') return -val;
+        if (expr.operator === '!') return (~Math.floor(val)) >>> 0;
+        return val;
     }
   }
 
