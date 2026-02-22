@@ -22,6 +22,17 @@ function assertEqual(actual, expected, message) {
 }
 
 /**
+ * Robustly read a file, detecting UTF-16 LE or UTF-8
+ */
+function readFileSync(filePath) {
+    const buffer = fs.readFileSync(filePath);
+    // BOM or simple heuristic for UTF-16 LE
+    if (buffer[0] === 0xFF && buffer[1] === 0xFE) return buffer.toString('utf16le');
+    if (buffer.length >= 4 && buffer[1] === 0x00 && buffer[3] === 0x00) return buffer.toString('utf16le');
+    return buffer.toString('utf8');
+}
+
+/**
  * Parsed reference data from SpinASM output files
  */
 class StatsFileParser {
@@ -29,15 +40,15 @@ class StatsFileParser {
         const labels = new Map();
         const equates = new Map();
         const memoryMap = [];
-        
+
         const lines = content.split('\n');
         let section = 'none';
-        
+
         for (const line of lines) {
             const trimmed = line.trim();
-            
+
             if (trimmed === 'NO ERRORS') continue;
-            
+
             if (trimmed === 'LABELS:') {
                 section = 'labels';
                 continue;
@@ -48,9 +59,9 @@ class StatsFileParser {
                 section = 'memory';
                 continue;
             }
-            
+
             if (!trimmed) continue;
-            
+
             switch (section) {
                 case 'labels':
                     this.parseLabel(trimmed, labels);
@@ -63,27 +74,27 @@ class StatsFileParser {
                     break;
             }
         }
-        
+
         return { labels, equates, memoryMap };
     }
-    
+
     parseLabel(line, labels) {
         const match = line.match(/LOC:\s*(\d+)\s+Label:\s*(\w+)/);
         if (match) {
             labels.set(match[2], parseInt(match[1], 10));
         }
     }
-    
+
     parseEquate(line, equates) {
         const parts = line.split(/\s+/);
         if (parts.length >= 2) {
             equates.set(parts[0], parts[1]);
         }
     }
-    
+
     parseMemory(line, memoryMap) {
         if (line.includes('SRAM Memory') || line.includes('Unallocated')) return;
-        
+
         const match = line.match(/(\w+)\s*:0x([0-9A-F]+)\s*-\s*0x([0-9A-F]+)\s+size:0x([0-9A-F]+)/i);
         if (match) {
             memoryMap.push({
@@ -100,17 +111,17 @@ class SpnasmFileParser {
     parse(content) {
         const machineCode = [];
         const lines = content.split('\n');
-        
+
         for (const line of lines) {
             const trimmed = line.trim();
             if (!trimmed) continue;
-            
+
             const parts = trimmed.split(/\s+/);
             if (parts.length < 2) continue;
-            
+
             const address = parseInt(parts[0], 10);
             if (isNaN(address)) continue;
-            
+
             if (parts[1].endsWith(':')) {
                 machineCode.push({ address, encoding: -1, label: parts[1].slice(0, -1) });
             } else {
@@ -118,7 +129,7 @@ class SpnasmFileParser {
                 machineCode.push({ address, encoding });
             }
         }
-        
+
         return machineCode;
     }
 }
@@ -142,57 +153,46 @@ const PREDEFINED_SYMBOLS = new Set([
  */
 function testAssembler(testName, refDir) {
     console.log(`\nTesting ${testName}...`);
-    
+
     // Load reference data
     const spnPath = path.join(refDir, `${testName}.spn`);
     const statsPath = path.join(refDir, `${testName}.stats`);
     const spnasmPath = path.join(refDir, `${testName}.spnasm`);
-    
-    // Read source with proper encoding detection (handle UTF-16 LE with or without BOM)
-    const sourceBuffer = fs.readFileSync(spnPath);
-    let sourceCode;
-    if (sourceBuffer[0] === 0xFF && sourceBuffer[1] === 0xFE) {
-        // UTF-16 LE with BOM
-        sourceCode = sourceBuffer.toString('utf16le');
-    } else if (sourceBuffer.length >= 4 && sourceBuffer[1] === 0x00 && sourceBuffer[3] === 0x00) {
-        // Likely UTF-16 LE without BOM (every other byte is null for ASCII range)
-        sourceCode = sourceBuffer.toString('utf16le');
-    } else {
-        sourceCode = sourceBuffer.toString('utf-8');
-    }
-    
-    const statsContent = fs.readFileSync(statsPath, 'utf-8');
-    const spnasmContent = fs.readFileSync(spnasmPath, 'utf-8');
-    
+
+    const sourceCode = readFileSync(spnPath);
+
+    const statsContent = readFileSync(statsPath);
+    const spnasmContent = readFileSync(spnasmPath);
+
     const statsParser = new StatsFileParser();
     const spnasmParser = new SpnasmFileParser();
-    
+
     const reference = {
         ...statsParser.parse(statsContent),
         machineCode: spnasmParser.parse(spnasmContent)
     };
-    
+
     // Assemble with our assembler
-    const assembler = new FV1Assembler({fv1AsmMemBug: true, clampReals: true});
+    const assembler = new FV1Assembler({ fv1AsmMemBug: true, clampReals: true });
     const result = assembler.assemble(sourceCode);
-    
+
     // Check for fatal errors
     const fatalErrors = result.problems.filter(p => p.isfatal);
-    assert(fatalErrors.length === 0, 
+    assert(fatalErrors.length === 0,
         `${testName}: Assembler reported fatal errors:\n${fatalErrors.map(e => `Line ${e.line}: ${e.message}`).join('\n')}`);
-    
+
     // Validate labels
     console.log(`  Validating labels...`);
     for (const [label, refLoc] of reference.labels.entries()) {
         assert(result.labels.has(label), `${testName}: Label '${label}' not found`);
-        assertEqual(result.labels.get(label).instructionLine, refLoc, 
+        assertEqual(result.labels.get(label).instructionLine, refLoc,
             `${testName}: Label '${label}' location mismatch`);
     }
     for (const [label] of result.labels.entries()) {
-        assert(reference.labels.has(label), 
+        assert(reference.labels.has(label),
             `${testName}: Unexpected label '${label}'`);
     }
-    
+
     // Validate equates
     console.log(`  Validating equates...`);
     const actualEquates = new Map();
@@ -205,44 +205,44 @@ function testAssembler(testName, refDir) {
         assert(actualEquates.has(name), `${testName}: Equate '${name}' not found`);
         const actualValue = parseFloat(actualEquates.get(name));
         const expectedValue = parseFloat(refValue);
-        assertEqual(actualValue, expectedValue, 
+        assertEqual(actualValue, expectedValue,
             `${testName}: Equate '${name}' value mismatch`);
     }
     for (const [name] of actualEquates.entries()) {
-        assert(reference.equates.has(name), 
+        assert(reference.equates.has(name),
             `${testName}: Unexpected equate '${name}'`);
     }
-    
+
     // Validate memory map
     console.log(`  Validating memory map...`);
-    assertEqual(result.memories.length, reference.memoryMap.length, 
+    assertEqual(result.memories.length, reference.memoryMap.length,
         `${testName}: Memory block count mismatch`);
     for (let i = 0; i < reference.memoryMap.length; i++) {
         const refBlock = reference.memoryMap[i];
         const actualBlock = result.memories[i];
-        
-        assertEqual(actualBlock.name.toUpperCase(), refBlock.name.toUpperCase(), 
+
+        assertEqual(actualBlock.name.toUpperCase(), refBlock.name.toUpperCase(),
             `${testName}: Memory block ${i} name mismatch`);
-        assertEqual(actualBlock.start, refBlock.start, 
+        assertEqual(actualBlock.start, refBlock.start,
             `${testName}: Memory '${refBlock.name}' start mismatch`);
-        assertEqual(actualBlock.end, refBlock.end, 
+        assertEqual(actualBlock.end, refBlock.end,
             `${testName}: Memory '${refBlock.name}' end mismatch`);
-        assertEqual(actualBlock.size, refBlock.size, 
+        assertEqual(actualBlock.size, refBlock.size,
             `${testName}: Memory '${refBlock.name}' size mismatch`);
     }
-    
+
     // Validate machine code
     console.log(`  Validating machine code...`);
-    assertEqual(result.machineCode.length, 128, 
+    assertEqual(result.machineCode.length, 128,
         `${testName}: Machine code should be 128 instructions`);
-    
+
     const refInstructions = reference.machineCode.filter(line => line.encoding !== -1);
     for (const refLine of refInstructions) {
         const actualEncoding = result.machineCode[refLine.address];
-        assertEqual(actualEncoding, refLine.encoding, 
+        assertEqual(actualEncoding, refLine.encoding,
             `${testName}: Instruction ${refLine.address} mismatch: expected 0x${refLine.encoding.toString(16).toUpperCase().padStart(8, '0')}, got 0x${actualEncoding.toString(16).toUpperCase().padStart(8, '0')}`);
     }
-    
+
     console.log(`  ✓ ${testName} passed`);
 }
 
@@ -251,19 +251,19 @@ function testAssembler(testName, refDir) {
  */
 function main() {
     const refDir = path.join(__dirname, 'ref');
-    
+
     // Find all .spn files
     const files = fs.readdirSync(refDir);
     const testCases = files
         .filter(f => f.endsWith('.spn'))
         .map(f => path.basename(f, '.spn'));
-    
+
     console.log(`\n=== FV1 Assembler Tests ===`);
     console.log(`Found ${testCases.length} test case(s)\n`);
-    
+
     let passed = 0;
     let failed = 0;
-    
+
     for (const testName of testCases) {
         try {
             testAssembler(testName, refDir);
@@ -273,12 +273,12 @@ function main() {
             failed++;
         }
     }
-    
+
     console.log(`\n=== Results ===`);
     console.log(`Passed: ${passed}`);
     console.log(`Failed: ${failed}`);
     console.log(`Total:  ${testCases.length}\n`);
-    
+
     process.exit(failed > 0 ? 1 : 0);
 }
 
