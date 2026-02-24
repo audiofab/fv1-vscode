@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { FV1Assembler } from '../out/FV1Assembler.js';
+import { FV1Assembler } from '../out/assembler/FV1Assembler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { FV1Assembler, FV1AssemblerResult } from '../FV1Assembler.js';
-import { FV1DocumentManager } from '../fv1DocumentManager.js';
+import { FV1Assembler, FV1AssemblerResult } from '../assembler/FV1Assembler.js';
+import { FV1DocumentManager } from '../core/fv1DocumentManager.js';
 import { BlockDiagramDocumentManager } from '../blockDiagram/BlockDiagramDocumentManager.js';
 import { OutputService } from './OutputService.js';
-import { getActiveDocumentUri } from '../utils/editor-utils.js';
+import { getActiveDocumentUri, resolveToUri } from '../core/editor-utils.js';
 
 export class AssemblyService {
     constructor(
@@ -17,7 +17,7 @@ export class AssemblyService {
         try {
             this.outputService.log(`[INFO] 🔧 Compiling block diagram ${path.basename(diagramPath)}...`);
 
-            const uri = vscode.Uri.file(diagramPath);
+            const uri = resolveToUri(diagramPath);
             let document = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
             if (!document) {
                 document = await vscode.workspace.openTextDocument(uri);
@@ -150,7 +150,7 @@ export class AssemblyService {
                 });
                 return assembler.assemble(assembly);
             } else {
-                const uri = fsPath.includes(':') && !path.isAbsolute(fsPath) ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+                const uri = resolveToUri(fsPath);
                 const document = await vscode.workspace.openTextDocument(uri);
                 return this.fv1DocumentManager.getAssemblyResult(document);
             }

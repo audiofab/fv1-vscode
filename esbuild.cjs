@@ -40,7 +40,7 @@ async function main() {
 
   // Build spnbank editor webview
   const spnbankCtx = await esbuild.context({
-    entryPoints: ['src/spnbank-webview/index.ts'],
+    entryPoints: ['src/spnBank/SpinBankWebView.ts'],
     bundle: true,
     format: 'iife',
     minify: production,
@@ -48,7 +48,7 @@ async function main() {
     sourcesContent: false,
     platform: 'browser',
     target: 'es2020',
-    outfile: 'dist/spnbank-webview.js',
+    outfile: 'dist/SpinBankWebView.js',
     logLevel: 'warning',
     plugins: [esbuildProblemMatcherPlugin]
   });

@@ -270,12 +270,12 @@
         },
         {
           "command": "fv1.startSimulator",
-          "when": "resourceExtname == .spn"
+          "when": "resourceExtname == .spn || resourceExtname == .spndiagram"
         }
       ],
       "editor/context": [
         {
-          "when": "resourceExtname == .spn",
+          "when": "resourceExtname == .spn || resourceExtname == .spndiagram",
           "command": "fv1.startSimulator",
           "group": "fv1@0"
         },
@@ -436,6 +436,11 @@
             "128 Frames"
           ],
           "description": "The rate at which registers are sampled for the oscilloscope."
+        },
+        "fv1.simulation.stopOnEntry": {
+          "type": "boolean",
+          "default": true,
+          "description": "Stop at the first instruction after launch."
         }
       }
     }

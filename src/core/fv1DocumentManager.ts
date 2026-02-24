@@ -7,7 +7,7 @@
  */
 
 import * as vscode from 'vscode';
-import { FV1Assembler, FV1AssemblerResult } from './FV1Assembler.js';
+import { FV1Assembler, FV1AssemblerResult } from '../assembler/FV1Assembler.js';
 
 interface DocumentInfo {
     version: number;

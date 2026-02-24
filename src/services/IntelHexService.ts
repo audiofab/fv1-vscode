@@ -4,9 +4,9 @@ import * as path from 'path';
 import { OutputService } from './OutputService.js';
 import { ProgrammerService } from './ProgrammerService.js';
 import { AssemblyService } from './AssemblyService.js';
-import { IntelHexParser } from '../hexParser.js';
-import { FV1Assembler } from '../FV1Assembler.js';
-import { getActiveDocumentUri } from '../utils/editor-utils.js';
+import { IntelHexParser } from '../core/hexParser.js';
+import { FV1Assembler } from '../assembler/FV1Assembler.js';
+import { getActiveDocumentUri } from '../core/editor-utils.js';
 
 const FV1_EEPROM_SLOT_SIZE_BYTES = 512;
 
@@ -15,37 +15,37 @@ export class IntelHexService {
         private outputService: OutputService,
         private programmerService: ProgrammerService,
         private assemblyService: AssemblyService
-    ) {}
+    ) { }
 
     public async outputIntelHexFile(machineCode: number[]): Promise<void> {
         const fileUri = getActiveDocumentUri();
-        if (!fileUri) { 
-            vscode.window.showErrorMessage('No active editor'); 
-            return; 
+        if (!fileUri) {
+            vscode.window.showErrorMessage('No active editor');
+            return;
         }
-        
+
         const sourceFile = fileUri.fsPath;
-        
-        if (!sourceFile.endsWith('.spn') && !sourceFile.endsWith('.spndiagram')) { 
-            vscode.window.showErrorMessage('Active file is not an FV-1 assembly file (.spn) or block diagram (.spndiagram)'); 
-            return; 
+
+        if (!sourceFile.endsWith('.spn') && !sourceFile.endsWith('.spndiagram')) {
+            vscode.window.showErrorMessage('Active file is not an FV-1 assembly file (.spn) or block diagram (.spndiagram)');
+            return;
         }
-        
+
         const outputFile = sourceFile.replace(/\.(spn|spndiagram)$/, '.hex');
 
         const selectedSlot = await this.programmerService.selectProgramSlot();
-        if (selectedSlot === undefined) { 
-            vscode.window.showWarningMessage('No program slot was selected, aborting'); 
-            return; 
+        if (selectedSlot === undefined) {
+            vscode.window.showWarningMessage('No program slot was selected, aborting');
+            return;
         }
 
         try {
             this.outputService.log(`[INFO] 📄 Generating Intel HEX file for slot ${selectedSlot + 1}...`);
             const hexFileString = IntelHexParser.generate(Buffer.from(FV1Assembler.toUint8Array(machineCode)), selectedSlot * FV1_EEPROM_SLOT_SIZE_BYTES, 4);
             fs.writeFileSync(outputFile, hexFileString, 'utf8');
-            if (fs.existsSync(outputFile)) { 
-                this.outputService.log(`[SUCCESS] ✅ Intel HEX file saved: ${path.basename(outputFile)}`); 
-                return; 
+            if (fs.existsSync(outputFile)) {
+                this.outputService.log(`[SUCCESS] ✅ Intel HEX file saved: ${path.basename(outputFile)}`);
+                return;
             }
             this.outputService.log(`[ERROR] ❌ Failed to save HEX file: ${path.basename(outputFile)}`);
             vscode.window.showErrorMessage('Failed to save HEX file');
@@ -58,9 +58,9 @@ export class IntelHexService {
     public async exportBankToHex(item?: any): Promise<void> {
         try {
             const files = item && item.resourceUri ? [item.resourceUri] : await vscode.workspace.findFiles('**/*.spnbank', '**/node_modules/**');
-            if (!files || files.length === 0) { 
-                vscode.window.showErrorMessage('No .spnbank files found'); 
-                return; 
+            if (!files || files.length === 0) {
+                vscode.window.showErrorMessage('No .spnbank files found');
+                return;
             }
 
             let bankUri: vscode.Uri;
@@ -68,7 +68,7 @@ export class IntelHexService {
                 bankUri = files[0];
             } else {
                 const pick = await vscode.window.showQuickPick(
-                    files.map(f => ({ label: vscode.workspace.asRelativePath(f), uri: f })), 
+                    files.map(f => ({ label: vscode.workspace.asRelativePath(f), uri: f })),
                     { placeHolder: 'Select .spnbank file to export' }
                 );
                 if (!pick) return;
@@ -76,7 +76,7 @@ export class IntelHexService {
             }
 
             // Save all dirty .spn and .spndiagram files before assembling
-            const dirtyDocs = vscode.workspace.textDocuments.filter(doc => 
+            const dirtyDocs = vscode.workspace.textDocuments.filter(doc =>
                 doc.isDirty && (doc.fileName.endsWith('.spn') || doc.fileName.endsWith('.spndiagram'))
             );
             if (dirtyDocs.length > 0) {
@@ -89,12 +89,12 @@ export class IntelHexService {
                     }
                 }
             }
-            
+
             const doc = await vscode.workspace.openTextDocument(bankUri);
             const json = doc.getText() ? JSON.parse(doc.getText()) : {};
             const slots = Array.isArray(json.slots) ? json.slots : [];
-            
-            const segments: Array<{data: Buffer, address: number}> = [];
+
+            const segments: Array<{ data: Buffer, address: number }> = [];
             const bankDir = path.dirname(bankUri.fsPath);
             let processedSlots = 0;
 
@@ -102,9 +102,9 @@ export class IntelHexService {
 
             for (const slot of slots) {
                 if (!slot || !slot.path) continue;
-                
+
                 const fsPath = path.isAbsolute(slot.path) ? slot.path : path.resolve(bankDir, slot.path);
-                
+
                 if (!fs.existsSync(fsPath)) {
                     this.outputService.log(`[WARNING] ⚠ Skipping slot ${slot.slot}: file not found ${path.basename(fsPath)}`);
                     continue;
@@ -112,7 +112,7 @@ export class IntelHexService {
 
                 let content: string;
                 const isBlockDiagram = fsPath.toLowerCase().endsWith('.spndiagram');
-                
+
                 if (isBlockDiagram) {
                     const assembly = await this.assemblyService.compileBlockDiagram(fsPath);
                     if (!assembly) {
@@ -124,11 +124,11 @@ export class IntelHexService {
                     content = fs.readFileSync(fsPath, 'utf8');
                 }
 
-                const assembler = new FV1Assembler({ 
+                const assembler = new FV1Assembler({
                     fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
                     clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
                 });
-                
+
                 this.outputService.log(`[INFO] 🔧 Assembling slot ${slot.slot}: ${path.basename(fsPath)}...`);
                 const result = assembler.assemble(content);
 
@@ -169,9 +169,9 @@ export class IntelHexService {
 
             this.outputService.log(`[INFO] 📄 Generating multi-segment Intel HEX file with ${segments.length} program(s)...`);
             const hexFileString = IntelHexParser.generateMultiSegment(segments, 16);
-            
+
             fs.writeFileSync(outputFile, hexFileString, 'utf8');
-            
+
             if (fs.existsSync(outputFile)) {
                 this.outputService.log(`[SUCCESS] ✅ Bank exported to Intel HEX: ${path.basename(outputFile)}`);
                 this.outputService.log(`[INFO] 📄 Export summary: ${segments.length} program(s) exported from ${processedSlots} assigned slot(s)`);

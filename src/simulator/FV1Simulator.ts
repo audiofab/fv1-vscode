@@ -4,7 +4,7 @@
  * Simulates the Spin Semiconductor FV-1 DSP chip.
  * This class is designed to be platform-agnostic (Node.js or Browser/AudioWorklet).
  */
-import { FV1Assembler } from '../FV1Assembler.js';
+import { FV1Assembler } from '../assembler/FV1Assembler.js';
 
 export class FV1Simulator {
     // Constants

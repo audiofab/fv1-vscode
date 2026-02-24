@@ -1,5 +1,5 @@
-import { Lexer, Parser, ASTNode, Expression, ParserError } from './assembler/FV1Parser.js';
-import { INSTRUCTION_SET, Encoder } from './assembler/FV1Encoder.js';
+import { Lexer, Parser, ASTNode, Expression, ParserError } from './FV1Parser.js';
+import { INSTRUCTION_SET, Encoder } from './FV1Encoder.js';
 
 export interface FV1AssemblerOptions {
   fv1AsmMemBug?: boolean;

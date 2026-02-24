@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { FV1DocumentManager } from '../fv1DocumentManager.js';
+import { FV1DocumentManager } from '../core/fv1DocumentManager.js';
 import { BlockDiagramDocumentManager } from '../blockDiagram/BlockDiagramDocumentManager.js';
-import { getActiveDocumentUri } from '../utils/editor-utils.js';
+import { getActiveDocumentUri } from '../core/editor-utils.js';
 
 export class StatusBarService implements vscode.Disposable {
     private instructionsStatusBar: vscode.StatusBarItem;

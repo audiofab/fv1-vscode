@@ -10,7 +10,7 @@ import { BlockRegistry } from '../blocks/BlockRegistry.js';
 import { TopologicalSort } from './TopologicalSort.js';
 import { CodeGenerationContext } from '../types/CodeGenContext.js';
 import { CodeOptimizer } from './CodeOptimizer.js';
-import { FV1Assembler } from '../../FV1Assembler.js';
+import { FV1Assembler } from '../../assembler/FV1Assembler.js';
 
 export interface CompilationStatistics {
     instructionsUsed: number;

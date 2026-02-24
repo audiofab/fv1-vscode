@@ -2,10 +2,11 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { FV1Simulator } from './FV1Simulator.js';
-import { FV1AssemblerResult } from '../FV1Assembler.js';
+import { FV1AssemblerResult } from '../assembler/FV1Assembler.js';
 import { FV1AudioStreamer } from './FV1AudioStreamer.js';
 import { FV1AudioEngine } from './FV1AudioEngine.js';
 import { AssemblyService } from '../services/AssemblyService.js';
+import { resolveToUri } from '../core/editor-utils.js';
 
 export class FV1DebugSession implements vscode.DebugAdapter {
     private simulator: FV1Simulator;
@@ -123,6 +124,8 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                 case 'configurationDone':
                     if (this.stopOnEntry) {
                         this.sendEvent('stopped', { reason: 'entry', threadId: 1 });
+                    } else {
+                        this.continueExecution(response);
                     }
                     break;
 
@@ -177,6 +180,8 @@ export class FV1DebugSession implements vscode.DebugAdapter {
 
                 case 'restart':
                     this.simulator.reset();
+                    // Re-apply current potentiometer values after reset
+                    this.potValues.forEach((val, i) => this.simulator.setRegister(0x10 + i, val));
                     if (this.stopOnEntry) {
                         this.sendEvent('stopped', { reason: 'entry', threadId: 1 });
                     } else {
@@ -350,6 +355,14 @@ export class FV1DebugSession implements vscode.DebugAdapter {
 
         this.simulator.reset();
 
+        // Initialize from persistent state in audioEngine
+        if (this.audioEngine) {
+            this.potValues = this.audioEngine.getPotValues();
+            this.bypassActive = this.audioEngine.isBypassActive();
+            // Apply to simulator registers
+            this.potValues.forEach((val, i) => this.simulator.setRegister(0x10 + i, val));
+        }
+
         // Re-verify breakpoints now that we have the line map
         this.verifyBreakpoints();
 
@@ -476,11 +489,36 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         const pc = this.simulator.getPC();
         const line = this.addressToLineMap.get(pc) || 1;
 
+        // Determine if we should show the source location.
+        // If it's a block diagram, we only show source if the virtual assembly file is actually open/visible.
+        let showSource = true;
+        let effectiveSourcePath = this.sourcePath;
+
+        if (this.sourcePath.endsWith('.spndiagram')) {
+            const virtualPath = this.sourcePath + '.spn';
+            const virtualUri = vscode.Uri.from({
+                scheme: 'fv1-assembly',
+                path: virtualPath.startsWith('file:///') ? vscode.Uri.parse(virtualPath).fsPath : virtualPath
+            });
+
+            // Check if any visible text editor is showing this virtual assembly
+            const isVisible = vscode.window.visibleTextEditors.some(editor =>
+                editor.document.uri.scheme === 'fv1-assembly' &&
+                editor.document.uri.path === virtualUri.path
+            );
+
+            if (!isVisible) {
+                showSource = false;
+            } else {
+                effectiveSourcePath = virtualUri.toString();
+            }
+        }
+
         response.body = {
             stackFrames: [{
                 id: 1,
                 name: `PC: ${pc}`,
-                source: { path: this.sourcePath },
+                source: showSource ? { path: effectiveSourcePath } : undefined,
                 line: line,
                 column: 0
             }],

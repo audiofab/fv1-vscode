@@ -12,12 +12,22 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
     private sampleRate: number = 32768;
     private lastMetadata: any = {};
     private currentStimulus: any = { type: 'stimulusChange', value: 'built-in' }; // Default to chords
+    private potValues: number[] = [0.5, 0.5, 0.5];
+    private bypassActive: boolean = false;
 
     private _onMessage = new vscode.EventEmitter<any>();
     public readonly onMessage = this._onMessage.event;
 
     constructor(sampleRate: number = 32768) {
         this.sampleRate = sampleRate;
+    }
+
+    public getPotValues(): number[] {
+        return [...this.potValues];
+    }
+
+    public isBypassActive(): boolean {
+        return this.bypassActive;
     }
 
     public resolveWebviewView(
@@ -38,6 +48,14 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
             if (m.type === 'ready') {
                 this.isReady = true;
                 console.log('FV1 Audio Engine Ready (View)');
+
+                // Restore UI state
+                this._view?.webview.postMessage({
+                    type: 'config',
+                    potValues: this.potValues,
+                    bypassActive: this.bypassActive
+                });
+
                 if (this._view && Object.keys(this.lastMetadata).length > 0) {
                     this._view.webview.postMessage({
                         type: 'play',
@@ -48,11 +66,19 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                 }
             } else if (m.type === 'selectCustomFile') {
                 this.handleSelectCustomFile();
+            } else if (m.type === 'potChange') {
+                if (m.pot >= 0 && m.pot <= 2) {
+                    this.potValues[m.pot] = m.value;
+                }
+                this._onMessage.fire(m);
+            } else if (m.type === 'bypassChange') {
+                this.bypassActive = !!m.active;
+                this._onMessage.fire(m);
             } else {
                 if (m.type === 'stimulusChange') {
                     this.currentStimulus = m;
                 }
-                // Relay other messages (bypass, pot change, stimulus change) to listeners
+                // Relay other messages (stimulus change) to listeners
                 this._onMessage.fire(m);
             }
         });
@@ -348,6 +374,9 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         '#ffaa00', '#ffffff', '#ffff00', '#00ffff'
                     ];
 
+                    const DURATION_PRESETS = [0.001, 0.01, 0.1, 1];
+                    let durationIndex = 2; // Default to 0.1s
+
                     function updateStatus(msg) {
                         document.getElementById('status').innerText = msg;
                     }
@@ -376,21 +405,32 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         }
                     });
 
-                    function updateZoom(newZoom) {
-                        zoomLevel = Math.max(1, Math.min(10, newZoom));
-                        SCOPE_HISTORY_LEN = 200 * zoomLevel;
+                    function updateZoom(newIndex) {
+                        durationIndex = Math.max(0, Math.min(DURATION_PRESETS.length - 1, newIndex));
+                        const duration = DURATION_PRESETS[durationIndex];
+                        
+                        // Recalculate SCOPE_HISTORY_LEN: how many samples to show
+                        // We need history for (duration) seconds.
+                        // Since traces are sampled at refreshRate:
+                        SCOPE_HISTORY_LEN = Math.round((duration * sampleRate) / currentRefreshRate);
+                        if (SCOPE_HISTORY_LEN < 10) SCOPE_HISTORY_LEN = 10; // Minimum points
+                        
                         updateZoomDisplay();
                         initHistory();
-                        vscode.postMessage({ type: 'configChange', zoomLevel: zoomLevel });
+                        vscode.postMessage({ type: 'configChange', zoomLevel: durationIndex });
                     }
 
                     function updateZoomDisplay() {
-                        const duration = (SCOPE_HISTORY_LEN * currentRefreshRate) / sampleRate;
-                        zoomDisplay.innerText = duration.toFixed(3) + 's';
+                        const duration = DURATION_PRESETS[durationIndex];
+                        if (duration < 1) {
+                            zoomDisplay.innerText = Math.round(duration * 1000) + 'ms';
+                        } else {
+                            zoomDisplay.innerText = duration + 's';
+                        }
                     }
 
-                    zoomIn.addEventListener('click', () => updateZoom(zoomLevel + 1));
-                    zoomOut.addEventListener('click', () => updateZoom(zoomLevel - 1));
+                    zoomIn.addEventListener('click', () => updateZoom(durationIndex - 1));
+                    zoomOut.addEventListener('click', () => updateZoom(durationIndex + 1));
 
                     // Selector Logic
                     openSelector.addEventListener('click', () => {
@@ -592,10 +632,24 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                                 updateZoomDisplay();
                             }
                             if (message.zoomLevel !== undefined) {
-                                zoomLevel = message.zoomLevel;
-                                SCOPE_HISTORY_LEN = 200 * zoomLevel;
+                                durationIndex = Math.max(0, Math.min(DURATION_PRESETS.length - 1, message.zoomLevel));
+                                const duration = DURATION_PRESETS[durationIndex];
+                                SCOPE_HISTORY_LEN = Math.round((duration * sampleRate) / currentRefreshRate);
+                                if (SCOPE_HISTORY_LEN < 10) SCOPE_HISTORY_LEN = 10;
                                 updateZoomDisplay();
                                 initHistory();
+                            }
+                            if (message.potValues) {
+                                message.potValues.forEach((val, i) => {
+                                    const slider = document.getElementById('pot' + i);
+                                    const display = document.getElementById('p' + i + 'v');
+                                    if (slider) slider.value = val;
+                                    if (display) display.innerText = val.toFixed(2);
+                                });
+                            }
+                            if (message.bypassActive !== undefined) {
+                                bypassActive = message.bypassActive;
+                                bypassBtn.className = bypassActive ? 'active' : '';
                             }
                         }
                     });

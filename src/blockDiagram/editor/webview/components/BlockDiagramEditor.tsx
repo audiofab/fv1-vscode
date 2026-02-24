@@ -601,8 +601,14 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                 vscode={vscode}
             />
 
-            {/* View toolbar */}
             <div className="view-toolbar">
+                <button
+                    className="view-button"
+                    onClick={() => vscode.postMessage({ type: 'simulate' })}
+                    title="Run this program in the simulator"
+                >
+                    ▶ Simulate
+                </button>
                 <button
                     className="view-button"
                     onClick={() => vscode.postMessage({ type: 'showAssembly' })}

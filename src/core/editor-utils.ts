@@ -21,3 +21,19 @@ export function getActiveDocumentUri(): vscode.Uri | undefined {
 
     return undefined;
 }
+
+/**
+ * Robustly resolve a path or URI string to a vscode.Uri object.
+ * Handles local filesystem paths, file:/// URIs, and other schemes.
+ */
+export function resolveToUri(pathOrUri: string): vscode.Uri {
+    if (pathOrUri.includes('://')) {
+        try {
+            return vscode.Uri.parse(pathOrUri);
+        } catch {
+            // Fallback to file if parse fails
+            return vscode.Uri.file(pathOrUri);
+        }
+    }
+    return vscode.Uri.file(pathOrUri);
+}

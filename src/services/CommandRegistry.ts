@@ -6,7 +6,7 @@ import { AssemblyService } from '../services/AssemblyService.js';
 import { ProgrammerService } from '../services/ProgrammerService.js';
 import { BlockDiagramDocumentManager } from '../blockDiagram/BlockDiagramDocumentManager.js';
 import { IntelHexService } from './IntelHexService.js';
-import { getActiveDocumentUri } from '../utils/editor-utils.js';
+import { getActiveDocumentUri, resolveToUri } from '../core/editor-utils.js';
 
 export class CommandRegistry {
     constructor(
@@ -116,8 +116,14 @@ export class CommandRegistry {
             await this.programmerService.loadHexToEeprom();
         });
 
-        this.register('fv1.startSimulator', async (uri?: vscode.Uri) => {
-            let programUri = uri;
+        this.register('fv1.startSimulator', async (uriOrString?: vscode.Uri | string, options?: { stopOnEntry?: boolean }) => {
+            let programUri: vscode.Uri | undefined;
+            if (typeof uriOrString === 'string') {
+                programUri = resolveToUri(uriOrString);
+            } else {
+                programUri = uriOrString;
+            }
+
             if (!programUri) {
                 programUri = getActiveDocumentUri();
             }
@@ -127,12 +133,17 @@ export class CommandRegistry {
                 return;
             }
 
+            // Ensure Run/Debug view is visible to ensure debug session is properly initialized
+            await vscode.commands.executeCommand('workbench.view.debug');
+
+            const stopOnEntry = options?.stopOnEntry ?? vscode.workspace.getConfiguration('fv1.simulation').get<boolean>('stopOnEntry') ?? true;
+
             vscode.debug.startDebugging(undefined, {
                 type: 'fv1-debug',
                 name: `Debug ${path.basename(programUri.fsPath || programUri.path)}`,
                 request: 'launch',
                 program: programUri.toString(),
-                stopOnEntry: true
+                stopOnEntry: stopOnEntry
             });
         });
     }

@@ -6,9 +6,9 @@ import { MCP2221 } from '@johntalton/mcp2221';
 import { I2CBusMCP2221 } from '@johntalton/i2c-bus-mcp2221';
 import { I2CAddressedBus } from '@johntalton/and-other-delights';
 import { EEPROM, DEFAULT_EEPROM_ADDRESS, DEFAULT_WRITE_PAGE_SIZE } from '@johntalton/eeprom';
-import { NodeHIDStreamSource } from '../node-hid-stream.js';
-import { FV1Assembler, FV1AssemblerResult } from '../FV1Assembler.js';
-import { IntelHexParser } from '../hexParser.js';
+import { NodeHIDStreamSource } from '../lib/node-hid-stream.js';
+import { FV1Assembler, FV1AssemblerResult } from '../assembler/FV1Assembler.js';
+import { IntelHexParser } from '../core/hexParser.js';
 import { OutputService } from './OutputService.js';
 import { AssemblyService } from './AssemblyService.js';
 

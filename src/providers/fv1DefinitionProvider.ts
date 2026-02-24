@@ -4,7 +4,7 @@
  */
 
 import * as vscode from 'vscode';
-import { FV1DocumentManager } from './fv1DocumentManager.js';
+import { FV1DocumentManager } from '../core/fv1DocumentManager.js';
 
 export class FV1DefinitionProvider implements vscode.DefinitionProvider {
     private documentManager: FV1DocumentManager;

@@ -108,17 +108,6 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
         const compilationListener = this.documentManager.onCompilationChange((uri) => {
             if (uri.toString() === document.uri.toString()) {
                 updateResourceStats();
-
-                // Automatically regenerate the .spn file if compilation was successful
-                const result = this.documentManager.getCachedCompilationResult(document.uri);
-                if (result && result.success && result.assembly) {
-                    const spnPath = document.uri.fsPath.replace('.spndiagram', '.spn');
-                    try {
-                        fs.writeFileSync(spnPath, result.assembly, 'utf8');
-                    } catch (error) {
-                        console.error(`Failed to automatically regenerate .spn file: ${error}`);
-                    }
-                }
             }
         });
 
@@ -254,6 +243,11 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                 case 'showAssembly':
                     // Open assembly code in a side-by-side editor
                     await this.showAssemblyEditor(document);
+                    return;
+
+                case 'simulate':
+                    // Trigger simulation using the diagram's URI to keep focus here
+                    await vscode.commands.executeCommand('fv1.startSimulator', document.uri);
                     return;
 
                 case 'error':
