@@ -6,7 +6,7 @@ import { AssemblyService } from '../services/AssemblyService.js';
 import { ProgrammerService } from '../services/ProgrammerService.js';
 import { BlockDiagramDocumentManager } from '../blockDiagram/BlockDiagramDocumentManager.js';
 import { IntelHexService } from './IntelHexService.js';
-import { getActiveDocumentUri } from '../utils/editor-utils.js';
+import { getActiveDocumentUri, resolveToUri } from '../core/editor-utils.js';
 
 export class CommandRegistry {
     constructor(
@@ -16,7 +16,7 @@ export class CommandRegistry {
         private programmerService: ProgrammerService,
         private intelHexService: IntelHexService,
         private blockDiagramDocMgr: BlockDiagramDocumentManager
-    ) {}
+    ) { }
 
     public registerCommands() {
         this.register('fv1.assemble', async () => {
@@ -62,19 +62,19 @@ export class CommandRegistry {
                 filters: { 'FV-1 Block Diagram': ['spndiagram'] },
                 defaultUri: vscode.Uri.file(path.join(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '.', 'new.spndiagram'))
             });
-            
+
             if (!saveUri) return;
-            
+
             try {
                 const templatePath = path.join(this.context.extensionPath, 'resources', 'templates', 'default-diagram.json');
                 let templateContent = fs.readFileSync(templatePath, 'utf8');
-                
+
                 const diagram = JSON.parse(templateContent);
                 diagram.metadata.name = path.basename(saveUri.fsPath, '.spndiagram');
-                
+
                 const content = JSON.stringify(diagram, null, 2);
                 await vscode.workspace.fs.writeFile(saveUri, Buffer.from(content, 'utf8'));
-                
+
                 await vscode.commands.executeCommand('vscode.openWith', saveUri, 'fv1.blockDiagramEditor');
                 vscode.window.showInformationMessage(`Created new block diagram: ${path.basename(saveUri.fsPath)}`);
             } catch (error) {
@@ -92,15 +92,15 @@ export class CommandRegistry {
                 let slotNum: number | undefined;
                 if (item && (item as any).bankUri) { bankUri = (item as any).bankUri; slotNum = (item as any).slot; }
                 if (!bankUri || !slotNum) { vscode.window.showErrorMessage('No slot selected to unassign'); return; }
-                
+
                 const doc = await vscode.workspace.openTextDocument(bankUri);
                 const json = doc.getText() ? JSON.parse(doc.getText()) : {};
-                json.slots = json.slots || new Array(8).fill(null).map((_, i) => ({ slot: i+1, path: '' }));
+                json.slots = json.slots || new Array(8).fill(null).map((_, i) => ({ slot: i + 1, path: '' }));
                 json.slots[slotNum - 1] = { slot: slotNum, path: '' };
                 const newContent = Buffer.from(JSON.stringify(json, null, 2), 'utf8');
                 await vscode.workspace.fs.writeFile(bankUri, newContent);
-            } catch (e) { 
-                vscode.window.showErrorMessage(`Failed to unassign slot: ${e}`); 
+            } catch (e) {
+                vscode.window.showErrorMessage(`Failed to unassign slot: ${e}`);
             }
         });
 
@@ -114,6 +114,37 @@ export class CommandRegistry {
 
         this.register('fv1.loadHexToEeprom', async () => {
             await this.programmerService.loadHexToEeprom();
+        });
+
+        this.register('fv1.startSimulator', async (uriOrString?: vscode.Uri | string, options?: { stopOnEntry?: boolean }) => {
+            let programUri: vscode.Uri | undefined;
+            if (typeof uriOrString === 'string') {
+                programUri = resolveToUri(uriOrString);
+            } else {
+                programUri = uriOrString;
+            }
+
+            if (!programUri) {
+                programUri = getActiveDocumentUri();
+            }
+
+            if (!programUri) {
+                vscode.window.showErrorMessage('No file selected to debug');
+                return;
+            }
+
+            // Ensure Run/Debug view is visible to ensure debug session is properly initialized
+            await vscode.commands.executeCommand('workbench.view.debug');
+
+            const stopOnEntry = options?.stopOnEntry ?? vscode.workspace.getConfiguration('fv1.simulation').get<boolean>('stopOnEntry') ?? true;
+
+            vscode.debug.startDebugging(undefined, {
+                type: 'fv1-debug',
+                name: `Debug ${path.basename(programUri.fsPath || programUri.path)}`,
+                request: 'launch',
+                program: programUri.toString(),
+                stopOnEntry: stopOnEntry
+            });
         });
     }
 

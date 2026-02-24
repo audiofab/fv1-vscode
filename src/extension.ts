@@ -4,17 +4,21 @@ import { AssemblyService } from './services/AssemblyService.js';
 import { ProgrammerService } from './services/ProgrammerService.js';
 import { StatusBarService } from './services/StatusBarService.js';
 import { CommandRegistry } from './services/CommandRegistry.js';
-import { FV1DocumentManager } from './fv1DocumentManager.js';
+import { FV1DocumentManager } from './core/fv1DocumentManager.js';
 import { BlockDiagramDocumentManager } from './blockDiagram/BlockDiagramDocumentManager.js';
 import { blockRegistry } from './blockDiagram/blocks/BlockRegistry.js';
-import { FV1QuickActionsProvider } from './FV1QuickActionsProvider.js';
-import { SpnBankEditorProvider } from './SpnBankEditorProvider.js';
+import { FV1QuickActionsProvider } from './providers/FV1QuickActionsProvider.js';
+import { SpnBankEditorProvider } from './providers/SpnBankEditorProvider.js';
 import { BlockDiagramEditorProvider } from './blockDiagram/editor/BlockDiagramEditorProvider.js';
-import { FV1HoverProvider } from './fv1HoverProvider.js';
-import { FV1DefinitionProvider } from './fv1DefinitionProvider.js';
+import { FV1HoverProvider } from './providers/fv1HoverProvider.js';
+import { FV1DefinitionProvider } from './providers/fv1DefinitionProvider.js';
 import { IntelHexService } from './services/IntelHexService.js';
+import { FV1DebugSession } from './simulator/FV1DebugSession.js';
+import { FV1AudioEngine } from './simulator/FV1AudioEngine.js';
 
 export function activate(context: vscode.ExtensionContext) {
+    console.log('Audiofab FV-1 Extension is now active!');
+
     // 1. Initialize Core Services
     // OutputService is a singleton that manages the Output Channel
     const outputService = new OutputService('FV-1 Assembler');
@@ -37,6 +41,25 @@ export function activate(context: vscode.ExtensionContext) {
     const statusBarService = new StatusBarService(fv1DocumentManager, blockDiagramDocumentManager);
     context.subscriptions.push(statusBarService);
 
+    const fv1AudioEngine = new FV1AudioEngine();
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider('fv1Monitor', fv1AudioEngine)
+    );
+
+    context.subscriptions.push(
+        vscode.debug.registerDebugConfigurationProvider('fv1-debug', new FV1DebugConfigurationProvider())
+    );
+
+    // 0. Register Debugging Support
+    context.subscriptions.push(
+        vscode.debug.registerDebugAdapterDescriptorFactory('fv1-debug', {
+            createDebugAdapterDescriptor(_session) {
+                console.log('Creating FV1 Debug Adapter Session');
+                return new vscode.DebugAdapterInlineImplementation(new FV1DebugSession(context, assemblyService, fv1AudioEngine));
+            }
+        })
+    );
+
     // 4. Register Providers
     // Providers hook into VS Code's UI features (Hover, Definition, Custom Editors)
     const quickActionsProvider = new FV1QuickActionsProvider(context);
@@ -45,110 +68,101 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(quickActionsView);
 
-    // Register virtual document provider for assembly view
-     // Register virtual document provider for assembly view
-     const assemblyDocumentProvider = new class implements vscode.TextDocumentContentProvider {
-         onDidChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
-         onDidChange = this.onDidChangeEmitter.event;
-         
-         provideTextDocumentContent(uri: vscode.Uri): string {
-             // Extract the original .spndiagram path from the virtual URI
-             const diagramPath = uri.path.replace(/\.spn$/, '');
-             const diagramUri = vscode.Uri.file(diagramPath);
-             
-             // Find the diagram document
-             const diagramDoc = vscode.workspace.textDocuments.find(
-                 doc => doc.uri.toString() === diagramUri.toString()
-             );
-             
-             if (!diagramDoc) {
-                 return '; Unable to find source diagram document';
-             }
-             
-             // Get compilation result
-             const result = blockDiagramDocumentManager.getCompilationResult(diagramDoc);
-             if (result.assembly) {
-                 // Show assembly even if there are errors (e.g., exceeds instruction limit)
-                 // Prepend error/warning comments if present
-                 let output = '';
-                 if (result.errors && result.errors.length > 0) {
-                     output += result.errors.map(e => `; ERROR: ${e}`).join('\n') + '\n\n';
-                 }
-                 if (result.warnings && result.warnings.length > 0) {
-                     output += result.warnings.map(w => `; WARNING: ${w}`).join('\n') + '\n\n';
-                 }
-                 output += result.assembly;
-                 return output;
-             } else {
-                 const errors = result.errors?.map(e => `; ${e}`).join('\n') || '; Unknown error';
-                 return `; Compilation failed:\n${errors}`;
-             }
-         }
-     };
-     
-     context.subscriptions.push(
-         vscode.workspace.registerTextDocumentContentProvider('fv1-assembly', assemblyDocumentProvider)
-     );
-     
-     // Update virtual assembly documents when compilation changes
-     blockDiagramDocumentManager.onCompilationChange((uri) => {
-         const virtualUri = vscode.Uri.parse(`fv1-assembly:${uri.fsPath}.spn`);
-         assemblyDocumentProvider.onDidChangeEmitter.fire(virtualUri);
-     });
-
-     context.subscriptions.push(
-        SpnBankEditorProvider.register(context),
-        BlockDiagramEditorProvider.register(context, blockDiagramDocumentManager),
-        vscode.languages.registerHoverProvider({ language: 'fv1-assembly', scheme: 'file' }, new FV1HoverProvider(fv1DocumentManager)),
-        vscode.languages.registerHoverProvider({ language: 'fv1-assembly', scheme: 'fv1-assembly' }, new FV1HoverProvider(fv1DocumentManager)),
-        vscode.languages.registerDefinitionProvider({ language: 'fv1-assembly', scheme: 'file' }, new FV1DefinitionProvider(fv1DocumentManager)),
-        vscode.languages.registerDefinitionProvider({ language: 'fv1-assembly', scheme: 'fv1-assembly' }, new FV1DefinitionProvider(fv1DocumentManager))
+    // Register virtual document provider for "View Assembly" feature
+    context.subscriptions.push(
+        vscode.workspace.registerTextDocumentContentProvider('fv1-assembly', new AssemblyDocumentProvider(blockDiagramDocumentManager))
     );
 
+    const assemblerSelector = [
+        { language: 'fv1-assembly', scheme: 'file' },
+        { language: 'fv1-assembly', scheme: 'fv1-assembly' }
+    ];
+
+    context.subscriptions.push(
+        vscode.languages.registerHoverProvider(assemblerSelector, new FV1HoverProvider(fv1DocumentManager))
+    );
+
+    context.subscriptions.push(
+        vscode.languages.registerDefinitionProvider(assemblerSelector, new FV1DefinitionProvider(fv1DocumentManager))
+    );
+
+    context.subscriptions.push(SpnBankEditorProvider.register(context));
+    context.subscriptions.push(BlockDiagramEditorProvider.register(context, blockDiagramDocumentManager));
+
     // 5. Register Commands
-    // The CommandRegistry binds VS Code commands to the services
     const commandRegistry = new CommandRegistry(context, outputService, assemblyService, programmerService, intelHexService, blockDiagramDocumentManager);
     commandRegistry.registerCommands();
 
-    // Setup document event listeners for live diagnostics
-    const onDidOpenTextDocument = vscode.workspace.onDidOpenTextDocument((document) => {
-        fv1DocumentManager.onDocumentOpen(document);
-        blockDiagramDocumentManager.onDocumentChange(document);
-    });
-    
-    const onDidChangeTextDocument = vscode.workspace.onDidChangeTextDocument((event) => {
-        fv1DocumentManager.onDocumentChange(event.document);
-        blockDiagramDocumentManager.onDocumentChange(event.document);
-    });
-    
-    const onDidCloseTextDocument = vscode.workspace.onDidCloseTextDocument((document) => {
-        fv1DocumentManager.onDocumentClose(document);
-        if (document.fileName.toLowerCase().endsWith('.spndiagram')) {
-            blockDiagramDocumentManager.clearCache(document.uri);
-        }
-    });
-    
-    // Process already open documents
-    for (const document of vscode.workspace.textDocuments) {
-        if (document.languageId === 'fv1-assembly') {
-            fv1DocumentManager.onDocumentOpen(document);
-        }
-        if (document.fileName.toLowerCase().endsWith('.spndiagram')) {
-            blockDiagramDocumentManager.onDocumentChange(document);
-        }
-    }
-    
-    // Listen for configuration changes
-    const onDidChangeConfiguration = vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration('fv1.spinAsmMemBug') || event.affectsConfiguration('fv1.clampReals')) {
+    // 6. Handle Configuration Changes
+    vscode.workspace.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration('fv1')) {
             fv1DocumentManager.refreshAll();
+            statusBarService.update(vscode.window.activeTextEditor?.document);
         }
     });
-    
-    context.subscriptions.push(
-        onDidOpenTextDocument,
-        onDidChangeTextDocument,
-        onDidCloseTextDocument,
-        onDidChangeConfiguration
-    );
+
+    // 7. Handle Document Lifecycle
+    vscode.workspace.onDidOpenTextDocument(doc => fv1DocumentManager.onDocumentOpen(doc));
+    vscode.workspace.onDidCloseTextDocument(doc => fv1DocumentManager.onDocumentClose(doc));
+    vscode.workspace.onDidChangeTextDocument(e => fv1DocumentManager.onDocumentChange(e.document));
+
+    // Initial status bar update
+    statusBarService.update(vscode.window.activeTextEditor?.document);
+}
+
+class FV1DebugConfigurationProvider implements vscode.DebugConfigurationProvider {
+    resolveDebugConfiguration(_folder: vscode.WorkspaceFolder | undefined, config: vscode.DebugConfiguration, _token?: vscode.CancellationToken): vscode.ProviderResult<vscode.DebugConfiguration> {
+        if (!config.type && !config.request && !config.name) {
+            const editor = vscode.window.activeTextEditor;
+            if (editor && editor.document.languageId === 'fv1-assembly') {
+                config.type = 'fv1-debug';
+                config.name = 'Launch FV-1 Simulator';
+                config.request = 'launch';
+                config.program = '${file}';
+                config.stopOnEntry = true;
+            }
+        }
+
+        if (!config.program) {
+            return vscode.window.showInformationMessage("Cannot find a program to debug").then((_: string | undefined): vscode.DebugConfiguration | undefined => {
+                return undefined;
+            });
+        }
+
+        return config;
+    }
+}
+
+export function deactivate() { }
+
+class AssemblyDocumentProvider implements vscode.TextDocumentContentProvider {
+    private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
+    readonly onDidChange = this._onDidChange.event;
+    private subscriptions: vscode.Disposable[] = [];
+
+    constructor(private documentManager: BlockDiagramDocumentManager) {
+        // Subscribe to compilation changes to trigger document refresh
+        this.subscriptions.push(
+            this.documentManager.onCompilationChange((uri) => {
+                // The virtual URI is fv1-assembly:path/to/diagram.spndiagram.spn
+                const virtualUri = vscode.Uri.from({
+                    scheme: 'fv1-assembly',
+                    path: uri.fsPath + '.spn'
+                });
+                this._onDidChange.fire(virtualUri);
+            })
+        );
+    }
+
+    dispose() {
+        this.subscriptions.forEach(s => s.dispose());
+    }
+
+    provideTextDocumentContent(uri: vscode.Uri): string {
+        // The URI is fv1-assembly:path/to/file.spndiagram.spn
+        const diagramPath = uri.path.replace(/\.spn$/, '');
+        const diagramUri = vscode.Uri.file(diagramPath);
+        const result = this.documentManager.getCachedCompilationResult(diagramUri);
+        return result?.assembly || '; No assembly available - please open the block diagram first';
+    }
 }

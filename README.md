@@ -18,16 +18,25 @@ Full support for traditional FV-1 assembly programming:
 Create FV-1 programs visually by connecting blocks together - no assembly code required! The block diagram editor provides:
 - **Drag-and-drop block palette** with categorized blocks
 - **Real-time compilation** with live error checking and resource usage tracking
+- **Integrated Simulator**: Launch simulation directly from your diagram with one click!
 - **View generated assembly** to see the code produced from your diagram
 - **Code optimizer** that tries to optimize the generated assembly to save program space
 - **Instantly program the current diagram** into any one of the 8 slots on your [Audiofab Easy Spin](https://audiofab.com/products/easy-spin) pedal
 
 ![visual editor](doc//visual_editor.png)
 
+### 🎧 Integrated Real-time Simulator
+Test your programs without hardware! The built-in simulator provides:
+- **Audio Monitor**: Hear your effect in real-time with built-in or custom stimulus files
+- **Multi-trace Oscilloscope**: Visualize any register or symbol, with logarithmic zoom (1ms to 1s)
+- **Delay Memory Map**: Visual representation of delay RAM usage and pointer movement
+- **Live Debugging**: Set breakpoints, step through instructions, and inspect variables
+- **Interactive Controls**: Real-time control of POT0, POT1, POT2 and Bypass
+
 ### 📊 Resource Usage Tracking
 Monitor your program's resource consumption in real-time in the taskbar:
 - **Instructions**: Visual indicator showing usage out of 128 instructions
-- **Registers**: Track usage of 32 available registers (currently for block diagrams only)
+- **Registers**: Track usage of 32 available registers
 - **Delay Memory**: Monitor usage out of 32768 words
 
 ![resources used](doc/resource_usage.png)
@@ -147,6 +156,11 @@ Configure the extension in VS Code Settings (`File > Preferences > Settings` or 
 **Compatibility Settings**
 - `fv1.spinAsmMemBug` - Emulate SpinASM IDE memory allocation bug for compatibility (default: true)
 - `fv1.clampReals` - Emulate SpinASM IDE behaviour and clamp out of range real values (default: true)
+
+**Simulation Settings**
+- `fv1.simulation.stopOnEntry` - Whether the simulator should pause at the first instruction (default: true)
+- `fv1.simulation.oscilloscopeEnabled` - Enable the multi-trace oscilloscope in the monitor (default: true)
+- `fv1.simulation.oscilloscopeRefreshRate` - Number of samples between oscilloscope points (default: 1)
 
 ## Troubleshooting
 

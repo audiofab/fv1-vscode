@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { FV1DocumentManager } from '../fv1DocumentManager.js';
+import { FV1DocumentManager } from '../core/fv1DocumentManager.js';
 import { BlockDiagramDocumentManager } from '../blockDiagram/BlockDiagramDocumentManager.js';
-import { getActiveDocumentUri } from '../utils/editor-utils.js';
+import { getActiveDocumentUri } from '../core/editor-utils.js';
 
 export class StatusBarService implements vscode.Disposable {
     private instructionsStatusBar: vscode.StatusBarItem;
@@ -22,8 +22,8 @@ export class StatusBarService implements vscode.Disposable {
         this.memoryStatusBar.tooltip = 'FV-1 Delay Memory Used';
 
         this.disposables.push(
-            this.instructionsStatusBar, 
-            this.registersStatusBar, 
+            this.instructionsStatusBar,
+            this.registersStatusBar,
             this.memoryStatusBar,
             vscode.window.onDidChangeActiveTextEditor(editor => this.update(editor?.document)),
             this.blockDiagramDocumentManager.onCompilationChange(uri => this.handleUriChange(uri)),
@@ -65,7 +65,7 @@ export class StatusBarService implements vscode.Disposable {
                 const instructionCount = result.machineCode.filter(code => code !== NOP_ENCODING).length;
                 stats = {
                     instructionsUsed: instructionCount,
-                    registersUsed: 0,
+                    registersUsed: result.usedRegistersCount,
                     memoryUsed: result.memories.reduce((total, mem) => total + mem.size, 0)
                 };
             }
@@ -76,15 +76,20 @@ export class StatusBarService implements vscode.Disposable {
             return;
         }
 
-        this.updateItem(this.instructionsStatusBar, stats.instructionsUsed, 128, '$(circuit-board)');
-        
+        const config = vscode.workspace.getConfiguration('fv1');
+        const maxInstructions = config.get<number>('hardware.progSize') ?? 128;
+        const maxRegisters = config.get<number>('hardware.regCount') ?? 32;
+        const maxMemory = config.get<number>('hardware.delaySize') ?? 32768;
+
+        this.updateItem(this.instructionsStatusBar, stats.instructionsUsed, maxInstructions, '$(circuit-board)');
+
         if (stats.registersUsed > 0 || fileName.endsWith('.spndiagram')) {
-            this.updateItem(this.registersStatusBar, stats.registersUsed, 32, '$(database)');
+            this.updateItem(this.registersStatusBar, stats.registersUsed, maxRegisters, '$(database)');
         } else {
             this.registersStatusBar.hide();
         }
 
-        this.updateItem(this.memoryStatusBar, stats.memoryUsed, 32768, '$(pulse)');
+        this.updateItem(this.memoryStatusBar, stats.memoryUsed, maxMemory, '$(pulse)');
     }
 
     private updateItem(item: vscode.StatusBarItem, used: number, max: number, icon: string) {
