@@ -89,31 +89,23 @@ export class GraphCompiler {
         this.preallocateAllOutputs(graph, context);
 
         // 5. Generate code for each block in execution order
-        // Blocks will push their code to appropriate sections (init, input, main, output)
+        // Blocks will push their code to appropriate sections or push IR nodes
         try {
-            // First, process sticky notes (which may be disconnected but need to generate comments)
+            // First, process sticky notes (header comments)
             for (const block of graph.blocks) {
-                // Only process sticky note blocks that are not in execution order
                 if (!executionOrder.includes(block.id) && block.type.includes('stickynote')) {
                     const definition = this.registry.getBlock(block.type);
-                    if (!definition) {
-                        continue;
+                    if (definition) {
+                        context.setCurrentBlock(block.id);
+                        definition.generateCode(context);
                     }
-
-                    // Set current block context
-                    context.setCurrentBlock(block.id);
-
-                    // Generate block code (sticky notes will push header comments)
-                    definition.generateCode(context);
                 }
             }
 
             // Then process connected blocks in execution order
             for (const blockId of executionOrder) {
                 const block = graph.blocks.find(b => b.id === blockId);
-                if (!block) {
-                    continue;
-                }
+                if (!block) continue;
 
                 const definition = this.registry.getBlock(block.type);
                 if (!definition) {
@@ -121,36 +113,28 @@ export class GraphCompiler {
                     continue;
                 }
 
-                // Set current block context
                 context.setCurrentBlock(blockId);
 
-                // Generate block code (blocks push to sections internally)
+                // If it's a template-based block (to be implemented), it will push to IR
+                // For now, even legacy blocks can be adapted to push IR if they want
                 definition.generateCode(context);
 
-                // Reset scratch registers for next block
                 context.resetScratchRegisters();
             }
         } catch (error) {
-            // Even on error, try to provide statistics if context has any data
-            const statistics: CompilationStatistics = {
-                instructionsUsed: 0,
-                registersUsed: context.getUsedRegisterCount(),
-                memoryUsed: context.getUsedMemorySize(),
-                blocksProcessed: 0
-            };
-
             return {
                 success: false,
-                statistics,
                 errors: [`Code generation failed: ${error}`]
             };
         }
 
-        // 6. Assemble the final program with proper structure
-        const codeLines: string[] = [];
+        // 6. Process IR and optimize (Move Pruning)
+        const irResult = this.processIR(context);
+        const sections = irResult.sections;
+        warnings.push(...irResult.warnings);
 
-        // Get all code sections from context
-        const sections = context.getCodeSections();
+        // 7. Assemble the final program with proper structure
+        const codeLines: string[] = [];
 
         // Section 1: Header comment
         codeLines.push(';================================================================================');
@@ -602,5 +586,76 @@ export class GraphCompiler {
             const [blockId, portId] = key.split(':');
             context.allocateRegister(blockId, portId);
         }
+    }
+
+    /**
+     * Process semantic IR nodes and optimize assembly
+     */
+    private processIR(context: CodeGenerationContext): { sections: any, warnings: string[] } {
+        const sections = context.getCodeSections();
+        const irNodes = context.getIR();
+        const warnings: string[] = [];
+
+        if (irNodes.length === 0) {
+            return { sections, warnings };
+        }
+
+        // Convert IR nodes to code and group by section
+        const irSections: Record<string, string[]> = {
+            init: [],
+            input: [],
+            main: [],
+            output: []
+        };
+
+        // Track accumulator state for move pruning
+        let accValue: string | null = null;
+        let optimizedCount = 0;
+
+        for (const node of irNodes) {
+            let skipNode = false;
+
+            // Specialized move pruning (WRAX -> LDAX optimization)
+            if (node.op === 'LDAX') {
+                const reg = node.args[0];
+                if (reg === accValue) {
+                    // Accumulator already contains this register value
+                    skipNode = true;
+                    optimizedCount++;
+                } else {
+                    accValue = reg;
+                }
+            } else if (node.op === 'WRAX') {
+                const reg = node.args[0];
+                const multiplier = node.args[1];
+                accValue = multiplier === '0' || multiplier === '0.0' ? reg : null;
+            } else if (node.op === 'WRA' || node.op === 'WRAL' || node.op === 'WRAR') {
+                // These clear ACC or modify it, reset tracker for safety if not 0 multiplier
+                const multiplier = node.args[1];
+                accValue = null;
+            } else if (['CLR', 'ABS', 'NEG', 'NOT'].includes(node.op)) {
+                accValue = null;
+            } else if (['RDAX', 'MAXX', 'MULX', 'RDA', 'CHO'].includes(node.op)) {
+                // Instructions that modify ACC based on a register/memory
+                accValue = null;
+            }
+
+            if (!skipNode) {
+                const line = `${node.op.toLowerCase()}\t${node.args.join(', ')}`;
+                irSections[node.section].push(line);
+            }
+        }
+
+        if (optimizedCount > 0) {
+            warnings.push(`Pruned ${optimizedCount} redundant move instruction(s)`);
+        }
+
+        // Merge IR code into structured sections
+        sections.init.push(...irSections.init);
+        sections.input.push(...irSections.input);
+        sections.main.push(...irSections.main);
+        sections.output.push(...irSections.output);
+
+        return { sections, warnings };
     }
 }
