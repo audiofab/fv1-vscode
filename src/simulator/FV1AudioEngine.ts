@@ -10,7 +10,7 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
     private _view?: vscode.WebviewView;
     private isReady: boolean = false;
     private sampleRate: number = 32768;
-    private pendingMetadata: any = null;
+    private lastMetadata: any = {};
     private currentStimulus: any = { type: 'stimulusChange', value: 'built-in' }; // Default to chords
 
     private _onMessage = new vscode.EventEmitter<any>();
@@ -38,14 +38,13 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
             if (m.type === 'ready') {
                 this.isReady = true;
                 console.log('FV1 Audio Engine Ready (View)');
-                if (this.pendingMetadata && this._view) {
+                if (this._view && Object.keys(this.lastMetadata).length > 0) {
                     this._view.webview.postMessage({
                         type: 'play',
                         l: new Float32Array(0),
                         r: new Float32Array(0),
-                        metadata: this.pendingMetadata
+                        metadata: this.lastMetadata
                     });
-                    this.pendingMetadata = null;
                 }
             } else if (m.type === 'selectCustomFile') {
                 this.handleSelectCustomFile();
@@ -89,7 +88,16 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
      * Sends a buffer of samples to the webview for playback.
      */
     public playBuffer(l: Float32Array, r: Float32Array, _adcL: number = 0, _adcR: number = 0, metadata: any = null) {
-        if (metadata) this.pendingMetadata = metadata;
+        if (metadata) {
+            // Merge metadata carefully: only update keys that are actually provided (not undefined)
+            // This prevents simulation loop updates (which only send new data) from clearing 
+            // persistent state like memories or symbols.
+            for (const key in metadata) {
+                if (metadata[key] !== undefined) {
+                    this.lastMetadata[key] = metadata[key];
+                }
+            }
+        }
 
         if (!this.isReady || !this._view) return;
 
@@ -97,9 +105,8 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
             type: 'play',
             l,
             r,
-            metadata: this.pendingMetadata
+            metadata: this.lastMetadata
         });
-        this.pendingMetadata = null;
     }
 
     public stop() {

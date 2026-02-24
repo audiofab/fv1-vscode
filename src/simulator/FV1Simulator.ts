@@ -768,7 +768,7 @@ export class FV1Simulator {
      * @param val Raw value (float)
      */
     public setRegister(idx: number, val: number) {
-        if (idx < 0 || idx >= this.regCount) return;
+        if (idx < 0 || idx >= (32 + this.regCount)) return;
 
         // POT registers (16, 17, 18) are 10-bit quantized 0..1
         if (idx >= 16 && idx <= 18) {
@@ -862,7 +862,7 @@ export class FV1Simulator {
             lfo: this.lfo,
             // Official Register Naming
             registers: Object.fromEntries(
-                Array.from({ length: this.regCount }, (_, i) => {
+                Array.from({ length: 32 + this.regCount }, (_, i) => {
                     let name = `[${i}]`;
                     if (i === 0) name = "SIN0_RATE";
                     else if (i === 1) name = "SIN0_RANGE";

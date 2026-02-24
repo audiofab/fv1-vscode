@@ -352,6 +352,18 @@ export class FV1DebugSession implements vscode.DebugAdapter {
 
         // Re-verify breakpoints now that we have the line map
         this.verifyBreakpoints();
+
+        // Push initial metadata to visualization immediately
+        if (this.audioEngine) {
+            this.audioEngine.playBuffer(new Float32Array(0), new Float32Array(0), 0, 0, {
+                memories: this.memories,
+                symbols: this.symbols,
+                delaySize: this.simulator.getDelaySize(),
+                delayPtr: this.simulator.getDelayPointer(),
+                addrPtr: this.simulator.getRegisters()[24]
+            });
+            this.symbolsChanged = false;
+        }
     }
 
     private resolveWavPath(wavPath: string, cwd?: string): string | null {
