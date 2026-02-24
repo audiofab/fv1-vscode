@@ -296,7 +296,7 @@ export class Parser {
             return expr;
         }
 
-        if (token.type === TokenType.OPERATOR && (token.value === '-' || token.value === '+')) {
+        if (token.type === TokenType.OPERATOR && (token.value === '-' || token.value === '+' || token.value === '!')) {
             const operator = this.advance().value;
             return { type: 'Unary', operator, expression: this.parsePrimary() };
         }
