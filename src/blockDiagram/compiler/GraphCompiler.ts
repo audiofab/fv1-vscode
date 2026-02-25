@@ -641,7 +641,9 @@ export class GraphCompiler {
             }
 
             if (!skipNode) {
-                const line = `${node.op.toLowerCase()}\t${node.args.join(', ')}`;
+                const line = node.op.endsWith(':')
+                    ? node.op
+                    : `${node.op.toLowerCase()}\t${node.args.join(', ')}`;
                 irSections[node.section].push(line);
             }
         }

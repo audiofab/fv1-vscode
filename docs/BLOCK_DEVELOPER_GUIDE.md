@@ -72,22 +72,38 @@ The template is standard SpinASM code enhanced with powerful directives:
 - `${input.in1}`: The register containing the input signal.
 - `${output.out}`: The register where the output should be written.
 
-### Control Flow & Sections
-```asm
-@section init
-  ; This code runs only once at startup
-  wlds SIN0, 10, 50
+### Control Flow
+ATL supports conditional code generation based on the state of the block diagram:
 
-@section main
-  ; This code runs in the DSP loop
-  rdax ${input.in1}, 1.0
-  ...
+```asm
+@if pinConnected(freq_ctrl)
+  ; Code when frequency control is connected
+  rdax ${input.in}, ${param.frequency}
+  mulx ${input.freq_ctrl}
+@else
+  ; Code when frequency is fixed
+  rdfx ${output.out}, ${param.frequency}
+@endif
 ```
 
-The `@section` directive ensures that code from different blocks is correctly interleaved in the final output (e.g., all `init` sections from all blocks are grouped together at the top of the program).
+### High-Level DSP Macros (Audiofab Standard Library)
+To avoid boiler-plate assembly, use high-level directives. The compiler handles the best implementation automatically.
 
-### Variable Substitution
-- `${param.cutoff}`: The pre-calculated coefficient.
+- `@lpf1p result, input, freq [, ctrl]`: Single-pole low-pass filter.
+- `@hpf1p result, input, freq [, ctrl]`: Single-pole high-pass filter.
+- `@lfo type, freqHz, rangeMs`: Configuration for LFOs (SIN0, SIN1, COS0, COS1).
+- `@smooth result, input, coeff`: RDFX-based smoothing for control signals.
+- `@gain result, input, gain`: Simple multiplier.
+
+**Example using Macros:**
+```asm
+; A complete LPF with optional modulation in one line
+@lpf1p ${output.out}, ${input.in1}, ${param.frequency}, ${input.freq_ctrl}
+```
+
+---
+
+## 4. Code Optimization
 You don't need to worry about efficiency between blocks. The compiler performs **Move Pruning**:
 - If Block A writes `wrax reg1, 0` and Block B starts with `ldax reg1`, the compiler will automatically omit the `ldax` and use the value already in the accumulator.
 - **Tip**: Always finish your logic by leaving your main result in the accumulator; the compiler will handle the rest.
@@ -96,4 +112,4 @@ You don't need to worry about efficiency between blocks. The compiler performs *
 If you have a `.spincad` file, use the built-in converter:
 `node convert-spincad-standalone.js`
 
-This will automatically translate legacy directives like `@readChorusTap` into ATL-compatible assembly.
+The converter identifies legacy patterns and translates them into modern ATL directives where possible. For example, legacy `@readChorusTap` patterns are converted to modern `@chorusRead` or equivalent assembly blocks.

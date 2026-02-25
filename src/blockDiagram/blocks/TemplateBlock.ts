@@ -26,20 +26,44 @@ export class TemplateBlock extends BaseBlock {
         this.width = definition.width || 200;
 
         this._inputs = definition.inputs.map(i => ({
-            ...i,
-            direction: 'input'
+            ...i
         }));
         this._outputs = definition.outputs.map(o => ({
-            ...o,
-            direction: 'output'
+            ...o
         }));
-        this._parameters = definition.parameters.map(p => ({
-            ...p,
-            type: p.type as any
-        })) as any;
+        this._parameters = definition.parameters.map(p => {
+            const param: any = {
+                ...p,
+                type: p.type as any
+            };
+
+            // Add display metadata for the UI
+            if (p.conversion === 'LOGFREQ') {
+                param.displayMin = p.min || 20;
+                param.displayMax = p.max || 5000;
+                param.displayUnit = 'Hz';
+                // The base value stored in the diagram should be the code value in natural units (Hz)
+            } else if (p.conversion === 'DBLEVEL') {
+                param.displayUnit = 'dB';
+                // The base value stored in the diagram should be the code value in natural units (dB)
+            }
+
+            return param;
+        }) as any;
 
         this.templateEngine = new BlockTemplate(definition);
         this.autoCalculateHeight();
+    }
+
+    getCustomLabel(params: Record<string, any>): string | null {
+        // Find the first LOGFREQ parameter to show as label
+        const freqParam = this._parameters.find(p => p.conversion === 'LOGFREQ');
+        if (freqParam) {
+            const val = params[freqParam.id] ?? freqParam.default;
+            const hz = typeof val === 'number' && val < 1.0 ? this.filterCoeffToHz(val) : val;
+            return `${Math.round(hz)} Hz`;
+        }
+        return null;
     }
 
     generateCode(ctx: CodeGenContext): void {

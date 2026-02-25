@@ -1,0 +1,98 @@
+---
+{
+  "type": "input.pot",
+  "name": "Potentiometer",
+  "category": "I/O",
+  "description": "Reads a hardware potentiometer value with optional filtering (Smoothing or Speedup) and inversion.",
+  "color": "#4CAF50",
+  "width": 150,
+  "inputs": [],
+  "outputs": [
+    { "id": "out", "name": "Control", "type": "control" }
+  ],
+  "parameters": [
+    {
+      "id": "potNumber",
+      "name": "Pot Number",
+      "type": "select",
+      "default": 0,
+      "options": [
+        { "label": "POT0", "value": 0 },
+        { "label": "POT1", "value": 1 },
+        { "label": "POT2", "value": 2 }
+      ]
+    },
+    {
+      "id": "filterType",
+      "name": "Filtering Strategy",
+      "type": "select",
+      "default": "none",
+      "options": [
+        { "label": "None (Raw)", "value": "none" },
+        { "label": "Smoother (LPF)", "value": "smoother" },
+        { "label": "Speedup (Lead-Lag)", "value": "speedup" }
+      ]
+    },
+    {
+      "id": "smoothing",
+      "name": "Smoothing Amount",
+      "type": "number",
+      "default": 0.005,
+      "min": 0.0001,
+      "max": 0.1,
+      "step": 0.0001,
+      "visibleIf": "filterType == 'smoother'"
+    },
+    {
+      "id": "lpCoeff",
+      "name": "LP Coefficient",
+      "type": "number",
+      "default": 0.001,
+      "min": 0.0001,
+      "max": 0.1,
+      "step": 0.0001,
+      "visibleIf": "filterType == 'speedup'"
+    },
+    {
+      "id": "hpCoeff",
+      "name": "Speedup Amount",
+      "type": "number",
+      "default": -0.75,
+      "min": -0.99,
+      "max": 0.0,
+      "step": 0.01,
+      "visibleIf": "filterType == 'speedup'",
+      "description": "Negative values provide lead (faster response)"
+    },
+    {
+      "id": "invert",
+      "name": "Invert",
+      "type": "boolean",
+      "default": false
+    }
+  ],
+  "registers": ["f1", "f2"]
+}
+---
+@section input
+
+@if filterType == 'smoother'
+; Cascaded smoothers for high-quality noise reduction
+@smooth ${reg.f1}, POT${param.potNumber}, ${param.smoothing}
+@smooth ${output.out}, ${reg.f1}, ${param.smoothing}
+@else
+  @if filterType == 'speedup'
+    ; Speedup filter (lead-lag) for fast response with some smoothing
+    @speedup ${output.out}, POT${param.potNumber}, ${param.lpCoeff}, ${param.hpCoeff}, ${reg.f1}
+  @else
+    ; No filtering
+    rdax POT${param.potNumber}, 1.0
+    wrax ${output.out}, 0
+  @endif
+@endif
+
+@if invert == true
+rdax ${output.out}, 1.0
+sof -1.0, 1.0 ; Invert
+wrax ${output.out}, 0
+@endif

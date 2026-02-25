@@ -35,6 +35,8 @@ export class CodeGenerationContext implements CodeGenContext {
     private nextScratchRegister: number = 31;  // Allocate scratch registers from REG31 downward
     private nextMemoryAddress: number = 0;
     private currentBlockId: string | null = null;
+    private blockShortIdMap: Map<string, string> = new Map();
+    private nextShortId: number = 1;
 
     // Code sections
     private headerComments: string[] = []; // User comments from sticky notes
@@ -495,6 +497,20 @@ being processed
      */
     pushIR(node: any): void {
         this.irNodes.push(node);
+    }
+
+    /**
+     * Get a short, unique identifier for a block (e.g. "b1", "b2") to avoid long UUIDs in assembly
+     */
+    getShortId(blockId: string): string {
+        const existing = this.blockShortIdMap.get(blockId);
+        if (existing) {
+            return existing;
+        }
+
+        const newId = `b${this.nextShortId++}`;
+        this.blockShortIdMap.set(blockId, newId);
+        return newId;
     }
 
     /**

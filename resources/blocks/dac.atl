@@ -1,0 +1,49 @@
+---
+{
+  "type": "output.dac",
+  "name": "DAC Output",
+  "category": "I/O",
+  "description": "Writes audio to an analog output (DAC) with adjustable gain.",
+  "color": "#F44336",
+  "width": 150,
+  "inputs": [
+    { "id": "in", "name": "Audio", "type": "audio", "required": true }
+  ],
+  "outputs": [],
+  "parameters": [
+    {
+      "id": "dacNumber",
+      "name": "DAC Number",
+      "type": "select",
+      "default": 0,
+      "options": [
+        { "label": "DACL", "value": 0 },
+        { "label": "DACR", "value": 1 }
+      ]
+    },
+    {
+      "id": "gain",
+      "name": "Gain",
+      "type": "number",
+      "default": 1.0,
+      "min": -2.0,
+      "max": 1.9999,
+      "step": 0.01
+    }
+  ]
+}
+---
+@section output
+
+; DAC Output
+rdax ${input.in}, 1.0
+
+@if gain != 1.0
+sof ${param.gain}, 0.0
+@endif
+
+@if dacNumber == 0
+wrax DACL, 0
+@else
+wrax DACR, 0
+@endif

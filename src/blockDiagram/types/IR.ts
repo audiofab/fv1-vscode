@@ -44,5 +44,6 @@ export interface BlockTemplateDefinition {
         conversion?: 'LOGFREQ' | 'SINLFOFREQ' | 'DBLEVEL' | 'LENGTHTOTIME' | 'CUSTOM';
         eval?: string; // TypeScript expression for custom conversion
     }>;
+    registers?: string[]; // Internal state registers (not exposed as ports)
     template: string; // The ATL template string
 }

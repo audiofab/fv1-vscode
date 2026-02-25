@@ -1,0 +1,29 @@
+---
+{
+  "type": "fx.filter.lpf1p",
+  "name": "LPF 1P",
+  "category": "Filter",
+  "description": "1-pole Low Pass Filter using the RDFX method for efficient computation.",
+  "color": "#24f26f",
+  "width": 180,
+  "inputs": [
+    { "id": "in", "name": "Input", "type": "audio", "required": true },
+    { "id": "freq_ctrl", "name": "Frequency", "type": "control", "required": false }
+  ],
+  "outputs": [
+    { "id": "out", "name": "Output", "type": "audio" }
+  ],
+  "parameters": [
+    {
+      "id": "frequency",
+      "name": "Frequency",
+      "type": "number",
+      "default": 1000,
+      "min": 80,
+      "max": 5000,
+      "conversion": "LOGFREQ"
+    }
+  ]
+}
+---
+@lpf1p ${output.out}, ${input.in}, ${param.frequency}, ${input.freq_ctrl}

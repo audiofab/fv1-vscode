@@ -30,6 +30,9 @@ export function activate(context: vscode.ExtensionContext) {
     const blockDiagramDiagnostics = vscode.languages.createDiagnosticCollection('block-diagram');
     context.subscriptions.push(fv1Diagnostics, blockDiagramDiagnostics);
 
+    // Initialize the block registry with the extension path
+    blockRegistry.init(context.extensionPath);
+
     const fv1DocumentManager = new FV1DocumentManager(fv1Diagnostics);
     const blockDiagramDocumentManager = new BlockDiagramDocumentManager(blockDiagramDiagnostics, blockRegistry);
 

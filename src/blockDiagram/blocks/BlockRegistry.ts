@@ -4,41 +4,6 @@
  */
 
 import { IBlockDefinition, BlockMetadata } from '../types/Block.js';
-import { ADCBlock } from './io/ADCBlock.js';
-import { PotBlock } from './io/PotBlock.js';
-import { DACBlock } from './io/DACBlock.js';
-import { VolumeBlock } from './math/VolumeBlock.js';
-import { Mixer2Block } from './math/Mixer2Block.js';
-import { Mixer3Block } from './math/Mixer3Block.js';
-import { Mixer4Block } from './math/Mixer4Block.js';
-import { GainBoostBlock } from './math/GainBoostBlock.js';
-import { TripleTapDelayBlock } from './effects/delay/TripleTapDelayBlock.js';
-import { ChorusBlock } from './effects/modulation/ChorusBlock.js';
-import { FlangerBlock } from './effects/modulation/FlangerBlock.js';
-import { Chorus4VoiceBlock } from './effects/modulation/Chorus4VoiceBlock.js';
-import { LowPassFilterBlock } from './effects/filter/LowPassFilterBlock.js';
-import { HighPassFilterBlock } from './effects/filter/HighPassFilterBlock.js';
-import { ShelvingHighPassBlock } from './effects/filter/ShelvingHighPassBlock.js';
-import { ShelvingLowPassBlock } from './effects/filter/ShelvingLowPassBlock.js';
-import { StateVariableFilter2PBlock } from './effects/filter/StateVariableFilter2PBlock.js';
-import { StateVariableFilter2PAdjustableBlock } from './effects/filter/StateVariableFilter2PAdjustableBlock.js';
-import { ScaleOffsetBlock } from './control/ScaleOffsetBlock.js';
-import { InvertBlock } from './control/InvertBlock.js';
-import { PowerBlock } from './control/PowerBlock.js';
-import { SinCosLFOBlock } from './control/SinCosLFOBlock.js';
-import { ControlSmootherBlock } from './control/ControlSmootherBlock.js';
-import { TremolizerBlock } from './control/TremolizerBlock.js';
-import { ConstantBlock } from './control/ConstantBlock.js';
-import { CrossfadeBlock } from './math/CrossfadeBlock.js';
-import { Crossfade2Block } from './math/Crossfade2Block.js';
-import { Crossfade3Block } from './math/Crossfade3Block.js';
-import { CoarseDelayBlock } from './effects/delay/CoarseDelayBlock.js';
-import { MinReverbBlock } from './effects/reverb/MinReverbBlock.js';
-import { RoomReverbBlock } from './effects/reverb/RoomReverbBlock.js';
-import { SpringReverbBlock } from './effects/reverb/SpringReverbBlock.js';
-import { PlateReverbBlock } from './effects/reverb/PlateReverbBlock.js';
-import { ToneGenFixedBlock } from './other/ToneGenFixed.js';
-import { ToneGenAdjustableBlock } from './other/ToneGenAdjustable.js';
 import { StickyNoteBlock } from './other/StickyNoteBlock.js';
 import { TemplateBlock } from './TemplateBlock.js';
 import { BlockTemplateDefinition } from '../types/IR.js';
@@ -48,96 +13,80 @@ import * as path from 'path';
 export class BlockRegistry {
     private blocks: Map<string, IBlockDefinition> = new Map();
     private categories: Map<string, string[]> = new Map();
+    private isInitialized = false;
 
     constructor() {
+        // Initialization is now deferred to the init() method called from extension activate
+    }
+
+    /**
+     * Initialize the registry with the extension path
+     */
+    init(extensionPath?: string): void {
+        if (this.isInitialized) return;
+
         this.registerDefaultBlocks();
+        this.registerDefinitions(extensionPath);
+        this.isInitialized = true;
     }
 
     /**
      * Register all default blocks
      */
     private registerDefaultBlocks(): void {
-        // Input blocks
-        this.register(new ADCBlock());
-        this.register(new PotBlock());
-
-        // Output blocks
-        this.register(new DACBlock());
-
-        // Utility blocks
+        // UI utility blocks
         this.register(new StickyNoteBlock());
-        this.register(new ToneGenFixedBlock());
-        this.register(new ToneGenAdjustableBlock());
-        this.register(new VolumeBlock());
-        this.register(new GainBoostBlock());
-        this.register(new Mixer2Block());
-        this.register(new Mixer3Block());
-        this.register(new Mixer4Block());
-        this.register(new CrossfadeBlock());
-        this.register(new Crossfade2Block());
-        this.register(new Crossfade3Block());
 
-        // Effect blocks - Delay
-        this.register(new TripleTapDelayBlock());
-        this.register(new CoarseDelayBlock());
-
-        // Effect blocks - Modulation
-        this.register(new ChorusBlock());
-        this.register(new Chorus4VoiceBlock());
-        this.register(new FlangerBlock());
-
-        // Effect blocks - Filter
-        this.register(new LowPassFilterBlock());
-        this.register(new HighPassFilterBlock());
-        this.register(new ShelvingHighPassBlock());
-        this.register(new ShelvingLowPassBlock());
-        this.register(new StateVariableFilter2PBlock());
-        this.register(new StateVariableFilter2PAdjustableBlock());
-
-        // Effect blocks - Reverb
-        this.register(new MinReverbBlock());
-        this.register(new RoomReverbBlock());
-        this.register(new SpringReverbBlock());
-        this.register(new PlateReverbBlock());
-
-        // Control blocks
-        this.register(new ConstantBlock());
-        this.register(new ScaleOffsetBlock());
-        this.register(new InvertBlock());
-        this.register(new PowerBlock());
-        this.register(new SinCosLFOBlock());
-        this.register(new ControlSmootherBlock());
-        this.register(new TremolizerBlock());
-
-        // Dynamic block definitions
-        this.registerDefinitions();
+        // All other blocks are now handled by ATL definitions in resources/blocks
     }
 
     /**
      * Register dynamic block definitions from JSON or ATL files
      */
-    private registerDefinitions(): void {
-        const definitionsPath = path.resolve(__dirname, '../../../resources/blocks');
+    private registerDefinitions(extensionPath?: string): void {
+        const possiblePaths = [];
 
-        if (fs.existsSync(definitionsPath)) {
-            const files = fs.readdirSync(definitionsPath);
-            for (const file of files) {
-                if (file.endsWith('.json')) {
-                    try {
-                        const content = fs.readFileSync(path.join(definitionsPath, file), 'utf8');
-                        const definition = JSON.parse(content) as BlockTemplateDefinition;
-                        this.register(new TemplateBlock(definition));
-                    } catch (e) {
-                        console.error(`Failed to load block definition ${file}: ${e}`);
-                    }
-                } else if (file.endsWith('.atl')) {
-                    try {
-                        const content = fs.readFileSync(path.join(definitionsPath, file), 'utf8');
-                        const definition = this.parseATL(content);
-                        this.register(new TemplateBlock(definition));
-                    } catch (e) {
-                        console.error(`Failed to load ATL block ${file}: ${e}`);
-                    }
+        if (extensionPath) {
+            possiblePaths.push(path.join(extensionPath, 'resources/blocks'));
+        }
+
+        // Fallback or development paths relative to __dirname
+        possiblePaths.push(path.resolve(__dirname, '../../../resources/blocks')); // out/src/blockDiagram/blocks layout
+        possiblePaths.push(path.resolve(__dirname, '../resources/blocks'));       // dist layout (dist/extension.cjs -> root)
+        possiblePaths.push(path.resolve(__dirname, '../../resources/blocks'));    // deep dist layout
+
+        let definitionsPath = '';
+        for (const p of possiblePaths) {
+            if (fs.existsSync(p)) {
+                definitionsPath = p;
+                break;
+            }
+        }
+
+        if (!definitionsPath) {
+            console.error('Failed to find block definitions directory in any of:', possiblePaths);
+            return;
+        }
+
+        console.log(`Loading block definitions from: ${definitionsPath}`);
+        const files = fs.readdirSync(definitionsPath);
+        for (const file of files) {
+            if (file.endsWith('.json')) {
+                try {
+                    const content = fs.readFileSync(path.join(definitionsPath, file), 'utf8');
+                    const definition = JSON.parse(content) as BlockTemplateDefinition;
+                    this.register(new TemplateBlock(definition));
+                } catch (e) {
+                    console.error(`Failed to load block definition ${file}: ${e}`);
+                }
+            } else if (file.endsWith('.atl')) {
+                try {
+                    const content = fs.readFileSync(path.join(definitionsPath, file), 'utf8');
+                    const definition = this.parseATL(content);
+                    console.log(`Registering ATL block: ${definition.name} (${definition.type}) from ${file}`);
+                    this.register(new TemplateBlock(definition));
+                } catch (e) {
+                    console.error(`Failed to load ATL block ${file}: ${e}`);
                 }
             }
         }

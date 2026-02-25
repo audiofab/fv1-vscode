@@ -1,0 +1,30 @@
+---
+{
+  "type": "fx.filter.hpf1p",
+  "name": "HPF 1P",
+  "category": "Filter",
+  "description": "1-pole High Pass Filter using the RDFX method for efficient computation.",
+  "color": "#24f26f",
+  "width": 180,
+  "inputs": [
+    { "id": "in", "name": "Input", "type": "audio", "required": true },
+    { "id": "freq_ctrl", "name": "Frequency", "type": "control", "required": false }
+  ],
+  "outputs": [
+    { "id": "out", "name": "Output", "type": "audio" }
+  ],
+  "parameters": [
+    {
+      "id": "frequency",
+      "name": "Frequency",
+      "type": "number",
+      "default": 100,
+      "min": 40,
+      "max": 3500,
+      "conversion": "LOGFREQ"
+    }
+  ],
+  "registers": ["lpf_state"]
+}
+---
+@hpf1p ${output.out}, ${input.in}, ${param.frequency}, ${reg.lpf_state}, ${input.freq_ctrl}

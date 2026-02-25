@@ -1,0 +1,42 @@
+---
+{
+  "type": "input.adc",
+  "name": "ADC Input",
+  "category": "I/O",
+  "description": "Reads audio from an analog input (ADC) with adjustable gain.",
+  "color": "#2196F3",
+  "width": 150,
+  "inputs": [],
+  "outputs": [
+    { "id": "out", "name": "Audio", "type": "audio" }
+  ],
+  "parameters": [
+    {
+      "id": "adcNumber",
+      "name": "ADC Number",
+      "type": "select",
+      "default": 0,
+      "options": [
+        { "label": "ADCL", "value": 0 },
+        { "label": "ADCR", "value": 1 }
+      ]
+    },
+    {
+      "id": "gain",
+      "name": "Gain",
+      "type": "number",
+      "default": 1.0,
+      "min": 0.0,
+      "max": 1.9999,
+      "step": 0.01
+    }
+  ]
+}
+---
+@section input
+@if adcNumber == 0
+rdax ADCL, ${param.gain}
+@else
+rdax ADCR, ${param.gain}
+@endif
+wrax ${output.out}, 0

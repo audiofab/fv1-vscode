@@ -34,6 +34,8 @@ export interface BlockParameter {
     // Conversion functions between display value and code value
     toDisplay?: (codeValue: number) => number;
     fromDisplay?: (displayValue: number) => number;
+    conversion?: string;
+    visibleIf?: string; // e.g. "filterType == 'smoother'"
 }
 
 export interface BlockMetadata {
@@ -120,6 +122,9 @@ export interface CodeGenContext {
     // IR support
     pushIR(node: any): void; // any because of circular dependency with IR.ts
     getIR(): any[];
+
+    // Get a short, unique identifier for a block (e.g. "b1", "b2") to avoid long UUIDs in assembly
+    getShortId(blockId: string): string;
 
     // Resource tracking
     getUsedRegisterCount(): number;

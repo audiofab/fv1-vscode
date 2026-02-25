@@ -23,11 +23,19 @@ export function getActiveDocumentUri(): vscode.Uri | undefined {
 }
 
 /**
+ * Check if a string looks like a URI (scheme:path)
+ * We check for : but exclude drive letters (C:\)
+ */
+export function isUri(pathOrUri: string): boolean {
+    return (/^[a-z][a-z0-9+.-]*:/i.test(pathOrUri) && !/^[a-z]:[\\/]/i.test(pathOrUri)) || pathOrUri.includes('://');
+}
+
+/**
  * Robustly resolve a path or URI string to a vscode.Uri object.
  * Handles local filesystem paths, file:/// URIs, and other schemes.
  */
 export function resolveToUri(pathOrUri: string): vscode.Uri {
-    if (pathOrUri.includes('://')) {
+    if (isUri(pathOrUri)) {
         try {
             return vscode.Uri.parse(pathOrUri);
         } catch {
