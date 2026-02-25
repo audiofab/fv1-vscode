@@ -181,11 +181,17 @@ function convertSpinCAD(content, typeOverride) {
     }
 
     // Variable substitution pass: Replace raw IDs with ${type.id} tokens
+    const forbiddenNames = [
+        ...definition.inputs.map(i => i.id),
+        ...definition.outputs.map(o => o.id),
+        ...definition.parameters.map(p => p.id)
+    ];
+
     const equNames = headerLines
         .map(l => l.trim().split(/[,\s\t]+/))
         .filter(p => p[0] && p[0].toLowerCase() === 'equ')
         .map(p => p[1])
-        .filter(n => n && !n.startsWith('$'));
+        .filter(n => n && !n.startsWith('$') && !forbiddenNames.includes(n));
 
     const ids = {
         input: definition.inputs.map(i => i.id),
@@ -196,39 +202,45 @@ function convertSpinCAD(content, typeOverride) {
         memo: managedMemo.map(m => m.id)
     };
 
-    let processedTemplate = templateLines.join('\n');
-
-    // Replace whole words only to avoid partial matches
-    for (const id of ids.input) {
-        const regex = new RegExp(`\\b${id}\\b`, 'g');
-        processedTemplate = processedTemplate.replace(regex, `\${input.${id}}`);
-    }
-    for (const id of ids.output) {
-        const regex = new RegExp(`\\b${id}\\b`, 'g');
-        processedTemplate = processedTemplate.replace(regex, `\${output.${id}}`);
-    }
-    for (const id of ids.param) {
-        const regex = new RegExp(`\\b${id}\\b`, 'g');
-        processedTemplate = processedTemplate.replace(regex, `\${${id}}`);
-    }
-    for (const id of ids.equ) {
-        const regex = new RegExp(`\\b${id}\\b`, 'g');
-        processedTemplate = processedTemplate.replace(regex, `\${${id}}`);
-    }
-    for (const id of ids.local) {
-        const regex = new RegExp(`\\b${id}\\b`, 'g');
-        processedTemplate = processedTemplate.replace(regex, `\${reg.${id}}`);
-    }
-    for (const id of ids.memo) {
-        const regex = new RegExp(`\\b${id}\\b`, 'g');
-        processedTemplate = processedTemplate.replace(regex, `\${mem.${id}}`);
-    }
-
     // Also tokenize common math variables used in SpinCAD (x1, x2, x3, temp1, etc.)
     const mathVars = ['x1', 'x2', 'x3', 'temp1', 'temp2', 'temp'];
-    for (const id of mathVars) {
-        const regex = new RegExp(`\\b${id}\\b`, 'g');
-        processedTemplate = processedTemplate.replace(regex, `\${${id}}`);
+
+    // Build substitution list
+    const substitutions = [
+        ...ids.input.map(id => ({ id, target: `\${input.${id}}` })),
+        ...ids.output.map(id => ({ id, target: `\${output.${id}}` })),
+        ...ids.param.map(id => ({ id, target: `\${${id}}` })),
+        ...ids.equ.map(id => ({ id, target: `\${local.${id}}` })),
+        ...ids.local.map(id => ({ id, target: `\${reg.${id}}` })),
+        ...ids.memo.map(id => ({ id, target: `\${mem.${id}}` })),
+        ...mathVars.map(id => ({ id, target: `\${local.${id}}` })) // math vars are also internal locals
+    ];
+
+    // Filter template lines to remove redundant EQUs for parameters/ports
+    const finalTemplateLines = templateLines.filter(line => {
+        const trimmed = line.trim();
+        if (trimmed.toLowerCase().startsWith('equ')) {
+            const parts = trimmed.split(/[,\s\t]+/);
+            const name = parts[1];
+            if (name && forbiddenNames.includes(name)) {
+                return false; // Remove redundant EQU
+            }
+        }
+        return true;
+    });
+
+    let processedTemplate = finalTemplateLines.join('\n');
+
+    // Perform substitution in a single pass to avoid double wrapping
+    // We use a regex that matches any of the IDs as a whole word,
+    // provided it's NOT already part of a ${...} block.
+    const allIds = substitutions.map(s => s.id).sort((a, b) => b.length - a.length);
+    if (allIds.length > 0) {
+        const pattern = new RegExp(`\\b(${allIds.join('|')})\\b(?![^\\{]*\\})`, 'g');
+        processedTemplate = processedTemplate.replace(pattern, (match) => {
+            const sub = substitutions.find(s => s.id === match);
+            return sub ? sub.target : match;
+        });
     }
 
     definition.template = processedTemplate;

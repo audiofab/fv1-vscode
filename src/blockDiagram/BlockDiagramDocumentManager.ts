@@ -69,7 +69,9 @@ export class BlockDiagramDocumentManager {
             const hardwareOptions = {
                 regCount: config.get<number>('hardware.regCount') ?? 32,
                 progSize: config.get<number>('hardware.progSize') ?? 128,
-                delaySize: config.get<number>('hardware.delaySize') ?? 32768
+                delaySize: config.get<number>('hardware.delaySize') ?? 32768,
+                fv1AsmMemBug: config.get<boolean>('spinAsmMemBug') ?? true,
+                clampReals: config.get<boolean>('clampReals') ?? true
             };
             return this.compiler.compile(graph, hardwareOptions);
         } catch (error) {

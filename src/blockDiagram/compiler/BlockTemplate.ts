@@ -25,12 +25,47 @@ export class BlockTemplate {
         const memory = this.resolveMemory(block, ctx);
 
         const templateLines = this.definition.template.split('\n');
+        // Pre-process lines to remove comments and empty lines, and trim
+        const processedLines = templateLines.map(line => line.trim()).filter(line => line && !line.startsWith(';'));
+
         let currentSection: IRSection = 'main';
+        // This will be reset later
+        // Initial pass: find section boundaries and parse EQU declarations
+        for (const line of processedLines) {
+            if (line.startsWith('@section')) {
+                currentSection = line.substring(8).trim() as IRSection;
+                continue;
+            }
+            // Parse EQU declarations in header and store as variables
+            if (currentSection === 'header') {
+                const parts = line.split(/[,\s\t]+/);
+                if (parts[0].toLowerCase() === 'equ') {
+                    let name = parts[1];
+                    const value = parts[2];
+                    if (name && value) {
+                        // If name is a token, resolve it (e.g. ${local.X} -> blockId_X)
+                        if (name.startsWith('${') && name.endsWith('}')) {
+                            const key = name.substring(2, name.length - 1);
+                            if (key.startsWith('local.')) {
+                                name = `${ctx.getShortId(block.id)}_${key.split('.')[1]}`;
+                            } else {
+                                name = key;
+                            }
+                        }
+                        ctx.setVariable(name, value);
+                    }
+                }
+            }
+        }
+
+        // Reset for main pass
+        currentSection = 'main';
         const sectionStack: { condition: boolean; skip: boolean; hasElse: boolean }[] = [];
 
-        for (let line of templateLines) {
-            line = line.trim();
-            if (!line || line.startsWith(';')) continue;
+        for (let line of processedLines) {
+            // line is already trimmed and filtered, so no need for:
+            // line = line.trim();
+            // if (!line || line.startsWith(';')) continue;
 
             // Handle section directives
             if (line.startsWith('@section')) {
@@ -73,46 +108,83 @@ export class BlockTemplate {
                 continue;
             }
 
-            const processedLine = line.replace(/\$\{([^}]+)\}/g, (match, key) => {
+            const trimmed = line.trim().toLowerCase();
+            const isEqu = trimmed.startsWith('equ');
+            const firstTokenIndex = line.indexOf('${');
+
+            const processedLine = line.replace(/\$\{([^}]+)\}/g, (match, key, offset) => {
                 if (key.startsWith('param.')) return params[key.split('.')[1]]?.toString() || '';
                 if (key.startsWith('input.')) return inputs[key.split('.')[1]] || '';
                 if (key.startsWith('output.')) return outputs[key.split('.')[1]] || '';
                 if (key.startsWith('reg.')) return internalRegs[key.split('.')[1]] || '';
                 if (key.startsWith('mem.')) return memory[key.split('.')[1]] || '';
+                if (key.startsWith('local.')) {
+                    const shortId = ctx.getShortId(block.id);
+                    const varName = `${shortId}_${key.split('.')[1]}`;
+
+                    // If this is the definition part of an EQU line, return the name only
+                    if (isEqu && offset === firstTokenIndex) {
+                        return varName;
+                    }
+
+                    const val = ctx.getVariable(varName);
+                    return val !== undefined ? val : varName;
+                }
                 // Check direct parameter names
                 if (params[key] !== undefined) return params[key].toString();
                 // Check dynamic variables set by macros
                 const v = ctx.getVariable(key);
                 if (v !== undefined) return v;
+                // Check if it's a raw local name that was already expanded
+                const localV = ctx.getVariable(`${block.id}_${key}`);
+                if (localV !== undefined) return localV;
                 return ''; // Empty if not found
             });
 
-            // Split into code and comment
-            const commentIndex = processedLine.indexOf(';');
+            // Split into code and comment (support both ; and //)
+            let commentIndex = processedLine.indexOf(';');
+            const doubleSlashIndex = processedLine.indexOf('//');
+            let commentMarkerLen = 1;
+
+            if (doubleSlashIndex !== -1 && (commentIndex === -1 || doubleSlashIndex < commentIndex)) {
+                commentIndex = doubleSlashIndex;
+                commentMarkerLen = 2;
+            }
+
             let codePart = processedLine;
             let comment: string | undefined = undefined;
 
             if (commentIndex !== -1) {
                 codePart = processedLine.substring(0, commentIndex).trim();
-                comment = processedLine.substring(commentIndex + 1).trim();
+                comment = processedLine.substring(commentIndex + commentMarkerLen).trim();
             }
 
             // Handle Standard Macros
             if (codePart.startsWith('@')) {
                 this.expandMacro(codePart, currentSection, ir, ctx, block);
-                // Note: Macros currently don't preserve inline comments, but could be updated if needed
                 continue;
             }
 
             // Parse assembly-like line to IR
             const parts = codePart.split(/[,\s]+/).filter(p => p.length > 0);
             if (parts.length > 0) {
+                const op = parts[0].toUpperCase();
+                const args = parts.slice(1);
+
+                // For EQU, if the first argument was tokenized, we might want to keep the name 
+                // instead of the value if it's being defined. 
+                // Actually, if we just fix the converter to not tokenize internal constants,
+                // this becomes less of an issue.
+
                 ir.push({
-                    op: parts[0].toUpperCase(),
-                    args: parts.slice(1),
+                    op,
+                    args,
                     section: currentSection,
                     comment
                 });
+            } else if (comment) {
+                // Just a comment line
+                ir.push({ op: ';', args: [comment], section: currentSection });
             }
         }
 
@@ -158,6 +230,36 @@ export class BlockTemplate {
         });
     }
 
+    private resolveValue(v: string, block: Block, ctx: CodeGenContext): any {
+        if (v === 'true') return true;
+        if (v === 'false') return false;
+
+        // 1. Check parameters
+        const params = this.evaluateParameters(block, ctx);
+        if (params[v] !== undefined) return params[v];
+
+        // 2. Check local variables (namespaced by block short ID)
+        const shortId = ctx.getShortId(block.id);
+        const localV = ctx.getVariable(`${shortId}_${v}`);
+        if (localV !== undefined) {
+            const f = parseFloat(localV);
+            return isNaN(f) ? localV : f;
+        }
+
+        // 3. Check direct context variables
+        const directV = ctx.getVariable(v);
+        if (directV !== undefined) {
+            const f = parseFloat(directV);
+            return isNaN(f) ? directV : f;
+        }
+
+        // 4. Try as decimal
+        const f = parseFloat(v);
+        if (!isNaN(f)) return f;
+
+        return v;
+    }
+
     private evaluateCondition(condition: string, block: Block, ctx: CodeGenContext): boolean {
         // Example: pinConnected(freq_ctrl)
         const pinMatch = condition.match(/pinConnected\(([^)]+)\)/);
@@ -170,28 +272,16 @@ export class BlockTemplate {
         const parts = condition.split(/\s+/);
         const macro = parts[0].toLowerCase();
 
-        const params = this.evaluateParameters(block, ctx);
-        const resolveVal = (v: string) => {
-            if (v === 'true') return true;
-            if (v === 'false') return false;
-            // Check params
-            if (params[v] !== undefined) return params[v];
-            // Check decimals
-            const f = parseFloat(v);
-            if (!isNaN(f)) return f;
-            return v;
-        };
-
         if (macro === 'isgreaterthan') {
-            return resolveVal(parts[1]) > resolveVal(parts[2]);
+            return this.resolveValue(parts[1], block, ctx) > this.resolveValue(parts[2], block, ctx);
         }
         if (macro === 'isequalto') {
-            return resolveVal(parts[1]) === resolveVal(parts[2]);
+            return this.resolveValue(parts[1], block, ctx) === this.resolveValue(parts[2], block, ctx);
         }
         if (macro === 'isor') {
-            const v1 = resolveVal(parts[1]);
-            const v2 = resolveVal(parts[2]);
-            const expected = resolveVal(parts[3]);
+            const v1 = this.resolveValue(parts[1], block, ctx);
+            const v2 = this.resolveValue(parts[2], block, ctx);
+            const expected = this.resolveValue(parts[3], block, ctx);
             return v1 === expected || v2 === expected;
         }
 
@@ -281,12 +371,16 @@ export class BlockTemplate {
                 break;
             case 'multiplydouble':
                 // @multiplyDouble result, a, b
-                const mulVal = parseFloat(args[1]) * parseFloat(args[2]);
+                const mulA = this.resolveValue(args[1], block, ctx);
+                const mulB = this.resolveValue(args[2], block, ctx);
+                const mulVal = (typeof mulA === 'number' ? mulA : 0) * (typeof mulB === 'number' ? mulB : 0);
                 ctx.setVariable(args[0], mulVal.toString());
                 break;
             case 'dividedouble':
                 // @divideDouble result, a, b
-                const divVal = parseFloat(args[1]) / parseFloat(args[2]);
+                const divA = this.resolveValue(args[1], block, ctx);
+                const divB = this.resolveValue(args[2], block, ctx);
+                const divVal = (typeof divA === 'number' ? divA : 0) / (typeof divB === 'number' ? divB : 1);
                 ctx.setVariable(args[0], divVal.toString());
                 break;
             case 'isgreaterthan':

@@ -3,7 +3,7 @@
  * Orchestrates the compilation of a block diagram to FV-1 assembly
  */
 
-import * as vscode from 'vscode';
+
 import { BlockGraph } from '../types/Graph.js';
 import { Block } from '../types/Block.js';
 import { BlockRegistry } from '../blocks/BlockRegistry.js';
@@ -41,7 +41,13 @@ export class GraphCompiler {
     /**
      * Compile a block diagram to FV-1 assembly code
      */
-    compile(graph: BlockGraph, options: { regCount: number; progSize: number; delaySize: number }): CompilationResult {
+    compile(graph: BlockGraph, options: {
+        regCount: number;
+        progSize: number;
+        delaySize: number;
+        fv1AsmMemBug?: boolean;
+        clampReals?: boolean;
+    }): CompilationResult {
         const errors: string[] = [];
         const warnings: string[] = [];
 
@@ -212,8 +218,8 @@ export class GraphCompiler {
         let instructions = 0;
         try {
             const assembler = new FV1Assembler({
-                fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
-                clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
+                fv1AsmMemBug: options.fv1AsmMemBug ?? true,
+                clampReals: options.clampReals ?? true,
                 regCount: options.regCount,
                 progSize: options.progSize,
                 delaySize: options.delaySize
@@ -650,18 +656,23 @@ export class GraphCompiler {
             }
 
             if (!skipNode) {
-                const isDeclaration = ['EQU', 'MEM'].includes(node.op);
-                const separator = isDeclaration ? '\t' : ', ';
+                // Special handling for labels (end with :) and comments (op is ;)
+                if (node.op.endsWith(':')) {
+                    irSections[node.section].push(node.op);
+                } else if (node.op === ';') {
+                    // Comments should join with space, not comma
+                    irSections[node.section].push(`;\t${node.args.join(' ')}`);
+                } else {
+                    const isDeclaration = ['EQU', 'MEM'].includes(node.op);
+                    const separator = isDeclaration ? '\t' : ', ';
+                    const line = `${node.op.toLowerCase()}\t${node.args.join(separator)}`;
 
-                let line = node.op.endsWith(':')
-                    ? node.op
-                    : `${node.op.toLowerCase()}\t${node.args.join(separator)}`;
-
-                if (node.comment) {
-                    line += `\t; ${node.comment}`;
+                    let finalLine = line;
+                    if (node.comment) {
+                        finalLine += `\t; ${node.comment}`;
+                    }
+                    irSections[node.section].push(finalLine);
                 }
-
-                irSections[node.section].push(line);
             }
         }
 
