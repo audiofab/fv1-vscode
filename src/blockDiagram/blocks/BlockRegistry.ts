@@ -4,7 +4,6 @@
  */
 
 import { IBlockDefinition, BlockMetadata } from '../types/Block.js';
-import { StickyNoteBlock } from './other/StickyNoteBlock.js';
 import { TemplateBlock } from './TemplateBlock.js';
 import { BlockTemplateDefinition } from '../types/IR.js';
 import * as fs from 'fs';
@@ -25,19 +24,8 @@ export class BlockRegistry {
     init(extensionPath?: string): void {
         if (this.isInitialized) return;
 
-        this.registerDefaultBlocks();
         this.registerDefinitions(extensionPath);
         this.isInitialized = true;
-    }
-
-    /**
-     * Register all default blocks
-     */
-    private registerDefaultBlocks(): void {
-        // UI utility blocks
-        this.register(new StickyNoteBlock());
-
-        // All other blocks are now handled by ATL definitions in resources/blocks
     }
 
     /**
@@ -69,24 +57,38 @@ export class BlockRegistry {
         }
 
         console.log(`Loading block definitions from: ${definitionsPath}`);
-        const files = fs.readdirSync(definitionsPath);
-        for (const file of files) {
-            if (file.endsWith('.json')) {
-                try {
-                    const content = fs.readFileSync(path.join(definitionsPath, file), 'utf8');
-                    const definition = JSON.parse(content) as BlockTemplateDefinition;
-                    this.register(new TemplateBlock(definition));
-                } catch (e) {
-                    console.error(`Failed to load block definition ${file}: ${e}`);
-                }
-            } else if (file.endsWith('.atl')) {
-                try {
-                    const content = fs.readFileSync(path.join(definitionsPath, file), 'utf8');
-                    const definition = this.parseATL(content);
-                    console.log(`Registering ATL block: ${definition.name} (${definition.type}) from ${file}`);
-                    this.register(new TemplateBlock(definition));
-                } catch (e) {
-                    console.error(`Failed to load ATL block ${file}: ${e}`);
+        this.loadDefinitionsRecursively(definitionsPath);
+    }
+
+    /**
+     * Recursively load block definitions from a directory
+     */
+    private loadDefinitionsRecursively(dir: string): void {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+
+            if (entry.isDirectory()) {
+                this.loadDefinitionsRecursively(fullPath);
+            } else if (entry.isFile()) {
+                if (entry.name.endsWith('.json')) {
+                    try {
+                        const content = fs.readFileSync(fullPath, 'utf8');
+                        const definition = JSON.parse(content) as BlockTemplateDefinition;
+                        this.register(new TemplateBlock(definition));
+                    } catch (e) {
+                        console.error(`Failed to load block definition ${fullPath}: ${e}`);
+                    }
+                } else if (entry.name.endsWith('.atl')) {
+                    try {
+                        const content = fs.readFileSync(fullPath, 'utf8');
+                        const definition = this.parseATL(content);
+                        console.log(`Registering ATL block: ${definition.name} (${definition.type}) from ${entry.name}`);
+                        this.register(new TemplateBlock(definition));
+                    } catch (e) {
+                        console.error(`Failed to load ATL block ${fullPath}: ${e}`);
+                    }
                 }
             }
         }

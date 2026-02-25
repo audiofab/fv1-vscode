@@ -126,6 +126,10 @@ export interface CodeGenContext {
     // Get a short, unique identifier for a block (e.g. "b1", "b2") to avoid long UUIDs in assembly
     getShortId(blockId: string): string;
 
+    // Local variable storage for macros
+    getVariable(name: string): string | undefined;
+    setVariable(name: string, value: string): void;
+
     // Resource tracking
     getUsedRegisterCount(): number;
     getUsedMemorySize(): number;

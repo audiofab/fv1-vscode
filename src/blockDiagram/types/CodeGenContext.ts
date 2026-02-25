@@ -37,6 +37,7 @@ export class CodeGenerationContext implements CodeGenContext {
     private currentBlockId: string | null = null;
     private blockShortIdMap: Map<string, string> = new Map();
     private nextShortId: number = 1;
+    private blockVariables: Map<string, string> = new Map();
 
     // Code sections
     private headerComments: string[] = []; // User comments from sticky notes
@@ -546,12 +547,27 @@ being processed
     }
 
     /**
+     * Get a local variable value (used by macros)
+     */
+    getVariable(name: string): string | undefined {
+        return this.blockVariables.get(name);
+    }
+
+    /**
+     * Set a local variable value (used by macros)
+     */
+    setVariable(name: string, value: string): void {
+        this.blockVariables.set(name, value);
+    }
+
+    /**
      * Reset allocations (for re-compilation)
      */
     reset(): void {
         this.registerAllocations = [];
         this.memoryAllocations = [];
         this.equDeclarations = [];
+        this.blockVariables.clear();
         this.constantMap.clear();
         this.initCode = [];
         this.inputCode = [];

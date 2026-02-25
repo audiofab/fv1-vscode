@@ -55,9 +55,13 @@ export class TemplateBlock extends BaseBlock {
         this.autoCalculateHeight();
     }
 
-    getCustomLabel(params: Record<string, any>): string | null {
-        // Find the first LOGFREQ parameter to show as label
-        const freqParam = this._parameters.find(p => p.conversion === 'LOGFREQ');
+    getCustomLabel(params: Record<string, any>, ctx?: any, blockId?: string): string | null {
+        // Try resolving template from definition
+        const dynamicLabel = this.templateEngine.resolveLabel(params, ctx, blockId);
+        if (dynamicLabel) return dynamicLabel;
+
+        // Fallback to frequency heuristic
+        const freqParam = (this._parameters as any[]).find(p => p.conversion === 'LOGFREQ');
         if (freqParam) {
             const val = params[freqParam.id] ?? freqParam.default;
             const hz = typeof val === 'number' && val < 1.0 ? this.filterCoeffToHz(val) : val;

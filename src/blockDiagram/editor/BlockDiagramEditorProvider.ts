@@ -223,7 +223,19 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                     const blockDefForLabel = blockRegistry.getBlock(e.blockType);
                     if (blockDefForLabel && blockDefForLabel.getCustomLabel) {
                         try {
-                            const label = blockDefForLabel.getCustomLabel(e.parameters);
+                            const graph = this.getDocumentAsGraph(document);
+
+                            // Mock context for connection checking in the UI
+                            const uiCtx = {
+                                getInputRegister: (blockId: string, portId: string) => {
+                                    const conn = graph.connections.find(c =>
+                                        c.to.blockId === blockId && c.to.portId === portId
+                                    );
+                                    return conn ? 'connected' : undefined;
+                                }
+                            };
+
+                            const label = (blockDefForLabel as any).getCustomLabel(e.parameters, uiCtx, e.blockId);
                             webviewPanel.webview.postMessage({
                                 type: 'customLabelResponse',
                                 blockId: e.blockId,

@@ -6,6 +6,7 @@
   "description": "Reads a hardware potentiometer value with optional filtering (Smoothing or Speedup) and inversion.",
   "color": "#4CAF50",
   "width": 150,
+  "labelTemplate": "POT ${param.potNumber}",
   "inputs": [],
   "outputs": [
     { "id": "out", "name": "Control", "type": "control" }

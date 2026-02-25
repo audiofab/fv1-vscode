@@ -165,6 +165,14 @@ export class GraphCompiler {
 
         codeLines.push('');
 
+        // Section 1.5: IR Header (EQU, MEM from blocks)
+        if (irResult.sections.header && irResult.sections.header.length > 0) {
+            codeLines.push('; Block Declarations');
+            codeLines.push(';--------------------------------------------------------------------------------');
+            codeLines.push(...irResult.sections.header);
+            codeLines.push('');
+        }
+
         // Section 2: Initialization (EQU, MEM, SKP)
         if (sections.init.length > 0) {
             codeLines.push('; Initialization');
@@ -602,6 +610,7 @@ export class GraphCompiler {
 
         // Convert IR nodes to code and group by section
         const irSections: Record<string, string[]> = {
+            header: [],
             init: [],
             input: [],
             main: [],
@@ -641,9 +650,17 @@ export class GraphCompiler {
             }
 
             if (!skipNode) {
-                const line = node.op.endsWith(':')
+                const isDeclaration = ['EQU', 'MEM'].includes(node.op);
+                const separator = isDeclaration ? '\t' : ', ';
+
+                let line = node.op.endsWith(':')
                     ? node.op
-                    : `${node.op.toLowerCase()}\t${node.args.join(', ')}`;
+                    : `${node.op.toLowerCase()}\t${node.args.join(separator)}`;
+
+                if (node.comment) {
+                    line += `\t; ${node.comment}`;
+                }
+
                 irSections[node.section].push(line);
             }
         }

@@ -6,6 +6,7 @@
   "description": "Reads audio from an analog input (ADC) with adjustable gain.",
   "color": "#2196F3",
   "width": 150,
+  "labelTemplate": "ADC ${param.adcNumber == 0 ? 'L' : 'R'}",
   "inputs": [],
   "outputs": [
     { "id": "out", "name": "Audio", "type": "audio" }

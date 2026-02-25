@@ -10,6 +10,7 @@
     { "id": "in", "name": "Audio", "type": "audio", "required": true }
   ],
   "outputs": [],
+  "labelTemplate": "DAC ${param.dacNumber == 0 ? 'L' : 'R'}",
   "parameters": [
     {
       "id": "dacNumber",

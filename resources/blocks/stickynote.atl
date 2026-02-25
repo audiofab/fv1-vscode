@@ -1,0 +1,24 @@
+---
+{
+  "type": "other.stickynote",
+  "name": "Sticky Note",
+  "category": "Utility",
+  "description": "Add documentation comments to your diagram",
+  "color": "#FFEB3B",
+  "width": 120,
+  "inputs": [],
+  "outputs": [],
+  "parameters": [
+    {
+      "id": "text",
+      "name": "Note",
+      "type": "string",
+      "default": "Add your notes here...",
+      "multiline": true,
+      "description": "Text content for the sticky note. Will be added as comments in the assembly output."
+    }
+  ],
+  "labelTemplate": "${param.text}"
+}
+---
+@comment ${param.text}

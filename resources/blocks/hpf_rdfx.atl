@@ -6,6 +6,7 @@
   "description": "1-pole High Pass Filter using the RDFX method for efficient computation.",
   "color": "#24f26f",
   "width": 180,
+  "labelTemplate": "${inputConnected.freq_ctrl ? 'External Control' : param.frequency + ' Hz'}",
   "inputs": [
     { "id": "in", "name": "Input", "type": "audio", "required": true },
     { "id": "freq_ctrl", "name": "Frequency", "type": "control", "required": false }
