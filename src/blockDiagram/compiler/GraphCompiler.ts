@@ -630,6 +630,11 @@ export class GraphCompiler {
         for (const node of irNodes) {
             let skipNode = false;
 
+            // Reset accumulator tracking on control flow or labels
+            if (node.op === 'SKP' || node.op === 'JMP' || node.op.endsWith(':')) {
+                accValue = null;
+            }
+
             // Specialized move pruning (WRAX -> LDAX optimization)
             if (node.op === 'LDAX') {
                 const reg = node.args[0];
@@ -650,7 +655,7 @@ export class GraphCompiler {
                 accValue = null;
             } else if (['CLR', 'ABS', 'NEG', 'NOT'].includes(node.op)) {
                 accValue = null;
-            } else if (['RDAX', 'MAXX', 'MULX', 'RDA', 'CHO'].includes(node.op)) {
+            } else if (['RDAX', 'MAXX', 'MULX', 'RDA', 'CHO', 'SOF', 'LOG', 'EXP', 'MACX', 'MACS', 'MACSN'].includes(node.op)) {
                 // Instructions that modify ACC based on a register/memory
                 accValue = null;
             }
