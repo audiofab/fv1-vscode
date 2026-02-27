@@ -69,6 +69,8 @@ export const BlockPalette: React.FC<BlockPaletteProps> = ({ metadata, onAddBlock
                     <div className="palette-content">
                         {Object.entries(categories)
                             .sort(([a], [b]) => {
+                                if (a === 'SpinCAD (elmgen)') return 1;
+                                if (b === 'SpinCAD (elmgen)') return -1;
                                 if (a === 'SpinCAD') return 1;
                                 if (b === 'SpinCAD') return -1;
                                 return a.localeCompare(b);

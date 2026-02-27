@@ -215,7 +215,10 @@ export class FV1Assembler {
             operands = [mode, 0x02, n, 0];
           } else if (mode === rdaMode || mode === sofMode) {
             const flags = operands[2];
-            const param = operands[3];
+            let param = operands[3];
+            if (mode === sofMode) {
+              param = Encoder.encode('S1_14', param);
+            }
             operands = [mode, flags, n, param];
           }
         } else if (node.mnemonic === 'WLDR') {

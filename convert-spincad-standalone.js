@@ -8,18 +8,18 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const sourceDir = path.resolve(__dirname, 'SpinCAD/src/SpinCADBuilder');
-const targetDir = path.resolve(__dirname, 'resources/blocks/spincad');
+const sourceDir = path.resolve(__dirname, '../SpinCAD-Designer/src/SpinCADBuilder');
+const targetDir = path.resolve(__dirname, 'resources/blocks/spincad/gen');
 
 if (!fs.existsSync(targetDir)) {
     fs.mkdirSync(targetDir, { recursive: true });
 }
 
-function convertSpinCAD(content, typeOverride) {
+function convertSpinCAD(content, typeOverride, sourceFile) {
     const lines = content.split('\n');
     const definition = {
         type: typeOverride || '',
-        category: 'SpinCAD',
+        category: 'SpinCAD (elmgen)',
         name: '',
         description: '',
         inputs: [],
@@ -29,6 +29,9 @@ function convertSpinCAD(content, typeOverride) {
     };
 
     const headerLines = [];
+    if (sourceFile) {
+        headerLines.push(`@comment "Generated from spincad source file ${sourceFile}"`);
+    }
     const bodyLines = [];
     const managedRegs = [];
     const managedMemo = [];
@@ -237,9 +240,17 @@ function convertSpinCAD(content, typeOverride) {
     const allIds = substitutions.map(s => s.id).sort((a, b) => b.length - a.length);
     if (allIds.length > 0) {
         const pattern = new RegExp(`\\b(${allIds.join('|')})\\b(?![^\\{]*\\})`, 'g');
-        processedTemplate = processedTemplate.replace(pattern, (match) => {
+        processedTemplate = processedTemplate.replace(pattern, (match, p1, offset, string) => {
             const sub = substitutions.find(s => s.id === match);
-            return sub ? sub.target : match;
+            if (sub) {
+                // If followed by + or - and not a space, add a space
+                const nextChar = string[offset + match.length];
+                if (nextChar === '+' || nextChar === '-') {
+                    return sub.target + ' ';
+                }
+                return sub.target;
+            }
+            return match;
         });
     }
 
@@ -272,7 +283,7 @@ for (const file of files) {
         try {
             const content = fs.readFileSync(path.join(sourceDir, file), 'utf8');
             const type = file.replace('.spincad', '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
-            const definition = convertSpinCAD(content, type);
+            const definition = convertSpinCAD(content, type, file);
 
             const targetFile = path.join(targetDir, `${type}.atl`);
             fs.writeFileSync(targetFile, toATL(definition));

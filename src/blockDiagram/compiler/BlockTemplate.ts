@@ -166,19 +166,29 @@ export class BlockTemplate {
             }
 
             // Parse assembly-like line to IR
-            const parts = codePart.split(/[,\s]+/).filter(p => p.length > 0);
-            if (parts.length > 0) {
-                const op = parts[0].toUpperCase();
-                const args = parts.slice(1);
+            const firstSpaceIndex = codePart.indexOf(' ');
+            const firstTabIndex = codePart.indexOf('\t');
+            let splitIndex = -1;
+            if (firstSpaceIndex !== -1 && firstTabIndex !== -1) splitIndex = Math.min(firstSpaceIndex, firstTabIndex);
+            else if (firstSpaceIndex !== -1) splitIndex = firstSpaceIndex;
+            else if (firstTabIndex !== -1) splitIndex = firstTabIndex;
 
-                // For EQU, if the first argument was tokenized, we might want to keep the name 
-                // instead of the value if it's being defined. 
-                // Actually, if we just fix the converter to not tokenize internal constants,
-                // this becomes less of an issue.
+            if (splitIndex !== -1) {
+                const op = codePart.substring(0, splitIndex).trim().toUpperCase();
+                const argsPart = codePart.substring(splitIndex).trim();
+                const args = argsPart.split(',').map(a => a.trim()).filter(a => a.length > 0);
 
                 ir.push({
                     op,
                     args,
+                    section: currentSection,
+                    comment
+                });
+            } else if (codePart.length > 0) {
+                // Opcode only
+                ir.push({
+                    op: codePart.toUpperCase(),
+                    args: [],
                     section: currentSection,
                     comment
                 });

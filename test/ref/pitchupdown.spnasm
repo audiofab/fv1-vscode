@@ -1,0 +1,28 @@
+0000		40000284	:rdax ADCL, 1
+0001		00000406	:wrax adc_out, 0
+0002		80400011	:skp run, START
+0003		68000012	:wldr 1, 16384, 4096
+0004		5C000012	:wldr 0, -8192, 4096
+0005	START:
+0005		00000002	:wra mem0_delayd, 0
+0006		06400014	:cho rda, RMP0, REG|COMPC, mem0_delayd
+0007		00400034	:cho rda, RMP0, 0, mem0_delayd + 1
+0008		00020022	:wra mem1_temp, 0
+0009		14400014	:cho rda, RMP0, RPTR2|COMPC, mem0_delayd
+0010		10400034	:cho rda, RMP0, RPTR2, mem0_delayd + 1
+0011		A4400014	:cho sof, RMP0, NA|COMPC, 0
+0012		20420034	:cho rda, RMP0, NA, mem1_temp
+0013		00000446	:wrax pitchupdown_pitch1, 0
+0014		06600014	:cho rda, RMP1, REG|COMPC, mem0_delayd
+0015		00600034	:cho rda, RMP1, 0, mem0_delayd + 1
+0016		00020022	:wra mem1_temp, 0
+0017		14600014	:cho rda, RMP1, RPTR2|COMPC, mem0_delayd
+0018		10600034	:cho rda, RMP1, RPTR2, mem0_delayd + 1
+0019		A4600014	:cho sof, RMP1, NA|COMPC, 0
+0020		20620034	:cho rda, RMP1, NA, mem1_temp
+0021		40000426	:wrax pitchupdown_pitch2, 1.0
+0022		4000000D	:sof 1, 0.0
+0023		000002C6	:wrax DACL, 0
+0024		40000444	:rdax pitchupdown_pitch1, 1.0
+0025		4000000D	:sof 1, 0.0
+0026		000002E6	:wrax DACR, 0

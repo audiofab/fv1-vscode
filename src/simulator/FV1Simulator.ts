@@ -17,6 +17,24 @@ export class FV1Simulator {
     private static readonly MAX_ACC = 1.0 - (1.0 / 8388608.0); // 24-bit S.23: 1 - 2^-23
     private static readonly MIN_ACC = -1.0;
 
+    // --- Float-based LFO state (from Expert Sleepers C port) ---
+    private sin0: number = 0;
+    private cos0: number = 0;
+    private sin1: number = 0;
+    private cos1: number = 0;
+    private rmp0: number = 0;
+    private rmp1: number = 0;
+
+    private sin0_rate: number = 0;
+    private sin0_range: number = 0;
+    private sin1_rate: number = 0;
+    private sin1_range: number = 0;
+
+    private rmp0_rate: number = 0;
+    private rmp0_range: number = 0;
+    private rmp1_rate: number = 0;
+    private rmp1_range: number = 0;
+
     // State
     private delayRam: Float32Array;
     private registers: Float32Array;
@@ -39,41 +57,9 @@ export class FV1Simulator {
 
     // Register aliases (Getters/Setters)
     // 0-7: Parameters
-    private get sin0_rate(): number { return this.registers[0]; }
-    private set sin0_rate(v: number) { this.registers[0] = v; }
-    private get sin0_range(): number { return this.registers[1]; }
-    private set sin0_range(v: number) { this.registers[1] = v; }
-
-    private get sin1_rate(): number { return this.registers[2]; }
-    private set sin1_rate(v: number) { this.registers[2] = v; }
-    private get sin1_range(): number { return this.registers[3]; }
-    private set sin1_range(v: number) { this.registers[3] = v; }
-
-    private get rmp0_rate(): number { return this.registers[4]; }
-    private set rmp0_rate(v: number) { this.registers[4] = v; }
-    private get rmp0_range(): number { return this.registers[5]; }
-    private set rmp0_range(v: number) { this.registers[5] = v; }
-
-    private get rmp1_rate(): number { return this.registers[6]; }
-    private set rmp1_rate(v: number) { this.registers[6] = v; }
-    private get rmp1_range(): number { return this.registers[7]; }
-    private set rmp1_range(v: number) { this.registers[7] = v; }
-
+    // These are now handled by updateStateRegisters for debugger view
     // 8-13: Internal State accumulators (aliased as registers for the debugger)
-    private get sin0(): number { return this.registers[8]; }
-    private set sin0(v: number) { this.registers[8] = v; }
-    private get cos0(): number { return this.registers[9]; }
-    private set cos0(v: number) { this.registers[9] = v; }
-
-    private get sin1(): number { return this.registers[10]; }
-    private set sin1(v: number) { this.registers[10] = v; }
-    private get cos1(): number { return this.registers[11]; }
-    private set cos1(v: number) { this.registers[11] = v; }
-
-    private get rmp0(): number { return this.registers[12]; }
-    private set rmp0(v: number) { this.registers[12] = v; }
-    private get rmp1(): number { return this.registers[13]; }
-    private set rmp1(v: number) { this.registers[13] = v; }
+    // These are now handled by updateStateRegisters for debugger view
 
     constructor() {
         this.delayRam = new Float32Array(this.delaySize);
@@ -132,9 +118,20 @@ export class FV1Simulator {
         this.delayPointer = 0;
         this.firstRun = true;
 
-        this.sin0 = 0; this.cos0 = 1.0;
-        this.sin1 = 0; this.cos1 = 1.0;
-        this.rmp0 = 0; this.rmp1 = 0;
+        this.sin0 = 0;
+        this.sin1 = 0;
+        // Peak amplitude from Java SinLFO.java initialized to -0x7fff00 mapped to float (-1.0)
+        // BUT wait, in C the initialization is not explicit, we can just use 1.0 or -1.0
+        // SpinCAD sets cos to -0x7fff00l which is approx -1.0
+        this.cos0 = -1.0;
+        this.cos1 = -1.0;
+        this.rmp0 = 0;
+        this.rmp1 = 0;
+
+        this.sin0_rate = 0; this.sin0_range = 0;
+        this.sin1_rate = 0; this.sin1_range = 0;
+        this.rmp0_rate = 0; this.rmp0_range = 0;
+        this.rmp1_rate = 0; this.rmp1_range = 0;
 
         // Default POT values to 0.5
         this.registers[16] = 0.5;
@@ -210,9 +207,6 @@ export class FV1Simulator {
         return [this.registers[22], this.registers[23]];
     }
 
-    /**
-     * Prepares for a single sample frame step.
-     */
     public beginFrame(inL: number = 0, inR: number = 0, pot0: number = 0, pot1: number = 0, pot2: number = 0) {
         // Saturate inputs (ADC is -1.0 to 0.999..., POT is 0 to 0.999...)
         // POT has 10-bit resolution (1024 levels)
@@ -222,6 +216,12 @@ export class FV1Simulator {
             return quantized;
         };
 
+        // Execute Program Setup
+        this.acc = 0; // Accumulator is cleared at start of run
+        this.lr = 0;  // LR is transient
+        this.pacc = 0;
+        this.pc = 0;
+
         // Map inputs to registers (Standard FV-1 mapping)
         this.registers[20] = sat(inL);
         this.registers[21] = sat(inR);
@@ -229,17 +229,14 @@ export class FV1Simulator {
         this.registers[17] = satPot(pot1);
         this.registers[18] = satPot(pot2);
 
-        // Execute Program Setup
-        this.acc = 0; // Accumulator is cleared at start of run
-        this.lr = 0;  // LR is transient
-        this.pacc = 0;
-        this.pc = 0;
+        this.updateStateRegisters();
     }
 
     public endFrame(): [number, number] {
         this.pc = 0;
         this.firstRun = false;
         this.updateLFOs();
+        this.updateStateRegisters();
 
         // Advance Delay Pointer (Circular Buffer)
         this.delayPointer = (this.delayPointer - 1 + this.delaySize) % this.delaySize;
@@ -588,40 +585,48 @@ export class FV1Simulator {
 
     private opWLDS(inst: number) {
         // WLDS lfo, freq, amp
-        // Encoding: 00NFFFFFFFFFAAAAAAAAAAAAAAA10010
-        const lfo = (inst >>> 29) & 0x1; // 0=SIN0, 1=SIN1
-        const freq = (inst >>> 20) & 0x1FF;
-        const amp = (inst >>> 5) & 0x7FFF;
+        const lfoSelect = (inst >>> 29) & 0x1;
+        const freqRaw = (inst >>> 20) & 0x1FF;
+        const ampRaw = (inst >>> 5) & 0x7FFF;
 
-        // Map to 32-bit integer range
-        // rate = f / 511.0; range = a / 32767.0;
-        if (lfo === 0) {
-            this.sin0_rate = freq / 511.0;
-            this.sin0_range = amp / 32767.0;
+        // C logic: rate = f/511.0, range = a/32767.0
+        // SpinCAD treats WLDS freq as an unsigned 9-bit value (0 to 511).
+        // Amp is also an unsigned 15-bit value (0 to 32767).
+        const f = freqRaw / 511.0;
+        const a = ampRaw / 32767.0;
+
+        if (lfoSelect === 0) {
+            this.sin0_rate = f;
+            this.sin0_range = a;
         } else {
-            this.sin1_rate = freq / 511.0;
-            this.sin1_range = amp / 32767.0;
+            this.sin1_rate = f;
+            this.sin1_range = a;
         }
     }
 
     private opWLDR(inst: number) {
         // WLDR lfo, freq, amp
         // Encoding: 01NFFFFFFFFFFFFFFFF000000AA10010
-        const lfo = 2 + ((inst >>> 29) & 0x1); // 2=RMP0, 3=RMP1
+        const lfoSelect = (inst >>> 29) & 0x1; // 0=RMP0, 1=RMP1
+
         // Freq is signed 16-bit
         let freq = (inst >>> 13) & 0xFFFF;
         if (freq & 0x8000) freq -= 65536;
 
+        // Amp is a 2-bit code
         const ampCode = (inst >>> 5) & 0x3;
         const amp = 4096 >> ampCode; // 0->4096, 1->2048, 2->1024, 3->512
 
-        // rate = f / 16384.0; range = a / 8192.0;
-        if (lfo === 2) {
-            this.rmp0_rate = freq / 16384.0;
-            this.rmp0_range = amp / 8192.0;
+        // C logic: rate = f/16384.0, range = a/8192.0
+        const f_val = freq / 16384.0;
+        const a_val = amp / 8192.0;
+
+        if (lfoSelect === 0) {
+            this.rmp0_rate = f_val;
+            this.rmp0_range = a_val;
         } else {
-            this.rmp1_rate = freq / 16384.0;
-            this.rmp1_range = amp / 8192.0;
+            this.rmp1_rate = f_val;
+            this.rmp1_range = a_val;
         }
     }
 
@@ -912,31 +917,43 @@ export class FV1Simulator {
         return this.registers;
     }
 
+    private updateLFOs() {
+        // C logic update_rmp0/1
+        this.rmp0 -= this.rmp0_rate * (1.0 / 4096.0);
+        while (this.rmp0 >= 1.0) this.rmp0 -= 1.0;
+        while (this.rmp0 < 0.0) this.rmp0 += 1.0;
+
+        this.rmp1 -= this.rmp1_rate * (1.0 / 4096.0);
+        while (this.rmp1 >= 1.0) this.rmp1 -= 1.0;
+        while (this.rmp1 < 0.0) this.rmp1 += 1.0;
+
+        // C logic update_sin0/1
+        const x0 = this.sin0_rate * (1.0 / 256.0);
+        const s0 = this.sin0;
+        const c0 = this.cos0;
+        this.cos0 += x0 * s0;
+        this.sin0 -= x0 * c0;
+
+        const x1 = this.sin1_rate * (1.0 / 256.0);
+        const s1 = this.sin1;
+        const c1 = this.cos1;
+        this.cos1 += x1 * s1;
+        this.sin1 -= x1 * c1;
+    }
+
+    private updateStateRegisters() {
+        this.registers[8] = this.sin0;
+        this.registers[9] = this.cos0;
+        this.registers[10] = this.sin1;
+        this.registers[11] = this.cos1;
+        this.registers[12] = this.rmp0;
+        this.registers[13] = this.rmp1;
+    }
+
     public getDelayRam(): Float32Array {
         return this.delayRam;
     }
 
-    private updateLFOs() {
-        // RMP0
-        this.rmp0 -= this.rmp0_rate * (1.0 / 4096.0);
-        while (this.rmp0 >= 1.0) this.rmp0 -= 2.0;
-        while (this.rmp0 < -1.0) this.rmp0 += 2.0;
-
-        // RMP1
-        this.rmp1 -= this.rmp1_rate * (1.0 / 4096.0);
-        while (this.rmp1 >= 1.0) this.rmp1 -= 2.0;
-        while (this.rmp1 < -1.0) this.rmp1 += 2.0;
-
-        // SIN0
-        let x = this.sin0_rate * (1.0 / 256.0);
-        this.cos0 += x * this.sin0;
-        this.sin0 -= x * this.cos0;
-
-        // SIN1
-        x = this.sin1_rate * (1.0 / 256.0);
-        this.cos1 += x * this.sin1;
-        this.sin1 -= x * this.cos1;
-    }
 
     // --- Helpers ---
 

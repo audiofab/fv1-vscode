@@ -183,26 +183,23 @@ export class SpinCADConverter {
         let processedTemplate = templateLines.join('\n');
 
         // Replace whole words only to avoid partial matches
-        for (const id of ids.input) {
-            const regex = new RegExp(`\\b${id}\\b`, 'g');
-            processedTemplate = processedTemplate.replace(regex, `\${input.${id}}`);
-        }
-        for (const id of ids.output) {
-            const regex = new RegExp(`\\b${id}\\b`, 'g');
-            processedTemplate = processedTemplate.replace(regex, `\${output.${id}}`);
-        }
-        for (const id of ids.param) {
-            const regex = new RegExp(`\\b${id}\\b`, 'g');
-            processedTemplate = processedTemplate.replace(regex, `\${${id}}`);
-        }
-        for (const id of ids.local) {
-            const regex = new RegExp(`\\b${id}\\b`, 'g');
-            processedTemplate = processedTemplate.replace(regex, `\${reg.${id}}`);
-        }
-        for (const id of ids.memo) {
-            const regex = new RegExp(`\\b${id}\\b`, 'g');
-            processedTemplate = processedTemplate.replace(regex, `\${mem.${id}}`);
-        }
+        // Handle +/- suffixes by inserting a space
+        const replaceToken = (id: string, target: string) => {
+            const regex = new RegExp(`\\b${id}\\b(?![^\\{]*\\})`, 'g');
+            processedTemplate = processedTemplate.replace(regex, (match, offset, string) => {
+                const nextChar = string[offset + match.length];
+                if (nextChar === '+' || nextChar === '-') {
+                    return target + ' ';
+                }
+                return target;
+            });
+        };
+
+        for (const id of ids.input) replaceToken(id, `\${input.${id}}`);
+        for (const id of ids.output) replaceToken(id, `\${output.${id}}`);
+        for (const id of ids.param) replaceToken(id, `\${${id}}`);
+        for (const id of ids.local) replaceToken(id, `\${reg.${id}}`);
+        for (const id of ids.memo) replaceToken(id, `\${mem.${id}}`);
 
         definition.template = processedTemplate;
         return definition;
