@@ -41,6 +41,7 @@ export interface BlockParameter {
 export interface BlockMetadata {
     type: string;
     category: string;
+    subcategory?: string;
     name: string;
     description: string;
     color: string;
@@ -154,6 +155,7 @@ export interface IBlockDefinition {
     // Metadata
     readonly type: string;
     readonly category: string;
+    readonly subcategory?: string;
     readonly name: string;
     readonly description: string;
 

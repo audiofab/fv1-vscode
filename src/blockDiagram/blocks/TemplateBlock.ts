@@ -11,6 +11,7 @@ import { CodeGenContext } from '../types/Block.js';
 export class TemplateBlock extends BaseBlock {
     readonly type: string;
     readonly category: string;
+    declare readonly subcategory?: string;
     readonly name: string;
     readonly description: string;
 
@@ -20,6 +21,7 @@ export class TemplateBlock extends BaseBlock {
         super();
         this.type = definition.type;
         this.category = definition.category;
+        this.subcategory = definition.subcategory;
         this.name = definition.name;
         this.description = definition.description;
         this.color = definition.color || '#607D8B';

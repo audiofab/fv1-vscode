@@ -76,6 +76,7 @@ export abstract class BaseBlock implements IBlockDefinition {
     // Metadata (must be set by subclasses)
     abstract readonly type: string;
     abstract readonly category: string;
+    readonly subcategory?: string;
     abstract readonly name: string;
     abstract readonly description: string;
 
@@ -221,6 +222,7 @@ export abstract class BaseBlock implements IBlockDefinition {
         return {
             type: this.type,
             category: this.category,
+            subcategory: this.subcategory,
             name: this.name,
             description: this.description,
             color: this.color,

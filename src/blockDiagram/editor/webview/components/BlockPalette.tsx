@@ -15,24 +15,34 @@ interface BlockPaletteProps {
 
 export const BlockPalette: React.FC<BlockPaletteProps> = ({ metadata, onAddBlock, isCollapsed, onToggleCollapse, vscode }) => {
 
-    // Group blocks by category
-    const categories = metadata.reduce((acc, block) => {
+    // Group blocks by category and subcategory
+    const hierarchy = metadata.reduce((acc, block) => {
         if (!acc[block.category]) {
-            acc[block.category] = [];
+            acc[block.category] = { blocks: [], subcategories: {} };
         }
-        acc[block.category].push(block);
-        return acc;
-    }, {} as Record<string, BlockMetadata[]>);
 
-    // Track which categories are expanded (all collapsed by default)
-    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+        if (block.subcategory) {
+            if (!acc[block.category].subcategories[block.subcategory]) {
+                acc[block.category].subcategories[block.subcategory] = [];
+            }
+            acc[block.category].subcategories[block.subcategory].push(block);
+        } else {
+            acc[block.category].blocks.push(block);
+        }
+
+        return acc;
+    }, {} as Record<string, { blocks: BlockMetadata[], subcategories: Record<string, BlockMetadata[]> }>);
+
+    // Track which categories/subcategories are expanded (all collapsed by default)
+    // Format: "Category" or "Category::Subcategory"
+    const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
 
     // Listen for saved state from VS Code
     useEffect(() => {
         const handleMessage = (event: MessageEvent) => {
             const message = event.data;
             if (message.type === 'paletteState' && message.expandedCategories) {
-                setExpandedCategories(new Set(message.expandedCategories));
+                setExpandedNodes(new Set(message.expandedCategories));
             }
         };
 
@@ -44,18 +54,18 @@ export const BlockPalette: React.FC<BlockPaletteProps> = ({ metadata, onAddBlock
     useEffect(() => {
         vscode.postMessage({
             type: 'savePaletteState',
-            expandedCategories: Array.from(expandedCategories)
+            expandedCategories: Array.from(expandedNodes)
         });
-    }, [expandedCategories, vscode]);
+    }, [expandedNodes, vscode]);
 
-    const toggleCategory = (category: string) => {
-        const newExpanded = new Set(expandedCategories);
-        if (newExpanded.has(category)) {
-            newExpanded.delete(category);
+    const toggleNode = (nodeId: string) => {
+        const newExpanded = new Set(expandedNodes);
+        if (newExpanded.has(nodeId)) {
+            newExpanded.delete(nodeId);
         } else {
-            newExpanded.add(category);
+            newExpanded.add(nodeId);
         }
-        setExpandedCategories(newExpanded);
+        setExpandedNodes(newExpanded);
     };
 
     const handleDragStart = (e: React.DragEvent, blockType: string) => {
@@ -67,7 +77,7 @@ export const BlockPalette: React.FC<BlockPaletteProps> = ({ metadata, onAddBlock
             <div className={`palette ${isCollapsed ? 'collapsed' : ''}`}>
                 {!isCollapsed && (
                     <div className="palette-content">
-                        {Object.entries(categories)
+                        {Object.entries(hierarchy)
                             .sort(([a], [b]) => {
                                 if (a === 'SpinCAD (elmgen)') return 1;
                                 if (b === 'SpinCAD (elmgen)') return -1;
@@ -75,13 +85,13 @@ export const BlockPalette: React.FC<BlockPaletteProps> = ({ metadata, onAddBlock
                                 if (b === 'SpinCAD') return -1;
                                 return a.localeCompare(b);
                             })
-                            .map(([category, blocks]) => {
-                                const isExpanded = expandedCategories.has(category);
+                            .map(([category, content]) => {
+                                const isExpanded = expandedNodes.has(category);
                                 return (
                                     <div key={category} className="palette-category-section">
                                         <div
                                             className="palette-category"
-                                            onClick={() => toggleCategory(category)}
+                                            onClick={() => toggleNode(category)}
                                             style={{ cursor: 'pointer', userSelect: 'none' }}
                                         >
                                             <span className="category-toggle-icon">
@@ -91,7 +101,46 @@ export const BlockPalette: React.FC<BlockPaletteProps> = ({ metadata, onAddBlock
                                         </div>
                                         {isExpanded && (
                                             <div className="palette-category-blocks">
-                                                {blocks.map(block => (
+                                                {/* Render subcategories first */}
+                                                {Object.entries(content.subcategories)
+                                                    .sort(([a], [b]) => a.localeCompare(b))
+                                                    .map(([subcategory, blocks]) => {
+                                                        const subId = `${category}::${subcategory}`;
+                                                        const isSubExpanded = expandedNodes.has(subId);
+                                                        return (
+                                                            <div key={subId} className="palette-subcategory-section" style={{ marginLeft: '10px' }}>
+                                                                <div
+                                                                    className="palette-subcategory"
+                                                                    onClick={() => toggleNode(subId)}
+                                                                    style={{ cursor: 'pointer', userSelect: 'none', padding: '4px 8px', fontSize: '0.9em', color: 'var(--vscode-descriptionForeground)' }}
+                                                                >
+                                                                    <span className="category-toggle-icon" style={{ fontSize: '0.8em', marginRight: '4px' }}>
+                                                                        {isSubExpanded ? '▼' : '▶'}
+                                                                    </span>
+                                                                    {subcategory}
+                                                                </div>
+                                                                {isSubExpanded && (
+                                                                    <div className="palette-subcategory-blocks" style={{ marginLeft: '10px' }}>
+                                                                        {blocks.map(block => (
+                                                                            <div
+                                                                                key={block.type}
+                                                                                className="palette-block"
+                                                                                draggable
+                                                                                onDragStart={(e) => handleDragStart(e, block.type)}
+                                                                                style={{ borderLeft: `4px solid ${block.color}` }}
+                                                                            >
+                                                                                <div className="palette-block-name">{block.name}</div>
+                                                                                <div className="palette-block-desc">{block.description}</div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+
+                                                {/* Render blocks directly in this category */}
+                                                {content.blocks.map(block => (
                                                     <div
                                                         key={block.type}
                                                         className="palette-block"
