@@ -8,30 +8,44 @@ import { TemplateBlock } from './TemplateBlock.js';
 import { BlockTemplateDefinition } from '../types/IR.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as vscode from 'vscode';
 
 export class BlockRegistry {
     private blocks: Map<string, IBlockDefinition> = new Map();
     private categories: Map<string, string[]> = new Map();
     private isInitialized = false;
 
+    private _onDidChangeBlocks = new vscode.EventEmitter<void>();
+    public readonly onDidChangeBlocks = this._onDidChangeBlocks.event;
+
     constructor() {
         // Initialization is now deferred to the init() method called from extension activate
     }
 
     /**
-     * Initialize the registry with the extension path
+     * Initialize the registry with the extension path and optional custom paths
      */
-    init(extensionPath?: string): void {
+    init(extensionPath?: string, customPaths: string[] = []): void {
         if (this.isInitialized) return;
 
-        this.registerDefinitions(extensionPath);
+        this.registerDefinitions(extensionPath, customPaths);
         this.isInitialized = true;
+    }
+
+    /**
+     * Refresh the registry (e.g., when settings change or manually triggered)
+     */
+    refresh(extensionPath?: string, customPaths: string[] = []): void {
+        this.blocks.clear();
+        this.categories.clear();
+        this.registerDefinitions(extensionPath, customPaths);
+        this._onDidChangeBlocks.fire();
     }
 
     /**
      * Register dynamic block definitions from JSON or ATL files
      */
-    private registerDefinitions(extensionPath?: string): void {
+    private registerDefinitions(extensionPath?: string, customPaths: string[] = []): void {
         const possiblePaths = [];
 
         if (extensionPath) {
@@ -43,21 +57,34 @@ export class BlockRegistry {
         possiblePaths.push(path.resolve(__dirname, '../resources/blocks'));       // dist layout (dist/extension.cjs -> root)
         possiblePaths.push(path.resolve(__dirname, '../../resources/blocks'));    // deep dist layout
 
-        let definitionsPath = '';
+        let defaultDefinitionsPath = '';
         for (const p of possiblePaths) {
             if (fs.existsSync(p)) {
-                definitionsPath = p;
+                defaultDefinitionsPath = p;
                 break;
             }
         }
 
-        if (!definitionsPath) {
-            console.error('Failed to find block definitions directory in any of:', possiblePaths);
-            return;
+        const pathsToLoad = [];
+        if (defaultDefinitionsPath) {
+            pathsToLoad.push(defaultDefinitionsPath);
+        } else {
+            console.error('Failed to find core block definitions directory in any of:', possiblePaths);
         }
 
-        console.log(`Loading block definitions from: ${definitionsPath}`);
-        this.loadDefinitionsRecursively(definitionsPath);
+        // Add user configured custom paths
+        for (const customPath of customPaths) {
+            if (fs.existsSync(customPath)) {
+                pathsToLoad.push(customPath);
+            } else {
+                console.warn(`Configured custom block path does not exist: ${customPath}`);
+            }
+        }
+
+        for (const dir of pathsToLoad) {
+            console.log(`Loading block definitions from: ${dir}`);
+            this.loadDefinitionsRecursively(dir);
+        }
     }
 
     /**

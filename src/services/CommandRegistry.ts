@@ -146,6 +146,20 @@ export class CommandRegistry {
                 stopOnEntry: stopOnEntry
             });
         });
+
+        this.register('fv1.refreshBlocks', async () => {
+            const config = vscode.workspace.getConfiguration('fv1');
+            const customPaths = config.get<string[]>('customBlockPaths') || [];
+
+            // Re-initialize/refresh the block registry
+            const { blockRegistry } = await import('../blockDiagram/blocks/BlockRegistry.js');
+            blockRegistry.refresh(this.context.extensionPath, customPaths);
+
+            // Refresh all active documents
+            this.blockDiagramDocMgr.refreshAll();
+
+            vscode.window.showInformationMessage(`FV-1 Custom Blocks refreshed successfully.`);
+        });
     }
 
     private register(command: string, callback: (...args: any[]) => any) {

@@ -15,6 +15,7 @@ export interface IRNode {
 export interface BlockTemplateDefinition {
     type: string;
     category: string;
+    subcategory?: string;
     name: string;
     description: string;
     color?: string;

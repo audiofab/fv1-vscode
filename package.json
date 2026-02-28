@@ -198,6 +198,11 @@
         "command": "fv1.startSimulator",
         "title": "Run In Simulator",
         "category": "FV-1"
+      },
+      {
+        "command": "fv1.refreshBlocks",
+        "title": "Refresh Custom Blocks",
+        "category": "FV-1"
       }
     ],
     "keybindings": [
@@ -441,6 +446,14 @@
           "type": "boolean",
           "default": true,
           "description": "Stop at the first instruction after launch."
+        },
+        "fv1.customBlockPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "List of absolute paths to directories containing custom .atl block definitions. Reload with 'FV-1: Refresh Custom Blocks'."
         }
       }
     }

@@ -30,8 +30,9 @@ export function activate(context: vscode.ExtensionContext) {
     const blockDiagramDiagnostics = vscode.languages.createDiagnosticCollection('block-diagram');
     context.subscriptions.push(fv1Diagnostics, blockDiagramDiagnostics);
 
-    // Initialize the block registry with the extension path
-    blockRegistry.init(context.extensionPath);
+    // Initialize the block registry with the extension path and any custom paths
+    const customBlockPaths = vscode.workspace.getConfiguration('fv1').get<string[]>('customBlockPaths') || [];
+    blockRegistry.init(context.extensionPath, customBlockPaths);
 
     const fv1DocumentManager = new FV1DocumentManager(fv1Diagnostics);
     const blockDiagramDocumentManager = new BlockDiagramDocumentManager(blockDiagramDiagnostics, blockRegistry);
@@ -99,6 +100,12 @@ export function activate(context: vscode.ExtensionContext) {
     // 6. Handle Configuration Changes
     vscode.workspace.onDidChangeConfiguration(e => {
         if (e.affectsConfiguration('fv1')) {
+            if (e.affectsConfiguration('fv1.customBlockPaths')) {
+                const newPaths = vscode.workspace.getConfiguration('fv1').get<string[]>('customBlockPaths') || [];
+                blockRegistry.refresh(context.extensionPath, newPaths);
+                blockDiagramDocumentManager.refreshAll();
+            }
+
             fv1DocumentManager.refreshAll();
             statusBarService.update(vscode.window.activeTextEditor?.document);
         }

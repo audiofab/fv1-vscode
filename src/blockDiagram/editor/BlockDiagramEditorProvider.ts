@@ -118,6 +118,16 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             }
         });
 
+        const registrySubscription = blockRegistry.onDidChangeBlocks(() => {
+            webviewPanel.webview.postMessage({
+                type: 'blockMetadata',
+                metadata: blockRegistry.getAllMetadata()
+            });
+            updateWebview();
+            // Recompile immediately since blocks changed
+            this.documentManager.onDocumentChange(document);
+        });
+
         // Handle messages from the webview
         webviewPanel.webview.onDidReceiveMessage(async e => {
             switch (e.type) {
@@ -275,6 +285,7 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             }
             compilationListener.dispose();
             changeDocumentSubscription.dispose();
+            registrySubscription.dispose();
         });
     }
 

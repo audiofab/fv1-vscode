@@ -179,6 +179,18 @@ export class BlockDiagramDocumentManager {
     }
 
     /**
+     * Refresh all open block diagram documents
+     */
+    public refreshAll(): void {
+        this.clearAllCaches();
+        vscode.workspace.textDocuments.forEach(doc => {
+            if (doc.fileName.toLowerCase().endsWith('.spndiagram')) {
+                this.getCompilationResult(doc);
+            }
+        });
+    }
+
+    /**
      * Dispose of resources
      */
     public dispose(): void {

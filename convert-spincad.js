@@ -6,15 +6,20 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { SpinCADConverter } from './src/blockDiagram/utils/SpinCADConverter.js';
+import { SpinCADConverter } from './out/blockDiagram/utils/SpinCADConverter.js';
+import { parseMenu } from './parse-spincad-menu.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const sourceDir = path.resolve(__dirname, 'SpinCAD/src/SpinCADBuilder');
-const targetDir = path.resolve(__dirname, 'resources/blocks');
+const sourceDir = path.resolve(__dirname, '../SpinCAD-Designer/src/SpinCADBuilder');
+const targetDir = path.resolve(__dirname, 'resources/blocks/spincad/auto');
+const menuFile = path.resolve(__dirname, '../SpinCAD-Designer/src/SpinCADBuilder/standard.spincadmenu');
 
 if (!fs.existsSync(targetDir)) {
     fs.mkdirSync(targetDir, { recursive: true });
 }
+
+console.log(`Loading menu from ${menuFile}...`);
+const menuMap = parseMenu(menuFile);
 
 console.log(`Converting templates from ${sourceDir} to ${targetDir}...`);
 
@@ -23,12 +28,28 @@ let count = 0;
 
 for (const file of files) {
     if (file.endsWith('.spincad')) {
+        const basename = file.replace('.spincad', '').toLowerCase();
+
+        // Only convert blocks that are in the menu
+        if (!menuMap.has(basename)) {
+            continue;
+        }
+
+        const menuInfo = menuMap.get(basename);
+
         try {
             const content = fs.readFileSync(path.join(sourceDir, file), 'utf8');
             const definition = SpinCADConverter.convert(content);
 
-            const targetFile = path.join(targetDir, `${definition.type}.json`);
-            fs.writeFileSync(targetFile, JSON.stringify(definition, null, 2));
+            // Apply category and subcategory
+            definition.category = menuInfo.category;
+            definition.subcategory = menuInfo.subcategory;
+            if (menuInfo.displayName) {
+                definition.name = menuInfo.displayName;
+            }
+
+            const targetFile = path.join(targetDir, `${definition.type}.atl`);
+            fs.writeFileSync(targetFile, SpinCADConverter.toATL(definition));
             count++;
         } catch (e) {
             console.error(`Error converting ${file}: ${e}`);
