@@ -10,7 +10,7 @@ export class SpinCADConverter {
      * Convert a SpinCAD template string to an ATL BlockTemplateDefinition
      * Metadata is extracted from @ directives.
      */
-    static convert(content: string, typeOverride?: string): BlockTemplateDefinition {
+    static convert(content: string, typeOverride?: string, sourceFile?: string): BlockTemplateDefinition {
         const lines = content.split('\n');
         const definition: BlockTemplateDefinition = {
             type: typeOverride || '',
@@ -24,6 +24,9 @@ export class SpinCADConverter {
         };
 
         const headerLines: string[] = [];
+        if (sourceFile) {
+            headerLines.push(`@comment "Generated from spincad source file ${sourceFile}"`);
+        }
         const bodyLines: string[] = [];
         const managedRegs: string[] = [];
         const managedMemo: Array<{ id: string; size: number }> = [];

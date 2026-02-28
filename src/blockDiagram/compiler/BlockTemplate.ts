@@ -274,8 +274,27 @@ export class BlockTemplate {
         // Example: pinConnected(freq_ctrl)
         const pinMatch = condition.match(/pinConnected\(([^)]+)\)/);
         if (pinMatch) {
-            const pinId = pinMatch[1].trim();
-            return ctx.getInputRegister(block.id, pinId) !== undefined;
+            let rawPinName = pinMatch[1].trim();
+
+            // Handle post-processed IDs like ${input.adcl} or ${output.output1}
+            const wrapperMatch = rawPinName.match(/\$\{(?:input|output)\.([^}]+)\}/);
+            if (wrapperMatch) {
+                rawPinName = wrapperMatch[1];
+            }
+
+            // The template might contain the label or the id.
+            // Try to find the exact pin by checking inputs and outputs matching this label/id.
+            let pinId = rawPinName;
+            const targetInput = this.definition.inputs.find(i => i.id === rawPinName || i.name === rawPinName);
+            if (targetInput) pinId = targetInput.id;
+            else {
+                const targetOutput = this.definition.outputs.find(o => o.id === rawPinName || o.name === rawPinName);
+                if (targetOutput) pinId = targetOutput.id;
+            }
+
+            // Check if the pin is connected as an input OR as an output
+            return ctx.getInputRegister(block.id, pinId) !== null ||
+                ctx.isOutputConnected(block.id, pinId);
         }
 
         // Handle SpinCAD macros used as conditions

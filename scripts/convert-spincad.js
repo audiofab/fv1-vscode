@@ -6,13 +6,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { SpinCADConverter } from './out/blockDiagram/utils/SpinCADConverter.js';
+import { SpinCADConverter } from '../out/blockDiagram/utils/SpinCADConverter.js';
 import { parseMenu } from './parse-spincad-menu.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const sourceDir = path.resolve(__dirname, '../SpinCAD-Designer/src/SpinCADBuilder');
-const targetDir = path.resolve(__dirname, 'resources/blocks/spincad/auto');
-const menuFile = path.resolve(__dirname, '../SpinCAD-Designer/src/SpinCADBuilder/standard.spincadmenu');
+const sourceDir = path.resolve(__dirname, '../../SpinCAD-Designer/src/SpinCADBuilder');
+const targetDir = 'C:\\_dev\\custom_blocks\\spincad';
+const menuFile = path.resolve(__dirname, '../../SpinCAD-Designer/src/SpinCADBuilder/standard.spincadmenu');
 
 if (!fs.existsSync(targetDir)) {
     fs.mkdirSync(targetDir, { recursive: true });
@@ -39,13 +39,16 @@ for (const file of files) {
 
         try {
             const content = fs.readFileSync(path.join(sourceDir, file), 'utf8');
-            const definition = SpinCADConverter.convert(content);
+            const definition = SpinCADConverter.convert(content, undefined, file);
 
-            // Apply category and subcategory
             definition.category = menuInfo.category;
             definition.subcategory = menuInfo.subcategory;
             if (menuInfo.displayName) {
                 definition.name = menuInfo.displayName;
+            }
+
+            if (!definition.type.startsWith('spincad_')) {
+                definition.type = 'spincad_' + definition.type;
             }
 
             const targetFile = path.join(targetDir, `${definition.type}.atl`);

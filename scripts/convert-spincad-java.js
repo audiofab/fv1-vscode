@@ -9,9 +9,9 @@ import { fileURLToPath } from 'url';
 import { parseMenu } from './parse-spincad-menu.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const spinCADSourceDir = path.resolve(__dirname, '../SpinCAD-Designer/src/com/holycityaudio/SpinCAD');
-const targetDir = path.resolve(__dirname, 'resources/blocks/spincad/auto');
-const menuFile = path.resolve(__dirname, '../SpinCAD-Designer/src/SpinCADBuilder/standard.spincadmenu');
+const spinCADSourceDir = path.resolve(__dirname, '../../SpinCAD-Designer/src/com/holycityaudio/SpinCAD');
+const targetDir = 'C:\\_dev\\custom_blocks\\spincad';
+const menuFile = path.resolve(__dirname, '../../SpinCAD-Designer/src/SpinCADBuilder/standard.spincadmenu');
 
 if (!fs.existsSync(targetDir)) {
     fs.mkdirSync(targetDir, { recursive: true });
@@ -62,7 +62,7 @@ function extractBraceBlock(content, startIndex) {
 }
 
 function parseJavaBlock(content, filename, menuInfo) {
-    const typeId = filename.replace('.java', '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    const typeId = 'spincad_' + filename.replace('.java', '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
     const definition = {
         type: typeId,
         category: menuInfo.category || 'SpinCAD',
@@ -256,7 +256,22 @@ function parseJavaBlock(content, filename, menuInfo) {
                 const pin = definition.inputs.find(i => i.name === pinLabel) || definition.outputs.find(o => o.name === pinLabel);
                 if (pin) {
                     const prefix = definition.inputs.some(i => i.id === pin.id) ? 'input' : 'output';
-                    currentVarMap[varName] = `\${${prefix}.${pin.id}}`;
+                    // Example: "Sine" -> "output.sine" so we can remember it
+                    currentVarMap[varName] = { id: pin.id, template: `\${${prefix}.${pin.id}}` };
+                }
+            }
+
+            const isConnectedMatch = trimmed.match(/([a-zA-Z0-9_]+)\.isConnected\(\)/);
+            if (isConnectedMatch) {
+                const varName = isConnectedMatch[1];
+                if (currentVarMap[varName] && currentVarMap[varName].id) {
+                    // It's used in an if(), and we unroll it directly since we're inside if processing
+                    // but the simple line-by-line processor needs it replaced in the `@if` we already emitted
+                    // Actually, the `if` processor already ran! 
+                    // Let's look back and replace the condition we emitted.
+                    if (templateLines.length > 0 && templateLines[templateLines.length - 1].startsWith('@if')) {
+                        templateLines[templateLines.length - 1] = `@if pinConnected(${currentVarMap[varName].id})`;
+                    }
                 }
             }
 
@@ -273,7 +288,7 @@ function parseJavaBlock(content, filename, menuInfo) {
             if (regAssignMatch) {
                 const varName = regAssignMatch[1];
                 if (!managedRegs.includes(varName)) managedRegs.push(varName);
-                currentVarMap[varName] = `\${reg.${varName}}`;
+                currentVarMap[varName] = { id: varName, template: `\${reg.${varName}}` };
             }
 
             const fieldMatch = trimmed.match(/(?:(?:double|int)\s+)?([a-zA-Z0-9_]+)\s*=\s*([^;]+)/);
@@ -281,7 +296,7 @@ function parseJavaBlock(content, filename, menuInfo) {
                 const varName = fieldMatch[1];
                 const val = fieldMatch[2].trim();
                 if (/^[0-9.-]+(\/[0-9.-]+)?$/.test(val)) {
-                    currentVarMap[varName] = val;
+                    currentVarMap[varName] = { id: varName, template: val };
                 }
             }
 
@@ -292,7 +307,8 @@ function parseJavaBlock(content, filename, menuInfo) {
                 if (val.startsWith('getControlReg')) {
                     return `\${controlMode}`;
                 }
-                return currentVarMap[val] || val;
+                const mapped = currentVarMap[val];
+                return mapped ? mapped.template : val;
             };
 
             if (trimmed.includes('sfxb.comment')) {
