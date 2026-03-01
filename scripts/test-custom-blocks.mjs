@@ -107,6 +107,10 @@ for (const file of files) {
             failCount++;
         } else {
             console.log(`[PASS] ${file}`);
+            if (file === 'spincad_threetap.atl' || file === 'spincad_mn3011.atl') {
+                console.log(`--- ${file} FULL BODY DUMP ---`);
+                console.log(assemblyTestBody);
+            }
             passCount++;
         }
     } catch (e) {

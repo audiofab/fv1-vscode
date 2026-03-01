@@ -148,11 +148,10 @@ export class SpinCADConverter {
                     case 'getDelayScaleControl':
                         // @getDelayScaleControl tap1Ratio delayLength delayOffset 
                         // -> sof ${tap1Ratio}, 0
-                        // -> mulx ${delayLength}
-                        // -> rdaf ${delayOffset}, 1
+                        // -> sof ${delayLength} / 32768, (${mem.delayl} + 1) / 32768
+                        const baseOffsetExpr = managedMemo.length > 0 ? `(\${mem.${managedMemo[0].id}} + 1)` : `\${${parts[3]}}`;
                         bodyLines.push(`sof\t\${${parts[1]}}, 0`);
-                        bodyLines.push(`mulx\t\${${parts[2]}}`);
-                        bodyLines.push(`sof\t1.0, \${${parts[3]}} / 32768`);
+                        bodyLines.push(`sof\t\${${parts[2]}} / 32768, ${baseOffsetExpr} / 32768`);
                         break;
                     case 'getSamplesFromRatio':
                         // @getSamplesFromRatio ratio tap1Ratio delayLength
