@@ -18,12 +18,13 @@
   "parameters": [
     {
       "id": "frequency",
-      "name": "Frequency",
+      "name": "Frequency (Hz)",
       "type": "number",
       "default": 1000,
-      "min": 80,
-      "max": 2500,
-      "conversion": "SVFFREQ"
+      "min": 20,
+      "max": 10000,
+      "conversion": "SVFFREQ",
+      "description": "Filter corner/center frequency in Hz."
     },
     {
       "id": "q",

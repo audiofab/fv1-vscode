@@ -9,36 +9,51 @@
   "inputs": [
     { "id": "in", "name": "Input", "type": "audio", "required": true },
     { "id": "lfo_rate", "name": "LFO Rate", "type": "control", "required": false },
-    { "id": "lfo_width", "name": "LFO Width", "type": "control", "required": false }
+    { "id": "lfo_width", "name": "LFO Width", "type": "control", "required": false },
+    { "id": "mix_ctrl", "name": "Mix Control", "type": "control", "required": false }
   ],
   "outputs": [
     { "id": "out", "name": "Output", "type": "audio" }
   ],
   "parameters": [
     {
-      "id": "delayLength",
-      "name": "Chorus Time",
+      "id": "baseDelay",
+      "name": "Base Delay (ms)",
       "type": "number",
-      "default": 512,
-      "min": 128,
-      "max": 2048,
-      "conversion": "LENGTHTOTIME"
+      "default": 15.0,
+      "min": 1.0,
+      "max": 50.0,
+      "conversion": "MS_TO_SAMPLES",
+      "description": "Base delay time (center of modulation) in ms."
     },
     {
       "id": "rate",
-      "name": "LFO Rate",
+      "name": "LFO Rate (Hz)",
       "type": "number",
-      "default": 20,
-      "min": 0,
-      "max": 511
+      "default": 0.5,
+      "min": 0.05,
+      "max": 10.0,
+      "conversion": "HZ_TO_LFO_RATE",
+      "description": "Frequency of the chorus modulation in Hz."
     },
     {
       "id": "width",
-      "name": "LFO Width",
+      "name": "LFO Depth (ms)",
       "type": "number",
-      "default": 30,
-      "min": 5,
-      "max": 100
+      "default": 5.0,
+      "min": 0.0,
+      "max": 20.0,
+      "conversion": "MS_TO_LFO_RANGE",
+      "description": "The depth of modulation in ms."
+    },
+    {
+      "id": "mix",
+      "name": "Mix",
+      "type": "number",
+      "default": 0.5,
+      "min": 0.0,
+      "max": 1.0,
+      "description": "Wet/Dry mix balance."
     },
     {
       "id": "lfoSel",
@@ -53,53 +68,56 @@
   ],
   "memories": [
     { "id": "delayl", "size": 2048 }
-  ]
+  ],
+  "registers": ["dry"]
 }
 ---
 @if isequalto lfoSel 0
-@section header
 @equals lfoNum SIN0
-@equals lfoRange SIN0_RANGE
 @equals lfoRateReg SIN0_RATE
+@equals lfoRange SIN0_RANGE
 @else
-@section header
 @equals lfoNum SIN1
-@equals lfoRange SIN1_RANGE
 @equals lfoRateReg SIN1_RATE
+@equals lfoRange SIN1_RANGE
 @endif
-
-@section header
-@equals number6554000 6554000.0
-@multiplydouble x1 ${delayLength}, ${width}
-@dividedouble x3 x1, number6554000
-@dividedouble rateScale ${rate}, 511.0
 
 @section init
 ; Initialize LFO
-skp run, done
-wlds ${lfoNum}, 50, 64
-done:
+skp run, done_lfo
+wlds ${lfoNum}, ${rate}, ${width}
+done_lfo:
 
 @section main
 ; Chorus
 rdax ${input.in}, 1.0
+wrax ${reg.dry}, 1.0
 wra ${mem.delayl}, 0.0
 
-@if pinConnected(lfo_width)
-rdax ${input.lfo_width}, ${x3}
-wrax ${lfoRange}, 0.0
-@endif
-
 @if pinConnected(lfo_rate)
-rdax ${input.lfo_rate}, ${rateScale}
+rdax ${input.lfo_rate}, ${rate}
 wrax ${lfoRateReg}, 0.0
 @endif
 
-; Read modulated tap
-; center = 0.9 * 0.5 * delayLength + 0.05 * delayLength = 0.5 * delayLength
-@equals center ${mem.delayl} + (0.5 * ${delayLength})
+@if pinConnected(lfo_width)
+rdax ${input.lfo_width}, ${width}
+wrax ${lfoRange}, 0.0
+@endif
+
+; Read modulated tap (wet signal)
+; center offset from start of delay line
+@equals center ${mem.delayl} + ${baseDelay}
 cho rda, ${lfoNum}, SIN | REG | COMPC, ${center}
 cho rda, ${lfoNum}, SIN, ${center} + 1
+
+; Mixing logic: dry + mix * (wet - dry)
+rdax ${reg.dry}, -1.0
+@if pinConnected(mix_ctrl)
+mulx ${input.mix_ctrl}
+@else
+sof ${mix}, 0.0
+@endif
+rdax ${reg.dry}, 1.0
 
 wrax ${output.out}, 0.0
 

@@ -17,10 +17,10 @@
     { "id": "outR", "name": "Right", "type": "audio" }
   ],
   "parameters": [
-    { "id": "damping", "name": "Damping", "type": "number", "default": 0.5, "min": 0, "max": 1 },
-    { "id": "decayTime", "name": "Decay Time", "type": "number", "default": 0.5, "min": 0, "max": 1 },
-    { "id": "mix", "name": "Mix", "type": "number", "default": 0.5, "min": 0, "max": 1 },
-    { "id": "preDelay", "name": "Pre-Delay", "type": "number", "default": 655, "min": 0, "max": 3802, "conversion": "LENGTHTOTIME" }
+    { "id": "damping", "name": "Damping", "type": "number", "default": 0.5, "min": 0, "max": 1, "description": "High-frequency damping in the reverb tanks." },
+    { "id": "decayTime", "name": "Decay Time", "type": "number", "default": 0.5, "min": 0, "max": 1, "description": "Reverb decay length (T60)." },
+    { "id": "mix", "name": "Mix", "type": "number", "default": 0.5, "min": 0, "max": 1, "description": "Wet/Dry mix balance." },
+    { "id": "preDelay", "name": "Pre-Delay (ms)", "type": "number", "default": 20.0, "min": 0, "max": 100.0, "conversion": "MS_TO_SAMPLES", "description": "Initial delay before reverb onset in ms." }
   ],
   "memories": [
     { "id": "predelay", "size": "preDelay" },

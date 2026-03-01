@@ -20,12 +20,13 @@
   "parameters": [
     {
       "id": "frequency",
-      "name": "Frequency",
+      "name": "Frequency (Hz)",
       "type": "number",
-      "default": 0.15,
-      "min": 0,
-      "max": 1,
-      "conversion": "LOGFREQ"
+      "default": 1000,
+      "min": 20,
+      "max": 10000,
+      "conversion": "SVFFREQ",
+      "description": "Cutoff frequency in Hz."
     },
     {
       "id": "qMax",

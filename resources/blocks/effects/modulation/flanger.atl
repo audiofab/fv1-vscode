@@ -37,29 +37,34 @@
       "conversion": "DBLEVEL"
     },
     {
-      "id": "delayLength",
-      "name": "Delay Time",
+      "id": "baseDelay",
+      "name": "Base Delay (ms)",
       "type": "number",
-      "default": 64,
-      "min": 16,
-      "max": 512,
-      "conversion": "LENGTHTOTIME"
+      "default": 1.0,
+      "min": 0.1,
+      "max": 10.0,
+      "conversion": "MS_TO_SAMPLES",
+      "description": "The center point of the flange modulation in ms."
     },
     {
       "id": "rate",
-      "name": "LFO Rate",
+      "name": "LFO Rate (Hz)",
       "type": "number",
-      "default": 20,
-      "min": 0,
-      "max": 511
+      "default": 0.5,
+      "min": 0.05,
+      "max": 10.0,
+      "conversion": "HZ_TO_LFO_RATE",
+      "description": "Frequency of the flange modulation in Hz."
     },
     {
       "id": "width",
-      "name": "LFO Width",
+      "name": "LFO Depth (ms)",
       "type": "number",
-      "default": 30,
-      "min": 5,
-      "max": 100
+      "default": 1.0,
+      "min": 0.0,
+      "max": 10.0,
+      "conversion": "MS_TO_LFO_RANGE",
+      "description": "The depth of the flange sweep in ms."
     },
     {
       "id": "lfoSel",
@@ -73,45 +78,36 @@
     }
   ],
   "memories": [
-    { "id": "delayl", "size": 512 }
+    { "id": "delayl", "size": 1024 }
   ]
 }
 ---
 @if isequalto lfoSel 0
-@section header
-equ lfoNum SIN0
-equ lfoRange SIN0_RANGE
-equ lfoRateReg SIN0_RATE
+@equals lfoNum SIN0
+@equals lfoRateReg SIN0_RATE
+@equals lfoRange SIN0_RANGE
 @else
-@section header
-equ lfoNum SIN1
-equ lfoRange SIN1_RANGE
-equ lfoRateReg SIN1_RATE
+@equals lfoNum SIN1
+@equals lfoRateReg SIN1_RATE
+@equals lfoRange SIN1_RANGE
 @endif
-
-@section header
-equ number6554000 6554000.0
-@multiplydouble x1 ${delayLength}, ${width}
-@dividedouble x3 x1, number6554000
-@dividedouble x2 x1, 200.0
-@dividedouble rateScale ${rate}, 511.0
 
 @section init
 ; Flanger LFO init
-skp run, done
-wlds ${lfoNum}, ${rate}, x2
-done:
+skp run, done_lfo
+wlds ${lfoNum}, ${rate}, ${width}
+done_lfo:
 
 @section main
 ; Flanger
-@if pinConnected(widthIn)
-rdax ${input.widthIn}, x3
-wrax ${lfoRange}, 0.0
+@if pinConnected(rateIn)
+rdax ${input.rateIn}, ${rate}
+wrax ${lfoRateReg}, 0.0
 @endif
 
-@if pinConnected(rateIn)
-rdax ${input.rateIn}, rateScale
-wrax ${lfoRateReg}, 0.0
+@if pinConnected(widthIn)
+rdax ${input.widthIn}, ${width}
+wrax ${lfoRange}, 0.0
 @endif
 
 @if pinConnected(feedbackIn)
@@ -124,14 +120,15 @@ mulx ${input.fbk}
 rdax ${input.input}, ${inputGain}
 wra ${mem.delayl}, 0.0
 
-; tap1Center = 0.5
-@equals center ${mem.delayl} + (0.5 * ${delayLength})
+; tapCenter
+@equals center ${mem.delayl} + ${baseDelay}
 cho rda, ${lfoNum}, SIN | REG | COMPC, ${center}
 cho rda, ${lfoNum}, SIN, ${center} + 1
 wrax ${output.output}, 0.0
 
 @if pinConnected(tap)
-rda ${mem.delayl} + ${delayLength}, 1.0
+; dry/max tap
+rda ${mem.delayl} + 1023, 1.0
 wrax ${output.tap}, 0.0
 @endif
 

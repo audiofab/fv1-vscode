@@ -499,13 +499,18 @@ export class BlockTemplate {
             case 'LOGFREQ':
                 return (1.0 - Math.exp(-2.0 * Math.PI * val / Fs)).toFixed(6);
             case 'SVFFREQ':
-                return Math.sin(2.0 * Math.PI * val / Fs).toFixed(6);
+                return (2.0 * Math.sin(Math.PI * val / Fs)).toFixed(6);
             case 'SINLFOFREQ':
                 return Math.round(val * (1 << 18) / Fs);
             case 'DBLEVEL':
                 return Math.pow(10.0, val / 20.0).toFixed(6);
             case 'LENGTHTOTIME':
+            case 'MS_TO_SAMPLES':
                 return Math.round((val / 1000) * Fs);
+            case 'MS_TO_LFO_RANGE':
+                return Math.round((val * Fs / 1000) / 2);
+            case 'HZ_TO_LFO_RATE':
+                return Math.round(val * (1 << 18) / Fs);
             default:
                 return typeof val === 'number' ? val.toFixed(6) : val;
         }

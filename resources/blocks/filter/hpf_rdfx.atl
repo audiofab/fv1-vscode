@@ -17,12 +17,13 @@
   "parameters": [
     {
       "id": "frequency",
-      "name": "Frequency",
+      "name": "Cutoff Frequency",
       "type": "number",
-      "default": 100,
-      "min": 40,
-      "max": 3500,
-      "conversion": "LOGFREQ"
+      "default": 1000,
+      "min": 20,
+      "max": 10000,
+      "conversion": "LOGFREQ",
+      "description": "High pass cutoff frequency in Hz. Frequencies below this will be attenuated."
     }
   ],
   "registers": ["lpf_state"]

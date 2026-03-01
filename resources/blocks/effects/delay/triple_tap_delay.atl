@@ -39,48 +39,49 @@
       "conversion": "DBLEVEL"
     },
     {
-      "id": "delayLength",
-      "name": "Delay Time",
+      "id": "delayTime",
+      "name": "Total Delay (ms)",
       "type": "number",
-      "default": 16384,
-      "min": 100,
-      "max": 32767,
-      "conversion": "LENGTHTOTIME"
+      "default": 1000,
+      "min": 10,
+      "max": 1000,
+      "conversion": "MS_TO_SAMPLES",
+      "description": "The total delay memory allocated in ms."
     },
     {
-      "id": "tap1Ratio",
-      "name": "Tap 1 Time",
+      "id": "tap1Time",
+      "name": "Tap 1 Time (ms)",
       "type": "number",
-      "default": 0.85,
+      "default": 850,
       "min": 0,
-      "max": 1,
-      "step": 0.01
+      "max": 1000,
+      "conversion": "MS_TO_SAMPLES"
     },
     {
-      "id": "tap2Ratio",
-      "name": "Tap 2 Time",
+      "id": "tap2Time",
+      "name": "Tap 2 Time (ms)",
       "type": "number",
-      "default": 0.60,
+      "default": 600,
       "min": 0,
-      "max": 1,
-      "step": 0.01
+      "max": 1000,
+      "conversion": "MS_TO_SAMPLES"
     },
     {
-      "id": "tap3Ratio",
-      "name": "Tap 3 Time",
+      "id": "tap3Time",
+      "name": "Tap 3 Time (ms)",
       "type": "number",
-      "default": 0.45,
+      "default": 450,
       "min": 0,
-      "max": 1,
-      "step": 0.01
+      "max": 1000,
+      "conversion": "MS_TO_SAMPLES"
     }
   ],
   "memories": [
-    { "id": "delayl", "size": "delayLength" }
+    { "id": "delayl", "size": "delayTime" }
   ]
 }
 ---
-; ThreeTap
+; ThreeTap Delay
 @if pinConnected(feedback)
 rdax ${input.feedback}, ${fbkGain}
 @if pinConnected(fbk_ctrl)
@@ -97,7 +98,7 @@ or $7FFF00
 @if pinConnected(delay_time_1)
 mulx ${input.delay_time_1}
 @endif
-sof (0.95 * ${tap1Ratio} * ${delayLength}) / 32768.0, (${mem.delayl} + (0.05 * ${tap1Ratio} * ${delayLength})) / 32768.0
+sof (0.95 * ${tap1Time}) / ${Fs}, (${mem.delayl} + (0.05 * ${tap1Time})) / ${Fs}
 wrax ADDR_PTR, 0.0
 rmpa 1.0
 wrax ${output.tap1}, 0.0
@@ -110,7 +111,7 @@ or $7FFF00
 @if pinConnected(delay_time_2)
 mulx ${input.delay_time_2}
 @endif
-sof (0.95 * ${tap2Ratio} * ${delayLength}) / 32768.0, (${mem.delayl} + (0.05 * ${tap2Ratio} * ${delayLength})) / 32768.0
+sof (0.95 * ${tap2Time}) / ${Fs}, (${mem.delayl} + (0.05 * ${tap2Time})) / ${Fs}
 wrax ADDR_PTR, 0.0
 rmpa 1.0
 wrax ${output.tap2}, 0.0
@@ -123,7 +124,7 @@ or $7FFF00
 @if pinConnected(delay_time_3)
 mulx ${input.delay_time_3}
 @endif
-sof (0.95 * ${tap3Ratio} * ${delayLength}) / 32768.0, (${mem.delayl} + (0.05 * ${tap3Ratio} * ${delayLength})) / 32768.0
+sof (0.95 * ${tap3Time}) / ${Fs}, (${mem.delayl} + (0.05 * ${tap3Time})) / ${Fs}
 wrax ADDR_PTR, 0.0
 rmpa 1.0
 wrax ${output.tap3}, 0.0
