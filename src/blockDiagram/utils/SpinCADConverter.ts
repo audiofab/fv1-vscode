@@ -29,7 +29,7 @@ export class SpinCADConverter {
         }
         const bodyLines: string[] = [];
         const managedRegs: string[] = [];
-        const managedMemo: Array<{ id: string; size: number }> = [];
+        const managedMemo: Array<{ id: string; size: number | string }> = [];
 
         for (let line of lines) {
             const trimmed = line.trim();
@@ -123,9 +123,10 @@ export class SpinCADConverter {
                         }
                         break;
                     case 'mem':
-                        const memId = parts[1];
-                        const memSize = parseInt(parts[2]);
-                        managedMemo.push({ id: memId, size: memSize });
+                        const mId = parts[1];
+                        const sizePart = parts[2];
+                        const mSize = isNaN(Number(sizePart)) ? sizePart : parseInt(sizePart);
+                        managedMemo.push({ id: mId, size: mSize });
                         break;
                     default:
                         // Keep other directives like @lpf1p etc.
@@ -150,7 +151,8 @@ export class SpinCADConverter {
                     }
                 } else if (op === 'mem') {
                     const memId = lineParts[1];
-                    const memSize = parseInt(lineParts[2]);
+                    const sizeStr = lineParts[2];
+                    const memSize = isNaN(Number(sizeStr)) ? sizeStr : parseInt(sizeStr);
                     managedMemo.push({ id: memId, size: memSize });
                 } else {
                     bodyLines.push(line);
@@ -163,9 +165,21 @@ export class SpinCADConverter {
 
         const templateLines: string[] = [];
         if (headerLines.length > 0) {
-            templateLines.push('@section header');
-            templateLines.push(...headerLines);
-            templateLines.push('');
+            const filteredHeaders = headerLines.filter(line => {
+                const parts = line.trim().split(/\s+/);
+                if (parts[0].toLowerCase() === 'equ' || parts[0].toLowerCase() === '@equ') {
+                    const eqId = parts[1];
+                    if (definition.parameters.some(p => p.id === eqId)) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+            if (filteredHeaders.length > 0) {
+                templateLines.push('@section header');
+                templateLines.push(...filteredHeaders);
+                templateLines.push('');
+            }
         }
         if (bodyLines.length > 0) {
             if (headerLines.length > 0) {

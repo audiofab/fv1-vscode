@@ -214,4 +214,10 @@ export interface IBlockDefinition {
      * @returns Custom label text or null if no custom label
      */
     getCustomLabel?(parameters: Record<string, any>): string | null;
+
+    /**
+     * Get the raw ATL template string for this block instance (optional)
+     * @returns The raw ATL string or undefined
+     */
+    getRawTemplate?(): string | undefined;
 }

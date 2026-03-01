@@ -38,6 +38,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
     // Selection state
     const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
     const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
+    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, blockId: string, blockType: string } | null>(null);
 
     // Drag state
     const [isDragging, setIsDragging] = useState(false);
@@ -402,8 +403,9 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             const canvasX = (pointerPos.x - pan.x) / zoom;
             const canvasY = (pointerPos.y - pan.y) / zoom;
 
-            // Deselect connections when clicking on empty canvas
+            // Deselect connections and context menu when clicking on empty canvas
             setSelectedConnectionId(null);
+            setContextMenu(null);
 
             // Check if Ctrl is held - start lasso selection
             if (e.evt.ctrlKey || e.evt.metaKey) {
@@ -498,6 +500,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
 
     // Handle block selection
     const handleBlockSelect = useCallback((blockId: string, ctrlKey: boolean) => {
+        setContextMenu(null);
         if (ctrlKey) {
             // Ctrl+Click: toggle block in selection
             setSelectedBlockIds(prev =>
@@ -510,6 +513,33 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             setSelectedBlockIds([blockId]);
         }
         setSelectedConnectionId(null);
+    }, []);
+
+    // Handle block context menu
+    const handleBlockContextMenu = useCallback((e: any, blockId: string, blockType: string) => {
+        e.cancelBubble = true;
+
+        // Find screen coordinates from the event
+        const stage = stageRef.current;
+        if (!stage) return;
+
+        // Usually Konva passes the native event inside e.evt
+        const nativeEvent = e.evt || e;
+        if (nativeEvent && typeof nativeEvent.preventDefault === 'function') {
+            nativeEvent.preventDefault();
+        }
+
+        // Set the context menu state using the exact mouse coordinates
+        // use coordinate relative to canvas container provided by Konva
+        const mousePos = stage.getPointerPosition();
+        if (mousePos) {
+            setContextMenu({
+                x: mousePos.x,
+                y: mousePos.y,
+                blockId,
+                blockType
+            });
+        }
     }, []);
 
     // Handle connection selection
@@ -558,6 +588,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             } else if (e.key === 'Escape') {
                 setSelectedBlockIds([]);
                 setSelectedConnectionId(null);
+                setContextMenu(null);
                 setConnectingFrom(null);
                 setConnectionPreview(null);
                 setIsLassoSelecting(false);
@@ -711,6 +742,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                                     vscode.postMessage({ type: 'dragEnd' });
                                 }}
                                 onPortClick={handlePortClick}
+                                onContextMenu={(e) => handleBlockContextMenu(e, block.id, block.type)}
                                 vscode={vscode}
                             />
                         ))}
@@ -733,6 +765,30 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                         onClose={() => setSelectedBlockIds([])}
                         vscode={vscode}
                     />
+                )}
+
+                {contextMenu && (
+                    <div
+                        className="context-menu"
+                        style={{
+                            left: contextMenu.x,
+                            top: contextMenu.y
+                        }}
+                        onMouseLeave={() => setContextMenu(null)}
+                    >
+                        <div
+                            className="context-menu-item"
+                            onClick={() => {
+                                vscode.postMessage({
+                                    type: 'copyBlockATL',
+                                    blockType: contextMenu.blockType
+                                });
+                                setContextMenu(null);
+                            }}
+                        >
+                            📋 Copy Original ATL
+                        </div>
+                    </div>
                 )}
             </div>
 

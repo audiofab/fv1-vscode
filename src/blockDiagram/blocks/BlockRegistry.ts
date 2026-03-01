@@ -140,8 +140,9 @@ export class BlockRegistry {
 
         return {
             ...metadata,
-            template
-        };
+            template,
+            _rawAtl: content
+        } as BlockTemplateDefinition & { _rawAtl?: string };
     }
 
     /**

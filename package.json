@@ -99,6 +99,20 @@
           "light": "./resources/light/spndiagram-file.svg",
           "dark": "./resources/dark/spndiagram-file.svg"
         }
+      },
+      {
+        "id": "fv1-atl",
+        "aliases": [
+          "Audiofab Template Language"
+        ],
+        "extensions": [
+          ".atl"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./resources/light/spn-file.svg",
+          "dark": "./resources/dark/spn-file.svg"
+        }
       }
     ],
     "grammars": [
@@ -106,6 +120,11 @@
         "language": "fv1-assembly",
         "scopeName": "source.fv1-assembly",
         "path": "./syntaxes/fv1-assembly.tmGrammar.json"
+      },
+      {
+        "language": "fv1-atl",
+        "scopeName": "source.fv1-atl",
+        "path": "./syntaxes/fv1-atl.tmGrammar.json"
       }
     ],
     "customEditors": [

@@ -79,4 +79,20 @@ export class TemplateBlock extends BaseBlock {
             ctx.pushIR(node);
         }
     }
+
+    getRawTemplate(): string | undefined {
+        const def = (this.templateEngine as any).definition;
+        if (!def) return undefined;
+
+        if (def._rawAtl) {
+            return def._rawAtl;
+        }
+
+        // Fallback: Reconstruct ATL string
+        const metadata = { ...def };
+        delete metadata.template;
+        delete metadata._rawAtl;
+
+        return `---\n${JSON.stringify(metadata, null, 4)}\n---\n${def.template}`;
+    }
 }

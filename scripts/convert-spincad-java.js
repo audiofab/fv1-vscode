@@ -351,6 +351,23 @@ function parseJavaBlock(content, filename, menuInfo) {
             } else if (trimmed.includes('sfxb.chorusReadValue')) {
                 const m = trimmed.match(/sfxb\.chorusReadValue\(([^)]+)\)/);
                 if (m) templateLines.push(`cho\trdal,\t${resolve(m[1])}`);
+            } else if (trimmed.includes('sfxb.FXallocDelayMem')) {
+                const m = trimmed.match(/sfxb\.FXallocDelayMem\(([^,]+),\s*([^)]+)\)/);
+                if (m) {
+                    const memId = resolve(m[1]).replace(/"/g, '');
+                    const sizeStr = resolve(m[2]);
+                    const memSize = isNaN(Number(sizeStr)) ? sizeStr : parseInt(sizeStr);
+                    if (memId.startsWith('iap30')) {
+                        console.log(`[DEBUG] memId: ${memId}, raw size: ${m[2]}, sizeStr: ${sizeStr}, memSize: ${memSize}`);
+                    }
+                    managedMemo.push({ id: memId, size: memSize });
+                }
+            } else if (trimmed.includes('sfxb.FXreadDelay')) {
+                const m = trimmed.match(/sfxb\.FXreadDelay\(([^,]+),\s*([^,]+),\s*([^)]+)\)/);
+                if (m) templateLines.push(`rda\t${resolve(m[1])},\t${resolve(m[3])}`);
+            } else if (trimmed.includes('sfxb.FXwriteAllpass')) {
+                const m = trimmed.match(/sfxb\.FXwriteAllpass\(([^,]+),\s*([^,]+),\s*([^)]+)\)/);
+                if (m) templateLines.push(`wra\t${resolve(m[1])},\t${resolve(m[3])}`);
             }
         }
 
