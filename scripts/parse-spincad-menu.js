@@ -21,7 +21,7 @@ export function parseMenu(menuFilePath) {
         }
 
         if (line.startsWith('@menu ')) {
-            // Extract menu name
+            // Extract menu name (category)
             const match = line.match(/@menu\s+"([^"]+)"/);
             if (match) {
                 currentSubcategory = match[1];
@@ -29,10 +29,11 @@ export function parseMenu(menuFilePath) {
         } else if (line.startsWith('@menuitem ')) {
             // Extract item name and block ID
             // Format: @menuitem "Display Name" BlockID
-            const match = line.match(/@menuitem\s+"([^"]+)"\s+(\S+)/);
+            // Handle quotes around either, and potential trailing comments or spaces
+            const match = line.match(/@menuitem\s+"([^"]+)"\s+([^\s/]+)/);
             if (match) {
-                const displayName = match[1];
-                const blockId = match[2];
+                const displayName = match[1].trim();
+                const blockId = match[2].trim();
                 menuMap.set(blockId.toLowerCase(), {
                     id: blockId,
                     displayName: displayName,

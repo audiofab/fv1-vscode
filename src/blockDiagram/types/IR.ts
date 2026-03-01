@@ -46,6 +46,6 @@ export interface BlockTemplateDefinition {
         eval?: string; // TypeScript expression for custom conversion
     }>;
     registers?: string[]; // Internal state registers (not exposed as ports)
-    memo?: Array<{ id: string; size: number | string }>; // Internal delay memory
+    memories?: Array<{ id: string; size: number | string }>; // Internal delay memory
     template: string; // The ATL template string
 }

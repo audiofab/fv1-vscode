@@ -1,115 +1,111 @@
-# Developer's Guide: Creating New Blocks for Audiofab FV-1
+# FV-1 Block Developer Guide
 
-This guide explains how to extend the FV-1 Block Diagram editor by creating custom functional blocks using the **Audiofab Template Language (ATL)**.
+This guide explains how to create new functional blocks for the FV-1 VS Code extension using the **Assembly Template Language (ATL)**.
 
-## Architecture Overview
-New blocks are **declarative**. Instead of writing complex TypeScript classes, you define your block in a simple JSON or YAML file. The core engine handles resource allocation, register management, and code optimization automatically.
+## Overview
 
-### Block Structure
-A block definition consists of four main sections:
-1. **Metadata**: Identity and visual appearance.
-2. **Ports**: Audio and control connections.
-3. **Parameters**: User-adjustable settings (knobs, switches).
-4. **Logic (Template)**: The assembly code with dynamic placeholders.
+ATL allows you to define blocks declaratively using a combination of JSON metadata and a specialized assembly template. This approach replaces complex TypeScript implementations and makes it easier for developers to contribute new effects.
 
----
+### File Structure
 
-## 1. Metadata & Logic (The .atl Format)
-Definitions are stored in `resources/blocks/*.atl`. They use a **Frontmatter** format: YAML/JSON metadata at the top, and pure assembly code at the bottom.
+An ATL block is a single `.atl` file containing:
+1.  **JSON Frontmatter**: Metadata about the block (name, category, pins, parameters).
+2.  **Assembly Template**: The FV-1 assembly code with dynamic token substitution and preprocessor macros.
 
-```yaml
+```atl
 ---
 {
-  "type": "my_filter",
-  "name": "Super Filter",
-  "category": "Filters",
-  "color": "#FF5722",
-  "inputs": [
-    { "id": "in1", "name": "Input", "type": "audio" }
-  ],
-  "outputs": [
-    { "id": "out", "name": "Filtered", "type": "audio" }
-  ]
+  "type": "my.effect.id",
+  "name": "My Effect",
+  "category": "My Category",
+  "pins": [...],
+  "parameters": [...]
 }
 ---
-; Assembly starts here
-rdax ${input.in1}, 1.0
-mulx ${param.cutoff}
-wrax ${output.out}, 0
+; Assembly code starts here
+rdax ${input.in}, 1.0
+...
 ```
 
 ---
 
-## 2. Parameters & Conversions
-Parameters bridge the gap between user-friendly values and FV-1 coefficients.
+## JSON Metadata Reference
 
-### Modern Conversion Primitives
-Use functional naming for automatic math:
-- `hzToCoeff(hz)`: Mapped to a 1-pole filter coefficient.
-- `hzToLfoRate(hz)`: Mapped to SIN/COS LFO rates.
-- `dbToGain(db)`: Mapped to a linear multiplier.
-- `msToSamples(ms)`: Mapped to delay memory indices.
+### Core Properties
+- `type`: Unique identifier for the block (e.g., `effects.filter.lpf`).
+- `name`: Display name in the palette.
+- `category`: Grouping in the palette (e.g., `Delay`, `Filter`, `Dynamics`).
+- `description`: Tooltip text.
+- `color`: Hex color for the block header.
+- `width`: Preferred width in the editor (default is 180).
 
-```json
-"parameters": [
-  {
-    "id": "cutoff",
-    "name": "Frequency (Hz)",
-    "type": "number",
-    "min": 20, "max": 20000, "default": 1000,
-    "conversion": "hzToCoeff"
-  }
-]
-```
+### Pins (`inputs` and `outputs`)
+Each pin is an object with:
+- `id`: Unique ID used in the assembly template.
+- `name`: Label shown on the block.
+- `type`: `audio` or `control`.
+- `required`: (Input only) If true, the block won't generate code unless connected.
 
----
+### Parameters
+Parameters define the block's adjustable settings in the Property Panel.
+- `id`: Used as `${id}` in the template.
+- `name`: Label in the UI.
+- `type`: `number`, `select`, or `boolean`.
+- `default`: Initial value.
+- `min`/`max`/`step`: Range for numbers.
+- `conversion`: (Optional) Automatically scales UI values to FV-1 coefficients.
+  - `LOGFREQ`: 1-pole filter coefficient (Hz → linear).
+  - `SVFFREQ`: 2-pole SVF coefficient (Hz → linear).
+  - `DBLEVEL`: Decibel to linear gain (dB → linear).
+  - `LENGTHTOTIME`: Time to samples (ms → samples).
+  - `SINLFOFREQ`: LFO frequency coefficient.
 
-## 3. The ATL Template
-The template is standard SpinASM code enhanced with powerful directives:
+### Memory (`memories`)
+Allocates delay line memory.
+- `id`: Used as `${mem.id}` in the template.
+- `size`: Size in samples (can use a `${parameter_id}` for dynamic sizing).
 
-### Variables
-- `${param.cutoff}`: The pre-calculated coefficient.
-- `${input.in1}`: The register containing the input signal.
-- `${output.out}`: The register where the output should be written.
-
-### Control Flow
-ATL supports conditional code generation based on the state of the block diagram:
-
-```asm
-@if pinConnected(freq_ctrl)
-  ; Code when frequency control is connected
-  rdax ${input.in}, ${param.frequency}
-  mulx ${input.freq_ctrl}
-@else
-  ; Code when frequency is fixed
-  rdfx ${output.out}, ${param.frequency}
-@endif
-```
-
-### High-Level DSP Macros (Audiofab Standard Library)
-To avoid boiler-plate assembly, use high-level directives. The compiler handles the best implementation automatically.
-
-- `@lpf1p result, input, freq [, ctrl]`: Single-pole low-pass filter.
-- `@hpf1p result, input, freq [, ctrl]`: Single-pole high-pass filter.
-- `@lfo type, freqHz, rangeMs`: Configuration for LFOs (SIN0, SIN1, COS0, COS1).
-- `@smooth result, input, coeff`: RDFX-based smoothing for control signals.
-- `@gain result, input, gain`: Simple multiplier.
-
-**Example using Macros:**
-```asm
-; A complete LPF with optional modulation in one line
-@lpf1p ${output.out}, ${input.in1}, ${param.frequency}, ${input.freq_ctrl}
-```
+### Registers (`registers`)
+Allocates internal temporary registers.
+- `registers`: Array of strings. Use `${reg.id}` in the template.
 
 ---
 
-## 4. Code Optimization
-You don't need to worry about efficiency between blocks. The compiler performs **Move Pruning**:
-- If Block A writes `wrax reg1, 0` and Block B starts with `ldax reg1`, the compiler will automatically omit the `ldax` and use the value already in the accumulator.
-- **Tip**: Always finish your logic by leaving your main result in the accumulator; the compiler will handle the rest.
+## Assembly Template Features
 
-## 5. Converting from SpinCAD
-If you have a `.spincad` file, use the built-in converter:
-`node convert-spincad-standalone.js`
+### Token Substitution
+Tokens are replaced at compile time with resolved register names, memory addresses, or parameter values.
+- `${input.pin_id}`: The register containing the value for that input.
+- `${output.pin_id}`: The register where the output should be written.
+- `${reg.reg_id}`: An internal register name.
+- `${mem.mem_id}`: A memory address.
+- `${parameter_id}`: The resolved/converted value of a parameter.
 
-The converter identifies legacy patterns and translates them into modern ATL directives where possible. For example, legacy `@readChorusTap` patterns are converted to modern `@chorusRead` or equivalent assembly blocks.
+### Preprocessor Macros
+
+#### Conditional Logic
+- `@if pinConnected(pin_id)` / `@else` / `@endif`: Skips code if a pin is not connected.
+- `@if isequalto param_id value`: Basic parameter-based logic.
+
+#### Calculations
+Use these to pre-calculate constants for your assembly code:
+- `@multiplydouble result, a, b`
+- `@dividedouble result, a, b`
+- `@plusdouble result, a, b`
+- `@minusdouble result, a, b`
+- `@equals result, value`
+
+#### Code sections
+Organize code into separate sections:
+- `@section header`: Definitions and constants.
+- `@section init`: Code that runs only once (e.g., `WLDS`).
+- `@section main`: The main per-sample processing (default).
+
+---
+
+## Tips and Tricks
+
+1.  **Safety First**: Use `rdax ${input.in}, 1.0` instead of `ldax` if you want to sum multiple connections to the same pin (though the extension handles summing for you, it's a good practice).
+2.  **Clipping**: FV-1 arithmetic is 1.14 fixed point. Be careful of overflows when summing signals.
+3.  **Optimization**: Use `@if pinConnected` to avoid generating assembly for unused outputs or optional modulation inputs.
+4.  **Debugging**: Check the compiled `.spn` file side-by-side with your diagram to see exactly what ATL code was generated and how tokens were replaced.

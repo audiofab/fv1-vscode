@@ -68,7 +68,7 @@
         "extensions": [
           ".spn"
         ],
-        "configuration": "./language-configuration.json",
+        "configuration": "./syntaxes/language-configuration.json",
         "icon": {
           "light": "./resources/light/spn-file.svg",
           "dark": "./resources/dark/spn-file.svg"
@@ -108,7 +108,7 @@
         "extensions": [
           ".atl"
         ],
-        "configuration": "./language-configuration.json",
+        "configuration": "./syntaxes/language-configuration.json",
         "icon": {
           "light": "./resources/light/spn-file.svg",
           "dark": "./resources/dark/spn-file.svg"
@@ -486,6 +486,7 @@
     "pretest": "npm run compile-tests",
     "test": "node test/assembler-test.mjs",
     "test-sim": "node test/simulator-test.mjs",
+    "convert-spincad": "node scripts/batch-convert-spincad.js && node scripts/test-custom-blocks.mjs",
     "vscode:prepublish": "npm run package",
     "package": "npm run check-types && node esbuild.cjs --production"
   },

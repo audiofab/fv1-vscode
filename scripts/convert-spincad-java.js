@@ -9,16 +9,14 @@ import { fileURLToPath } from 'url';
 import { parseMenu } from './parse-spincad-menu.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const spinCADSourceDir = path.resolve(__dirname, '../../SpinCAD-Designer/src/com/holycityaudio/SpinCAD');
-const targetDir = 'C:\\_dev\\custom_blocks\\spincad';
-const menuFile = path.resolve(__dirname, '../../SpinCAD-Designer/src/SpinCADBuilder/standard.spincadmenu');
 
-if (!fs.existsSync(targetDir)) {
-    fs.mkdirSync(targetDir, { recursive: true });
-}
+// Paths relative to the fv1-vscode root
+const spincadDesignerDir = path.resolve(__dirname, '../../SpinCAD-Designer');
+const spinCADSourceDir = path.join(spincadDesignerDir, 'src/com/holycityaudio/SpinCAD');
+const defaultTargetDir = path.resolve(__dirname, '../resources/blocks/spincad');
+const menuFile = path.join(spincadDesignerDir, 'src/SpinCADBuilder/standard.spincadmenu');
 
-console.log(`Loading menu from ${menuFile}...`);
-const menuMap = parseMenu(menuFile);
+const targetDir = process.argv[2] || defaultTargetDir;
 
 const colorMap = {
     'Color.PINK': '#ffc0cb',
@@ -61,13 +59,13 @@ function extractBraceBlock(content, startIndex) {
     return content.substring(start + 1, i - 1); // Returns contents inside {}
 }
 
-function parseJavaBlock(content, filename, menuInfo) {
+export function parseJavaBlock(content, filename, menuInfo) {
     const typeId = 'spincad_' + filename.replace('.java', '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
     const definition = {
         type: typeId,
-        category: menuInfo.category || 'SpinCAD',
-        subcategory: menuInfo.subcategory || '',
-        name: menuInfo.displayName || filename.replace('.java', ''),
+        category: menuInfo ? (menuInfo.category || 'SpinCAD') : 'SpinCAD',
+        subcategory: menuInfo ? (menuInfo.subcategory || '') : '',
+        name: (menuInfo && menuInfo.displayName) ? menuInfo.displayName : filename.replace('.java', ''),
         description: '',
         inputs: [],
         outputs: [],
@@ -82,20 +80,22 @@ function parseJavaBlock(content, filename, menuInfo) {
         definition.color = colorMap[colorVal] || '#cccccc';
     }
 
-    // Parse constructor fields looking for parameters
-    // E.g. int stages = 4; -> map to parameter
+    // Parse fields looking for parameters, but try to avoid local variables in methods
+    // Heuristic: only look for fields declared before the first method
+    const firstMethodIndex = content.search(/\w+\s+\w+\s*\([^)]*\)\s*\{/);
+    const header = firstMethodIndex !== -1 ? content.substring(0, firstMethodIndex) : content;
+
     const fieldMatchRegex = /(?:public|private|protected)?\s*(int|double|float|boolean)\s+([a-zA-Z0-9_]+)(?:\s*=\s*(.*?))?;/g;
     let fieldMatch;
     const knownParams = new Set();
-    while ((fieldMatch = fieldMatchRegex.exec(content)) !== null) {
+    while ((fieldMatch = fieldMatchRegex.exec(header)) !== null) {
         const type = fieldMatch[1];
         const name = fieldMatch[2];
         const defaultVal = fieldMatch[3] ? fieldMatch[3].trim() : '0';
         if (name === 'SerialVersionUID' || name === 'serialVersionUID') continue;
-        if (['temp', 'temp1', 'temp2'].includes(name)) continue;
+        if (['temp', 'temp1', 'temp2', 'x', 'y'].includes(name)) continue;
 
-        // This is a rough heuristic to detect parameters like 'stages', 'controlMode'
-        if (name !== 'x' && name !== 'y') {
+        if (!knownParams.has(name)) {
             definition.parameters.push({
                 id: name,
                 name: name,
@@ -121,9 +121,8 @@ function parseJavaBlock(content, filename, menuInfo) {
                 const existing = definition.parameters.find(p => p.id === vName);
                 if (existing) {
                     existing.default = parseFloat(vVal) || 0;
-                } else if (vName !== 'hasControlPanel' && !['temp'].includes(vName)) {
-                    // Add if looks like param
-                    if (/^\d+$/.test(vVal)) {
+                } else if (vName !== 'hasControlPanel' && !['temp', 'x', 'y'].includes(vName)) {
+                    if (/^\d+(\.\d+)?$/.test(vVal) && !knownParams.has(vName)) {
                         definition.parameters.push({
                             id: vName,
                             name: vName,
@@ -170,6 +169,30 @@ function parseJavaBlock(content, filename, menuInfo) {
         }
     }
 
+    // Extract setCoefficients body if exists to find more variables
+    const setCoeffRegex = /public\s+void\s+setCoefficients\s*\(\s*\)\s*\{/;
+    const setCoeffMatch = content.match(setCoeffRegex);
+    let extraVars = {};
+    if (setCoeffMatch) {
+        const coeffBody = extractBraceBlock(content, setCoeffMatch.index);
+        if (coeffBody) {
+            const assignRegex = /([a-zA-Z0-9_]+)\s*=\s*([^;]+);/g;
+            let am;
+            while ((am = assignRegex.exec(coeffBody)) !== null) {
+                const vName = am[1];
+                let vVal = am[2].trim();
+                // Basic math evaluation for constants
+                vVal = vVal.replace(/Math\.PI/g, '3.14159');
+                vVal = vVal.replace(/getSamplerate\(\)/g, '32768');
+                if (/^[0-9.+\-*/() ]+$/.test(vVal)) {
+                    try { extraVars[vName] = eval(vVal); } catch (e) { }
+                } else {
+                    extraVars[vName] = vVal;
+                }
+            }
+        }
+    }
+
     // Extract generateCode body
     const genCodeRegex = /public\s+void\s+generateCode\s*\(\s*SpinFXBlock\s+sfxb\s*\)\s*\{/;
     const genCodeMatch = content.match(genCodeRegex);
@@ -177,34 +200,27 @@ function parseJavaBlock(content, filename, menuInfo) {
     if (genCodeMatch) {
         let body = extractBraceBlock(content, genCodeMatch.index);
 
-        // Inline helper methods
-        // Heuristic: look for methods taking SpinFXBlock
         const helperMethodRegex = /private\s+void\s+([a-zA-Z0-9_]+)\s*\(\s*SpinFXBlock\s+([a-zA-Z0-9_]+)\s*,([^)]*)\)\s*\{/g;
         let helperMatch;
         const helpers = {};
         while ((helperMatch = helperMethodRegex.exec(content)) !== null) {
             const mName = helperMatch[1];
             const sfxbParam = helperMatch[2];
-            const otherArgs = helperMatch[3].split(',').map(s => s.trim().split(/\s+/).pop()); // extract param names
+            const otherArgs = helperMatch[3].split(',').map(s => s.trim().split(/\s+/).pop());
             const hBody = extractBraceBlock(content, helperMatch.index);
             helpers[mName] = { sfxbParam, otherArgs, body: hBody };
         }
 
-        // Replace helper method calls in generateCode
-        // E.g. PhaseShiftStage(sfxb, p2, 1);
         for (const [hName, hData] of Object.entries(helpers)) {
             const callRegex = new RegExp(`${hName}\\s*\\(\\s*sfxb\\s*,([^)]+)\\)\\s*;`, 'g');
             body = body.replace(callRegex, (m, argStr) => {
                 const callArgs = argStr.split(',').map(s => s.trim());
                 let inlined = hData.body;
-                // Replace method local arguments with call args
                 hData.otherArgs.forEach((argName, idx) => {
                     if (argName) {
-                        // regex word boundary replacement
                         inlined = inlined.replace(new RegExp(`\\b${argName}\\b`, 'g'), callArgs[idx]);
                     }
                 });
-                // Replace internal sfxb param if different
                 if (hData.sfxbParam !== 'sfxb') {
                     inlined = inlined.replace(new RegExp(`\\b${hData.sfxbParam}\\b`, 'g'), 'sfxb');
                 }
@@ -212,25 +228,26 @@ function parseJavaBlock(content, filename, menuInfo) {
             });
         }
 
-        // Now process body
         const lines = body.split('\n');
         const templateLines = [];
         const managedRegs = [];
         const managedMemo = [];
-        const varSnapshots = [];
 
         templateLines.push(`@section header`);
         templateLines.push(`@comment "Generated from spincad source file ${filename}"`);
         templateLines.push(`\n@section main`);
 
-        let currentVarMap = {};
+        let currentVarMap = { ...extraVars };
+        for (const [k, v] of Object.entries(currentVarMap)) {
+            if (typeof v === 'number') currentVarMap[k] = { id: k, template: v.toString() };
+            else currentVarMap[k] = { id: k, template: v };
+        }
 
-        // Unroll conditions roughly: if(stages > 1) -> @if ${stages} > 1
         let insideIf = false;
 
-        // Track variables line by line
         for (let i = 0; i < lines.length; i++) {
             let trimmed = lines[i].trim();
+            if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('System.out')) continue;
 
             const ifMatch = trimmed.match(/if\s*\(([^)]+)\)\s*\{?/);
             if (ifMatch) {
@@ -249,6 +266,42 @@ function parseJavaBlock(content, filename, menuInfo) {
                 continue;
             }
 
+            // Scan for local variables in generateCode that refer to pins
+            const localRegMatches = content.matchAll(/int\s+([a-zA-Z0-9_]+)\s*=\s*(?:sfxb\.)?getPin\("([^"]+)"\)\.getPinConnection\(\)\.getRegister\(\);/g);
+            for (const m of localRegMatches) {
+                const varName = m[1];
+                const pinName = m[2];
+                const pin = definition.inputs.find(i => i.name === pinName) || definition.outputs.find(o => o.name === pinName);
+                if (pin) {
+                    const prefix = pin.type === 'audio' ? (definition.inputs.some(i => i.id === pin.id) ? 'input' : 'output') : 'input';
+                    currentVarMap[varName] = { id: varName, template: `\${${prefix}.${pin.id}}` };
+                }
+            }
+
+            // Handle common inherited fields/constants
+            extraVars['INPUT'] = '${input.audio_input}';
+            extraVars['CONTROLNUM'] = '${controlMode}';
+            extraVars['SCALE'] = '${scale}';
+            extraVars['OFFSET'] = '${offset}';
+            extraVars['DEFTIME'] = '${defTime}';
+            extraVars['MAXTIME'] = '${maxTime}';
+            extraVars['COUNT'] = '${count}';
+            extraVars['RAMPRATE'] = '${rampRate}';
+            extraVars['DECAYCOEFF'] = '${decayCoeff}';
+
+            // Chained pin resolve: int input = this.getPin(...).getPinConnection().getRegister();
+            const chainedPinMatch = trimmed.match(/(?:(?:int|SpinCADPin)\s+)?([a-zA-Z0-9_]+)\s*=\s*(?:this\.)?getPin\("([^"]+)"\)\.?.*getRegister\(\)/);
+            if (chainedPinMatch) {
+                const varName = chainedPinMatch[1];
+                const pinLabel = chainedPinMatch[2];
+                const pin = definition.inputs.find(i => i.name === pinLabel) || definition.outputs.find(o => o.name === pinLabel);
+                if (pin) {
+                    const prefix = definition.inputs.some(i => i.id === pin.id) ? 'input' : 'output';
+                    currentVarMap[varName] = { id: pin.id, template: `\${${prefix}.${pin.id}}` };
+                }
+                continue;
+            }
+
             const pinMatch = trimmed.match(/(?:(?:int|SpinCADPin)\s+)?([a-zA-Z0-9_]+)\s*=\s*(?:this\.)?getPin\("([^"]+)"\)/);
             if (pinMatch) {
                 const varName = pinMatch[1];
@@ -256,7 +309,6 @@ function parseJavaBlock(content, filename, menuInfo) {
                 const pin = definition.inputs.find(i => i.name === pinLabel) || definition.outputs.find(o => o.name === pinLabel);
                 if (pin) {
                     const prefix = definition.inputs.some(i => i.id === pin.id) ? 'input' : 'output';
-                    // Example: "Sine" -> "output.sine" so we can remember it
                     currentVarMap[varName] = { id: pin.id, template: `\${${prefix}.${pin.id}}` };
                 }
             }
@@ -265,10 +317,6 @@ function parseJavaBlock(content, filename, menuInfo) {
             if (isConnectedMatch) {
                 const varName = isConnectedMatch[1];
                 if (currentVarMap[varName] && currentVarMap[varName].id) {
-                    // It's used in an if(), and we unroll it directly since we're inside if processing
-                    // but the simple line-by-line processor needs it replaced in the `@if` we already emitted
-                    // Actually, the `if` processor already ran! 
-                    // Let's look back and replace the condition we emitted.
                     if (templateLines.length > 0 && templateLines[templateLines.length - 1].startsWith('@if')) {
                         templateLines[templateLines.length - 1] = `@if pinConnected(${currentVarMap[varName].id})`;
                     }
@@ -291,24 +339,97 @@ function parseJavaBlock(content, filename, menuInfo) {
                 currentVarMap[varName] = { id: varName, template: `\${reg.${varName}}` };
             }
 
-            const fieldMatch = trimmed.match(/(?:(?:double|int)\s+)?([a-zA-Z0-9_]+)\s*=\s*([^;]+)/);
-            if (fieldMatch) {
-                const varName = fieldMatch[1];
-                const val = fieldMatch[2].trim();
-                if (/^[0-9.-]+(\/[0-9.-]+)?$/.test(val)) {
-                    currentVarMap[varName] = { id: varName, template: val };
-                }
-            }
-
-            // Check if it's a method call we know how to map
             const resolve = (val) => {
                 val = (val || '').trim();
-                // if it's a function call passing getControlReg(1), resolve that too
-                if (val.startsWith('getControlReg')) {
-                    return `\${controlMode}`;
+                if (val.startsWith('getControlReg')) return `\${controlMode}`;
+
+                // Handle bitwise shifts in arguments like (crush << 1)
+                const shiftMatch = val.match(/\(?([a-zA-Z0-9_]+)\s*(?:<<|>>|<|>)\s*([^)]+)\)?/);
+                if (shiftMatch) {
+                    const baseRaw = shiftMatch[1];
+                    const shiftRaw = shiftMatch[2];
+
+                    let baseVal = extraVars[baseRaw];
+                    const hexMatch = baseRaw.match(/^-?0x([0-9A-F]+)L?/i);
+                    if (baseVal === undefined && hexMatch) baseVal = parseInt(hexMatch[1], 16);
+                    if (baseVal === undefined && /^-?\d+/.test(baseRaw)) baseVal = parseInt(baseRaw, 10);
+
+                    let shiftVal = extraVars[shiftRaw];
+                    if (shiftVal === undefined && /^-?\d+/.test(shiftRaw)) shiftVal = parseInt(shiftRaw, 10);
+
+                    if (typeof baseVal === 'number' && typeof shiftVal === 'number') {
+                        const result = (val.includes('<<') || val.includes('<')) ? (baseVal << shiftVal) : (baseVal >>> shiftVal);
+                        return '0x' + (result >>> 0).toString(16).toUpperCase();
+                    }
+
+                    // Fallback to assembler syntax (using single < for shift)
+                    const op = (val.includes('<<') || val.includes('<')) ? '<' : '>';
+                    return `(${resolve(baseRaw)} ${op} ${resolve(shiftRaw)})`;
                 }
+
+                // Handle Math.sin, Math.PI, etc.
+                if (val.includes('Math.') || val.includes('PI')) {
+                    let evaluatable = val.replace(/Math\.PI/g, '3.14159').replace(/\bPI\b/g, '3.14159');
+                    evaluatable = evaluatable.replace(/getSamplerate\(\)/g, '32768');
+
+                    // Try to resolve parameters to numbers for evaluation
+                    let fullyNumeric = evaluatable.replace(/([a-zA-Z0-9_]+)/g, (m) => {
+                        if (extraVars[m] !== undefined && typeof extraVars[m] === 'number') return extraVars[m].toString();
+                        if (knownParams.has(m)) {
+                            const p = definition.parameters.find(p => p.id === m);
+                            return p ? p.default.toString() : '0.5';
+                        }
+                        if (/^\d/.test(m)) return m;
+                        return m;
+                    });
+
+                    if (/^[0-9.+\-*/() Math.sin]+$/.test(fullyNumeric)) {
+                        try {
+                            const res = new Function('return ' + fullyNumeric.replace(/Math\./g, 'Math.'))();
+                            if (typeof res === 'number') return res.toFixed(6);
+                        } catch (e) { }
+                    }
+                }
+
+                // Handle basic math expressions in arguments
+                if (val.includes('/') || val.includes('*') || val.includes('+') || val.includes('-')) {
+                    let atlExpr = val.replace(/([a-zA-Z0-9_]+)/g, (m) => {
+                        if (extraVars[m] !== undefined && typeof extraVars[m] === 'number') return extraVars[m].toString();
+                        if (knownParams.has(m)) return `\${${m}}`;
+                        if (/^\d/.test(m)) return m;
+
+                        // Check for common constants mapped to pins
+                        const pinMatch = definition.inputs.find(i => i.id.toLowerCase() === m.toLowerCase()) ||
+                            definition.outputs.find(o => o.id.toLowerCase() === m.toLowerCase());
+                        if (pinMatch) {
+                            const prefix = definition.inputs.includes(pinMatch) ? 'input' : 'output';
+                            return `\${${prefix}.${pinMatch.id}}`;
+                        }
+
+                        return m;
+                    });
+
+                    let evaluatable = atlExpr.replace(/\$\{([^}]+)\}/g, '0.5');
+                    if (/^[0-9.+\-*/() ]+$/.test(evaluatable)) {
+                        if (atlExpr.includes('${')) return atlExpr;
+                        try { return eval(atlExpr).toString(); } catch (e) { }
+                    }
+                    return atlExpr;
+                }
+
                 const mapped = currentVarMap[val];
-                return mapped ? mapped.template : val;
+                if (mapped) return mapped.template;
+
+                if (knownParams.has(val)) return `\${${val}}`;
+                if (/^-?\d+(\.\d+)?$/.test(val)) return val;
+                if (/^0x[0-9A-F]+$/i.test(val)) return val;
+
+                if (val.includes('.getRegister()')) {
+                    const pinVar = val.split('.')[0];
+                    if (currentVarMap[pinVar]) return currentVarMap[pinVar].template;
+                }
+
+                return val;
             };
 
             if (trimmed.includes('sfxb.comment')) {
@@ -337,29 +458,55 @@ function parseJavaBlock(content, filename, menuInfo) {
             } else if (trimmed.includes('sfxb.skip')) {
                 const m = trimmed.match(/sfxb\.skip\(([^,]+),\s*([^)]+)\)/);
                 if (m) templateLines.push(`skp\t${resolve(m[1])},\t${resolve(m[2])}`);
+            } else if (trimmed.includes('sfxb.and')) {
+                const m = trimmed.match(/sfxb\.and\(([^)]+)\)/);
+                if (m) {
+                    let arg = resolve(m[1]);
+                    if (arg.startsWith('(') && arg.endsWith(')')) arg = arg.substring(1, arg.length - 1);
+                    templateLines.push(`and\t${arg}`);
+                }
+            } else if (trimmed.includes('sfxb.or')) {
+                const m = trimmed.match(/sfxb\.or\(([^)]+)\)/);
+                if (m) {
+                    let arg = resolve(m[1]);
+                    if (arg.startsWith('(') && arg.endsWith(')')) arg = arg.substring(1, arg.length - 1);
+                    templateLines.push(`or\t${arg}`);
+                }
             } else if (trimmed.includes('sfxb.loadSinLFO')) {
                 const m = trimmed.match(/sfxb\.loadSinLFO\(([^)]+)\)/);
                 if (m) {
                     const parts = m[1].split(',');
-                    if (parts.length >= 3) {
-                        templateLines.push(`wlds\tSIN0_RATE,\t${resolve(parts[1])},\t${resolve(parts[2])}`);
-                    }
+                    const sel = resolve(parts[0]);
+                    const rate = resolve(parts[1]);
+                    const range = resolve(parts[2]);
+                    const lfoPrefix = (sel === '1' || sel === 'SIN1') ? 'SIN1' : 'SIN0';
+                    templateLines.push(`wlds\t${lfoPrefix}_RATE,\t${rate},\t${range}`);
                 }
             } else if (trimmed.includes('sfxb.writeAllpass')) {
                 const m = trimmed.match(/sfxb\.writeAllpass\(([^,]+),\s*([^)]+)\)/);
-                if (m) templateLines.push(`wra\t${resolve(m[1])},\t${resolve(m[2])}`); // simplistic aliasing
+                if (m) templateLines.push(`wra\t${resolve(m[1])},\t${resolve(m[2])}`);
             } else if (trimmed.includes('sfxb.chorusReadValue')) {
                 const m = trimmed.match(/sfxb\.chorusReadValue\(([^)]+)\)/);
-                if (m) templateLines.push(`cho\trdal,\t${resolve(m[1])}`);
+                if (m) {
+                    const val = resolve(m[1].trim());
+                    if (val === '0' || val === 'SIN0') templateLines.push(`cho\trdal,\tSIN0`);
+                    else if (val === '1' || val === 'SIN1') templateLines.push(`cho\trdal,\tSIN1`);
+                    else if (val === '8' || val === 'COS0') templateLines.push(`cho\trdal,\tCOS0`);
+                    else if (val === '9' || val === 'COS1') templateLines.push(`cho\trdal,\tCOS1`);
+                    else if (val.includes('lfoSel')) {
+                        templateLines.push(`@if \${lfoSel} == 0\ncho\trdal,\tSIN0\n@else\ncho\trdal,\tSIN1\n@endif`);
+                    } else if ((val.includes('8') || val.includes('9')) && val.includes('lfoSel')) {
+                        templateLines.push(`@if \${lfoSel} == 0\ncho\trdal,\tCOS0\n@else\ncho\trdal,\tCOS1\n@endif`);
+                    } else {
+                        templateLines.push(`cho\trdal,\t${val}`);
+                    }
+                }
             } else if (trimmed.includes('sfxb.FXallocDelayMem')) {
                 const m = trimmed.match(/sfxb\.FXallocDelayMem\(([^,]+),\s*([^)]+)\)/);
                 if (m) {
                     const memId = resolve(m[1]).replace(/"/g, '');
                     const sizeStr = resolve(m[2]);
                     const memSize = isNaN(Number(sizeStr)) ? sizeStr : parseInt(sizeStr);
-                    if (memId.startsWith('iap30')) {
-                        console.log(`[DEBUG] memId: ${memId}, raw size: ${m[2]}, sizeStr: ${sizeStr}, memSize: ${memSize}`);
-                    }
                     managedMemo.push({ id: memId, size: memSize });
                 }
             } else if (trimmed.includes('sfxb.FXreadDelay')) {
@@ -372,7 +519,7 @@ function parseJavaBlock(content, filename, menuInfo) {
         }
 
         if (managedRegs.length > 0) definition.registers = managedRegs;
-        if (managedMemo.length > 0) definition.memo = managedMemo;
+        if (managedMemo.length > 0) definition.memories = managedMemo;
 
         definition.template = templateLines.join('\n');
     }
@@ -380,42 +527,48 @@ function parseJavaBlock(content, filename, menuInfo) {
     return definition;
 }
 
-function toATL(definition) {
+export function toATL(definition) {
     const metadata = { ...definition };
     const template = metadata.template;
     delete metadata.template;
     return `---\n${JSON.stringify(metadata, null, 2)}\n---\n${template}`;
 }
 
-const scanDirs = [
-    path.join(spinCADSourceDir, 'CADBlocks'),
-    path.join(spinCADSourceDir, 'ControlBlocks')
-];
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+    }
 
-let totalCount = 0;
-for (const dir of scanDirs) {
-    if (!fs.existsSync(dir)) continue;
-    console.log(`Scanning ${dir}...`);
-    const files = fs.readdirSync(dir);
-    for (const file of files) {
-        if (file.endsWith('Block.java') && !file.startsWith('SpinCAD')) {
-            const basename = file.replace('CADBlock.java', '').toLowerCase();
-            if (!menuMap.has(basename)) {
-                continue;
-            }
-            const menuInfo = menuMap.get(basename);
+    console.log(`Loading menu from ${menuFile}...`);
+    const menuMap = parseMenu(menuFile);
 
-            try {
-                const content = fs.readFileSync(path.join(dir, file), 'utf8');
-                const definition = parseJavaBlock(content, file, menuInfo);
-                const targetFile = path.join(targetDir, `${definition.type}.atl`);
-                fs.writeFileSync(targetFile, toATL(definition));
-                totalCount++;
-            } catch (e) {
-                console.error(`Error converting ${file}: ${e}`);
+    const scanDirs = [
+        path.join(spinCADSourceDir, 'CADBlocks'),
+        path.join(spinCADSourceDir, 'ControlBlocks')
+    ];
+
+    let totalCount = 0;
+    for (const dir of scanDirs) {
+        if (!fs.existsSync(dir)) continue;
+        console.log(`Scanning ${dir}...`);
+        const files = fs.readdirSync(dir);
+        for (const file of files) {
+            if (file.endsWith('Block.java') && !file.startsWith('SpinCAD')) {
+                const basename = file.replace('CADBlock.java', '').replace('Block.java', '').toLowerCase();
+                if (!menuMap.has(basename)) continue;
+                const menuInfo = menuMap.get(basename);
+
+                try {
+                    const content = fs.readFileSync(path.join(dir, file), 'utf8');
+                    const definition = parseJavaBlock(content, file, menuInfo);
+                    const targetFile = path.join(targetDir, `${definition.type}.atl`);
+                    fs.writeFileSync(targetFile, toATL(definition));
+                    totalCount++;
+                } catch (e) {
+                    console.error(`Error converting ${file}: ${e}`);
+                }
             }
         }
     }
+    console.log(`Successfully converted ${totalCount} Java blocks to auto/ ATL format.`);
 }
-
-console.log(`Successfully converted ${totalCount} Java blocks to auto/ ATL format.`);

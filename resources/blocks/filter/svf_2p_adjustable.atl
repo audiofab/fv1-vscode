@@ -1,0 +1,106 @@
+---
+{
+  "type": "fx.filter.svf2p_adj",
+  "name": "SVF 2P Adjustable",
+  "category": "Filter",
+  "description": "State-variable filter with control inputs and notch output",
+  "color": "#24f26f",
+  "width": 200,
+  "inputs": [
+    { "id": "in", "name": "Input", "type": "audio", "required": true },
+    { "id": "freq_ctrl", "name": "Frequency", "type": "control", "required": false },
+    { "id": "q_ctrl", "name": "Q", "type": "control", "required": false }
+  ],
+  "outputs": [
+    { "id": "lpf", "name": "Low Pass Output", "type": "audio" },
+    { "id": "bpf", "name": "Band Pass Output", "type": "audio" },
+    { "id": "brf", "name": "Notch Output", "type": "audio" },
+    { "id": "hpf", "name": "High Pass Output", "type": "audio" }
+  ],
+  "parameters": [
+    {
+      "id": "frequency",
+      "name": "Frequency",
+      "type": "number",
+      "default": 0.15,
+      "min": 0,
+      "max": 1,
+      "conversion": "LOGFREQ"
+    },
+    {
+      "id": "qMax",
+      "name": "Max Resonance",
+      "type": "number",
+      "default": 50,
+      "min": 1,
+      "max": 200
+    },
+    {
+      "id": "qMin",
+      "name": "Min Resonance",
+      "type": "number",
+      "default": 1,
+      "min": 1,
+      "max": 50
+    }
+  ],
+  "registers": ["z1", "z2", "lpf", "hpf", "temp", "scaledQ"]
+}
+---
+; SVF 2P Adjustable
+@equals y 1.0 / ${qMin}
+@equals x1 1.0 / ${qMax}
+@minusdouble q x1 y
+
+clr
+rdax ${reg.z1}, ${frequency}
+@if pinConnected(freq_ctrl)
+mulx ${input.freq_ctrl}
+@endif
+rdax ${reg.z2}, 1.0
+wrax ${reg.lpf}, 1.0
+wrax ${reg.z2}, -1.0
+
+@if pinConnected(q_ctrl)
+wrax ${reg.temp}, 0.0
+rdax ${input.q_ctrl}, 1.0
+sof -q, -y
+wrax ${reg.scaledQ}, 0.0
+rdax ${reg.z1}, 1.0
+mulx ${reg.scaledQ}
+rdax ${reg.temp}, 1.0
+@else
+@equals q_fixed -1.0 / ${qMax}
+rdax ${reg.z1}, q_fixed
+@endif
+
+rdax ${input.in}, 1.0
+wrax ${reg.hpf}, ${frequency}
+@if pinConnected(freq_ctrl)
+mulx ${input.freq_ctrl}
+@endif
+
+rdax ${reg.z1}, 1.0
+wrax ${reg.z1}, 0.0
+
+; Outputs
+@if pinConnected(lpf)
+rdax ${reg.lpf}, 1.0
+wrax ${output.lpf}, 0.0
+@endif
+
+@if pinConnected(bpf)
+rdax ${reg.z1}, 1.0
+wrax ${output.bpf}, 0.0
+@endif
+
+@if pinConnected(hpf)
+rdax ${reg.hpf}, 1.0
+wrax ${output.hpf}, 0.0
+@endif
+
+@if pinConnected(brf)
+rdax ${reg.lpf}, 1.0
+rdax ${reg.hpf}, 1.0
+wrax ${output.brf}, 0.0
+@endif

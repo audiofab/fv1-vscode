@@ -902,8 +902,8 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             this.sendEvent('output', { category: 'console', output: `Input stimulus: None (Silence)\n` });
         } else if (m.value === 'tone') {
             this.audioStreamer.unload();
-            this.audioStreamer.setToneEnabled(true);
-            this.sendEvent('output', { category: 'console', output: `Input stimulus: 440Hz Test Tone\n` });
+            this.audioStreamer.setNoiseEnabled(true);
+            this.sendEvent('output', { category: 'console', output: `Input stimulus: White Noise\n` });
         } else if (m.value === 'built-in') {
             this.audioStreamer.unload();
             const defaultWav = 'src/simulator/wav/minor-chords-32k.wav';

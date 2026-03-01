@@ -22,11 +22,11 @@ export class BlockTemplate {
         const inputs = this.resolveInputs(block, ctx);
         const outputs = this.resolveOutputs(block, ctx);
         const internalRegs = this.resolveInternalRegisters(block, ctx);
-        const memory = this.resolveMemory(block, ctx);
+        const memory = this.resolveMemoryObjects(block, ctx);
 
         const templateLines = this.definition.template.split('\n');
-        // Pre-process lines to remove comments and empty lines, and trim
-        const processedLines = templateLines.map(line => line.trim()).filter(line => line && !line.startsWith(';'));
+        // Pre-process lines to remove empty lines and trim
+        const processedLines = templateLines.map(line => line.trim()).filter(line => line !== '');
 
         let currentSection: IRSection = 'main';
         // This will be reset later
@@ -67,6 +67,19 @@ export class BlockTemplate {
             // line = line.trim();
             // if (!line || line.startsWith(';')) continue;
 
+            // Handle comments
+            if (line.startsWith(';') || line.startsWith('//')) {
+                if (sectionStack.length > 0 && sectionStack[sectionStack.length - 1].skip) continue;
+
+                // Normalize comment character to ; and strip it for the IR node
+                const commentText = line.startsWith('//') ? line.substring(2) : line.substring(1);
+
+                // Still process substitutions in comments
+                const resolvedComment = this.performSubstitutions(commentText.trim(), params, inputs, outputs, internalRegs, memory, block, ctx);
+                ir.push({ op: ';', args: [resolvedComment], section: currentSection });
+                continue;
+            }
+
             // Handle section directives
             if (line.startsWith('@section')) {
                 const section = line.split(' ')[1] as IRSection;
@@ -91,7 +104,7 @@ export class BlockTemplate {
             if (line.startsWith('@else')) {
                 if (sectionStack.length > 0) {
                     const top = sectionStack[sectionStack.length - 1];
-                    const parentSkip = sectionStack.length > 2 ? sectionStack[sectionStack.length - 2].skip : false;
+                    const parentSkip = sectionStack.length > 1 ? sectionStack[sectionStack.length - 2].skip : false;
                     top.skip = parentSkip || top.condition; // Skip else if condition was true
                     top.hasElse = true;
                 }
@@ -112,34 +125,7 @@ export class BlockTemplate {
             const isEqu = trimmed.startsWith('equ');
             const firstTokenIndex = line.indexOf('${');
 
-            const processedLine = line.replace(/\$\{([^}]+)\}/g, (match, key, offset) => {
-                if (key.startsWith('param.')) return params[key.split('.')[1]]?.toString() || '';
-                if (key.startsWith('input.')) return inputs[key.split('.')[1]] || '';
-                if (key.startsWith('output.')) return outputs[key.split('.')[1]] || '';
-                if (key.startsWith('reg.')) return internalRegs[key.split('.')[1]] || '';
-                if (key.startsWith('mem.')) return memory[key.split('.')[1]] || '';
-                if (key.startsWith('local.')) {
-                    const shortId = ctx.getShortId(block.id);
-                    const varName = `${shortId}_${key.split('.')[1]}`;
-
-                    // If this is the definition part of an EQU line, return the name only
-                    if (isEqu && offset === firstTokenIndex) {
-                        return varName;
-                    }
-
-                    const val = ctx.getVariable(varName);
-                    return val !== undefined ? val : varName;
-                }
-                // Check direct parameter names
-                if (params[key] !== undefined) return params[key].toString();
-                // Check dynamic variables set by macros
-                const v = ctx.getVariable(key);
-                if (v !== undefined) return v;
-                // Check if it's a raw local name that was already expanded
-                const localV = ctx.getVariable(`${block.id}_${key}`);
-                if (localV !== undefined) return localV;
-                return ''; // Empty if not found
-            });
+            const processedLine = this.performSubstitutions(line, params, inputs, outputs, internalRegs, memory, block, ctx);
 
             // Split into code and comment (support both ; and //)
             let commentIndex = processedLine.indexOf(';');
@@ -323,7 +309,11 @@ export class BlockTemplate {
             }
             const op = eqMatch[2];
             const value = eqMatch[3].trim().replace(/['"]/g, '');
-            const currentVal = block.parameters[varName] ?? this.definition.parameters.find(p => p.id === varName)?.default;
+            const cleanVarName = varName.startsWith('param.') ? varName.substring(6) :
+                varName.startsWith('input.') ? varName.substring(6) :
+                    varName.startsWith('output.') ? varName.substring(7) : varName;
+
+            const currentVal = block.parameters[cleanVarName] ?? this.definition.parameters.find(p => p.id === cleanVarName)?.default;
 
             const isMatch = currentVal?.toString() === value;
             return op === '==' ? isMatch : !isMatch;
@@ -338,6 +328,10 @@ export class BlockTemplate {
         const args = parts.slice(1);
 
         switch (macro) {
+            case 'samplingrate':
+                ctx.setVariable(args[0], '32768');
+                ir.push({ op: 'EQU', args: [args[0], '32768'], section: 'header' });
+                break;
             case 'lfo':
                 // @lfo result, type, rate, range
                 const lfoResult = args[0];
@@ -504,6 +498,8 @@ export class BlockTemplate {
         switch (type) {
             case 'LOGFREQ':
                 return (1.0 - Math.exp(-2.0 * Math.PI * val / Fs)).toFixed(6);
+            case 'SVFFREQ':
+                return Math.sin(2.0 * Math.PI * val / Fs).toFixed(6);
             case 'SINLFOFREQ':
                 return Math.round(val * (1 << 18) / Fs);
             case 'DBLEVEL':
@@ -543,11 +539,11 @@ export class BlockTemplate {
         return resolved;
     }
 
-    private resolveMemory(block: Block, ctx: CodeGenContext): Record<string, string> {
-        const resolved: Record<string, string> = {};
-        if (this.definition.memo) {
+    private resolveMemoryObjects(block: Block, ctx: CodeGenContext): Record<string, { name: string, size: number, address: number }> {
+        const resolved: Record<string, { name: string, size: number, address: number }> = {};
+        if (this.definition.memories) {
             const params = this.evaluateParameters(block, ctx);
-            for (const mem of this.definition.memo) {
+            for (const mem of this.definition.memories) {
                 let size = 0;
                 if (typeof mem.size === 'string') {
                     size = params[mem.size] || 1; // Default to 1 if not found
@@ -555,9 +551,69 @@ export class BlockTemplate {
                     size = mem.size;
                 }
                 const alloc = ctx.allocateMemory(mem.id, size);
-                resolved[mem.id] = alloc.name;
+                resolved[mem.id] = alloc;
             }
         }
         return resolved;
+    }
+
+    private performSubstitutions(
+        line: string,
+        params: Record<string, any>,
+        inputs: Record<string, string>,
+        outputs: Record<string, string>,
+        internalRegs: Record<string, string>,
+        memory: Record<string, { name: string, size: number, address: number }>,
+        block: Block,
+        ctx: CodeGenContext
+    ): string {
+        const trimmed = line.trim().toLowerCase();
+        const isEqu = trimmed.startsWith('equ');
+        const firstTokenIndex = line.indexOf('${');
+
+        return line.replace(/\$\{([^}]+)\}/g, (match, key, offset) => {
+            if (key.startsWith('param.')) return params[key.split('.')[1]]?.toString() || '';
+            if (key.startsWith('input.')) return inputs[key.split('.')[1]] || '';
+            if (key.startsWith('output.')) return outputs[key.split('.')[1]] || '';
+            if (key.startsWith('reg.')) return internalRegs[key.split('.')[1]] || '';
+            if (key === 'Fs' || key === 'samplingRate') return '32768';
+            if (key.startsWith('mem.')) {
+                const parts = key.split('.');
+                const memId = parts[1];
+                const prop = parts[2];
+                const alloc = memory[memId];
+                if (!alloc) return '';
+
+                if (!prop || prop === 'start') return alloc.name;
+                if (prop === 'size') return alloc.size.toString();
+                if (prop === 'end') return `(${alloc.name} + ${alloc.size} - 1)`;
+                if (prop === 'middle') return `(${alloc.name} + ${alloc.size} / 2)`;
+                return alloc.name;
+            }
+            if (key.startsWith('local.')) {
+                const shortId = ctx.getShortId(block.id);
+                const varName = `${shortId}_${key.split('.')[1]}`;
+
+                // If this is the definition part of an EQU line, return the name only
+                if (isEqu && offset === firstTokenIndex) {
+                    return varName;
+                }
+
+                const val = ctx.getVariable(varName);
+                return val !== undefined ? val : varName;
+            }
+            // Check direct parameter names
+            if (params[key] !== undefined) return params[key].toString();
+
+            // Check dynamic variables set by macros
+            const v = ctx.getVariable(key);
+            if (v !== undefined) return v;
+
+            // Check if it's a raw local name that was already expanded
+            const localV = ctx.getVariable(`${block.id}_${key}`);
+            if (localV !== undefined) return localV;
+
+            return match;
+        });
     }
 }

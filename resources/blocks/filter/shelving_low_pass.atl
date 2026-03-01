@@ -1,0 +1,56 @@
+---
+{
+  "type": "fx.filter.shelving_lpf",
+  "name": "Shelving LPF",
+  "category": "Filter",
+  "description": "Low-pass filter with adjustable shelf depth",
+  "color": "#24f26f",
+  "width": 180,
+  "inputs": [
+    { "id": "in", "name": "Input", "type": "audio", "required": true },
+    { "id": "shelf_ctrl", "name": "Shelf", "type": "control", "required": false }
+  ],
+  "outputs": [
+    { "id": "out", "name": "Output", "type": "audio" }
+  ],
+  "parameters": [
+    {
+      "id": "frequency",
+      "name": "Frequency",
+      "type": "number",
+      "default": 0.15,
+      "min": 0,
+      "max": 1,
+      "conversion": "LOGFREQ"
+    },
+    {
+      "id": "shelf",
+      "name": "Shelf Depth",
+      "type": "number",
+      "default": -6,
+      "min": -40,
+      "max": -3,
+      "conversion": "DBLEVEL"
+    }
+  ],
+  "registers": ["lpf_state", "temp"]
+}
+---
+; Shelving LPF
+rdax ${input.in}, 1.0
+
+@if pinConnected(shelf_ctrl)
+; Shelf modulated by control input
+@comment "Dynamic shelf control"
+wrax ${reg.temp}, -(1.0 - ${shelf})
+rdfx ${reg.lpf_state}, ${frequency}
+wrhx ${reg.lpf_state}, -1.0
+mulx ${input.shelf_ctrl}
+rdax ${reg.temp}, 1.0
+@else
+; Fixed shelf depth
+rdfx ${reg.lpf_state}, ${frequency}
+wrlx ${reg.lpf_state}, -(1.0 - ${shelf})
+@endif
+
+wrax ${output.out}, 0.0

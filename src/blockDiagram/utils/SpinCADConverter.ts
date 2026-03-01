@@ -29,7 +29,7 @@ export class SpinCADConverter {
         }
         const bodyLines: string[] = [];
         const managedRegs: string[] = [];
-        const managedMemo: Array<{ id: string; size: number | string }> = [];
+        const managedMemories: Array<{ id: string; size: number | string }> = [];
         const managedEqus: string[] = [];
 
         for (let line of lines) {
@@ -143,13 +143,13 @@ export class SpinCADConverter {
                         const mId = parts[1];
                         const sizePart = parts[2];
                         const mSize = isNaN(Number(sizePart)) ? sizePart : parseInt(sizePart);
-                        managedMemo.push({ id: mId, size: mSize });
+                        managedMemories.push({ id: mId, size: mSize });
                         break;
                     case 'getDelayScaleControl':
                         // @getDelayScaleControl tap1Ratio delayLength delayOffset 
                         // -> sof ${tap1Ratio}, 0
                         // -> sof ${delayLength} / 32768, (${mem.delayl} + 1) / 32768
-                        const baseOffsetExpr = managedMemo.length > 0 ? `(\${mem.${managedMemo[0].id}} + 1)` : `\${${parts[3]}}`;
+                        const baseOffsetExpr = managedMemories.length > 0 ? `(\${mem.${managedMemories[0].id}} + 1)` : `\${${parts[3]}}`;
                         bodyLines.push(`sof\t\${${parts[1]}}, 0`);
                         bodyLines.push(`sof\t\${${parts[2]}} / 32768, ${baseOffsetExpr} / 32768`);
                         break;
@@ -171,6 +171,24 @@ export class SpinCADConverter {
                         managedEqus.push(parts[1]);
                         headerLines.push(trimmed);
                         break;
+                    case 'getBaseAddress':
+                        managedEqus.push('delayOffset');
+                        bodyLines.push('equ\tdelayOffset\t-1');
+                        break;
+                    case 'readChorusTap': {
+                        // @readChorusTap lfoSel 0 tap1Center delayLength delayOffset 
+                        const lfo = parts[1];
+                        const instance = parts[2];
+                        const center = parts[3];
+                        const depth = parts[4];
+                        const offset = parts[5];
+                        let lfoName = `SIN${instance}`;
+                        if (instance === '2') lfoName = 'COS0';
+                        if (instance === '3') lfoName = 'COS1';
+                        bodyLines.push(`cho\trda,\t${lfoName},\tREG | COMPC,\t\${${offset}}`);
+                        bodyLines.push(`cho\trda,\t${lfoName},\t0,\t\${${offset}} + 1`);
+                        break;
+                    }
                     default:
                         // Keep other directives like @lpf1p etc.
                         bodyLines.push(trimmed);
@@ -196,7 +214,7 @@ export class SpinCADConverter {
                     const memId = lineParts[1];
                     const sizeStr = lineParts[2];
                     const memSize = isNaN(Number(sizeStr)) ? sizeStr : parseInt(sizeStr);
-                    managedMemo.push({ id: memId, size: memSize });
+                    managedMemories.push({ id: memId, size: memSize });
                 } else if (lineParts[0].toLowerCase() === 'offset') {
                     // "offset ratio 1" => "equ offset ratio" + something?
                     // In MN3011a, it simply assigns the variable 'ratio' to 'ratio + 1' ?
@@ -214,7 +232,7 @@ export class SpinCADConverter {
         }
 
         if (managedRegs.length > 0) definition.registers = managedRegs;
-        if (managedMemo.length > 0) (definition as any).memo = managedMemo;
+        if (managedMemories.length > 0) definition.memories = managedMemories;
 
         const templateLines: string[] = [];
         if (headerLines.length > 0) {
@@ -247,7 +265,7 @@ export class SpinCADConverter {
             output: definition.outputs.map(o => o.id),
             param: definition.parameters.map(p => p.id),
             local: managedRegs,
-            memo: managedMemo.map(m => m.id)
+            memories: managedMemories.map(m => m.id)
         };
 
         let processedTemplate = templateLines.join('\n');
@@ -269,7 +287,7 @@ export class SpinCADConverter {
         for (const id of ids.output) replaceToken(id, `\${output.${id}}`);
         for (const id of ids.param) replaceToken(id, `\${${id}}`);
         for (const id of ids.local) replaceToken(id, `\${reg.${id}}`);
-        for (const id of ids.memo) replaceToken(id, `\${mem.${id}}`);
+        for (const id of ids.memories) replaceToken(id, `\${mem.${id}}`);
         for (const id of managedEqus) replaceToken(id, `\${local.${id}}`);
 
         definition.template = processedTemplate;

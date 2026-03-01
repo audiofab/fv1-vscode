@@ -1,0 +1,105 @@
+---
+{
+  "type": "fx.chorus",
+  "name": "Chorus",
+  "category": "Modulation",
+  "description": "Classic chorus with LFO-modulated delay",
+  "color": "#24f2f2",
+  "width": 180,
+  "inputs": [
+    { "id": "in", "name": "Input", "type": "audio", "required": true },
+    { "id": "lfo_rate", "name": "LFO Rate", "type": "control", "required": false },
+    { "id": "lfo_width", "name": "LFO Width", "type": "control", "required": false }
+  ],
+  "outputs": [
+    { "id": "out", "name": "Output", "type": "audio" }
+  ],
+  "parameters": [
+    {
+      "id": "delayLength",
+      "name": "Chorus Time",
+      "type": "number",
+      "default": 512,
+      "min": 128,
+      "max": 2048,
+      "conversion": "LENGTHTOTIME"
+    },
+    {
+      "id": "rate",
+      "name": "LFO Rate",
+      "type": "number",
+      "default": 20,
+      "min": 0,
+      "max": 511
+    },
+    {
+      "id": "width",
+      "name": "LFO Width",
+      "type": "number",
+      "default": 30,
+      "min": 5,
+      "max": 100
+    },
+    {
+      "id": "lfoSel",
+      "name": "LFO Select",
+      "type": "select",
+      "default": 0,
+      "options": [
+        { "value": 0, "label": "LFO 0" },
+        { "value": 1, "label": "LFO 1" }
+      ]
+    }
+  ],
+  "memories": [
+    { "id": "delayl", "size": 2048 }
+  ]
+}
+---
+@if isequalto lfoSel 0
+@section header
+@equals lfoNum SIN0
+@equals lfoRange SIN0_RANGE
+@equals lfoRateReg SIN0_RATE
+@else
+@section header
+@equals lfoNum SIN1
+@equals lfoRange SIN1_RANGE
+@equals lfoRateReg SIN1_RATE
+@endif
+
+@section header
+@equals number6554000 6554000.0
+@multiplydouble x1 ${delayLength}, ${width}
+@dividedouble x3 x1, number6554000
+@dividedouble rateScale ${rate}, 511.0
+
+@section init
+; Initialize LFO
+skp run, done
+wlds ${lfoNum}, 50, 64
+done:
+
+@section main
+; Chorus
+rdax ${input.in}, 1.0
+wra ${mem.delayl}, 0.0
+
+@if pinConnected(lfo_width)
+rdax ${input.lfo_width}, ${x3}
+wrax ${lfoRange}, 0.0
+@endif
+
+@if pinConnected(lfo_rate)
+rdax ${input.lfo_rate}, ${rateScale}
+wrax ${lfoRateReg}, 0.0
+@endif
+
+; Read modulated tap
+; center = 0.9 * 0.5 * delayLength + 0.05 * delayLength = 0.5 * delayLength
+@equals center ${mem.delayl} + (0.5 * ${delayLength})
+cho rda, ${lfoNum}, SIN | REG | COMPC, ${center}
+cho rda, ${lfoNum}, SIN, ${center} + 1
+
+wrax ${output.out}, 0.0
+

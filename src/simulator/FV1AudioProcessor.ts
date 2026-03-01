@@ -20,7 +20,7 @@ export class FV1AudioProcessor {
      */
     public async processFile(inputPath: string, outputPath: string, pot0: number = 0.5, pot1: number = 0.5, pot2: number = 0.5): Promise<void> {
         const inputBuffer = await fs.promises.readFile(inputPath);
-        
+
         // Parse WAV Header
         const numChannels = inputBuffer.readUInt16LE(22);
         const sampleRate = inputBuffer.readUInt32LE(24);
@@ -41,7 +41,7 @@ export class FV1AudioProcessor {
         // De-interleave and convert to float (-1.0 to 1.0)
         for (let i = 0; i < numSamples; i++) {
             const offset = dataOffset + i * numChannels * 2;
-            
+
             // Read Left
             const intL = inputBuffer.readInt16LE(offset);
             inputL[i] = intL / 32768.0;
@@ -64,13 +64,13 @@ export class FV1AudioProcessor {
 
         // Interleave and convert back to 16-bit PCM
         const outputBuffer = Buffer.alloc(dataOffset + dataSize);
-        
+
         // Copy header from input
         inputBuffer.copy(outputBuffer, 0, 0, dataOffset);
 
         for (let i = 0; i < numSamples; i++) {
             const offset = dataOffset + i * numChannels * 2;
-            
+
             // Clamp and convert Left
             let valL = Math.max(-1.0, Math.min(1.0, outputL[i]));
             let intL = Math.floor(valL * 32767);
@@ -89,22 +89,20 @@ export class FV1AudioProcessor {
     }
 
     /**
-     * Generate a simple test tone (sine wave) and run it through the simulator.
+     * Generate white noise and run it through the simulator.
      */
-    public async runTestTone(outputPath: string, durationSec: number = 2.0): Promise<void> {
+    public async runWhiteNoise(outputPath: string, durationSec: number = 2.0): Promise<void> {
         const sampleRate = 32768; // FV-1 native rate
         const numSamples = Math.floor(sampleRate * durationSec);
-        const freq = 440.0;
 
         const inputL = new Float32Array(numSamples);
         const inputR = new Float32Array(numSamples);
         const outputL = new Float32Array(numSamples);
         const outputR = new Float32Array(numSamples);
 
-        // Generate Sine Wave
+        // Generate White Noise
         for (let i = 0; i < numSamples; i++) {
-            const t = i / sampleRate;
-            const val = Math.sin(2 * Math.PI * freq * t) * 0.5; // 0.5 amplitude
+            const val = (Math.random() * 2.0 - 1.0) * 0.5; // 0.5 amplitude
             inputL[i] = val;
             inputR[i] = val;
         }

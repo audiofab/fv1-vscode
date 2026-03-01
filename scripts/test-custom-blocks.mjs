@@ -1,123 +1,222 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { FV1Assembler } from '../out/assembler/FV1Assembler.js';
 import { BlockTemplate } from '../out/blockDiagram/compiler/BlockTemplate.js';
+import { parseMenu } from './parse-spincad-menu.js';
 
-const targetDir = 'C:\\_dev\\custom_blocks\\spincad';
-const files = fs.readdirSync(targetDir);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-let passCount = 0;
-let failCount = 0;
+// Paths relative to fv1-vscode root
+const rootDir = path.resolve(__dirname, '..');
+const spincadDesignerDir = path.resolve(rootDir, '../SpinCAD-Designer');
+const menuFile = path.join(spincadDesignerDir, 'src/SpinCADBuilder/standard.spincadmenu');
+const coreBlocksDir = path.join(rootDir, 'resources/blocks');
+const convertedBlocksDir = path.join(rootDir, 'resources/blocks/spincad');
 
-class MockContext {
-    constructor() {
-        this.vars = new Map();
-        this.ir = [];
-        this.initCode = [];
-        this.regs = 0;
+async function run() {
+    console.log('--- SpinCAD Block Verification ---');
+
+    // 1. Load Menu
+    let menuMap;
+    try {
+        menuMap = parseMenu(menuFile);
+        console.log(`Loaded ${menuMap.size} items from menu.`);
+    } catch (e) {
+        console.error(`Failed to load menu: ${e.message}`);
+        process.exit(1);
     }
-    setVariable(n, v) { this.vars.set(n, v); }
-    getVariable(n) { return this.vars.get(n); }
-    allocateRegister() { return `REG${this.regs++}`; }
-    getInputRegister() { return `REG${this.regs++}`; }
-    allocateMemory(id, size) {
-        this.initCode.push(`mem\t${id}\t${Math.floor(size)}`);
-        return { name: id, size };
+
+    // 2. Scan for ALL ATL files
+    const atlMap = new Map(); // type -> metadata
+
+    function scanDir(dir) {
+        if (!fs.existsSync(dir)) return;
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                scanDir(fullPath);
+            } else if (entry.name.endsWith('.atl')) {
+                try {
+                    const content = fs.readFileSync(fullPath, 'utf8');
+                    const parts = content.split('---');
+                    if (parts.length < 3) continue;
+                    const metadata = JSON.parse(parts[1].trim());
+                    metadata.template = parts.slice(2).join('---').trim();
+                    metadata._filePath = fullPath;
+                    atlMap.set(metadata.type, metadata);
+                } catch (e) {
+                    console.error(`Error reading ${fullPath}: ${e.message}`);
+                }
+            }
+        }
     }
-    hasInput() { return true; }
-    hasOutput() { return true; }
-    getShortId() { return 'b1'; }
-    getParameter(b, p) { return 0.5; }
-    pushIR(n) { this.ir.push(n); }
-    pushInitCode(str) { this.initCode.push(str); }
-    getIR() { return this.ir; }
-    getCurrentBlock() { return 'test_block'; }
-    getBlock() { return { id: 'test_block', parameters: {} }; }
-}
 
-for (const file of files) {
-    if (!file.endsWith('.atl')) continue;
+    scanDir(coreBlocksDir);
+    scanDir(convertedBlocksDir);
+    console.log(`Found ${atlMap.size} unique block types in ATL files.`);
 
-    const p = path.join(targetDir, file);
-    const content = fs.readFileSync(p, 'utf8');
-    const parts = content.split('---');
-    if (parts.length < 3) continue;
+    // 3. Verify each menu item
+    let passCount = 0;
+    let failCount = 0;
+    let missingCount = 0;
 
-    const metadata = JSON.parse(parts[1].trim());
-    metadata.template = parts.slice(2).join('---').trim();
+    class MockContext {
+        constructor() {
+            this.vars = new Map();
+            this.ir = [];
+            this.initCode = [];
+            this.regs = 0;
+        }
+        setVariable(n, v) { this.vars.set(n, v); }
+        getVariable(n) { return this.vars.get(n); }
+        allocateRegister() { return `REG${this.regs++}`; }
+        getInputRegister() { return `REG${this.regs++}`; }
+        allocateMemory(id, size) {
+            this.initCode.push(`mem\t${id}\t${Math.floor(size)}`);
+            return { name: id, size };
+        }
+        hasInput() { return true; }
+        hasOutput() { return true; }
+        getShortId() { return 'b1'; }
+        getParameter(b, p) { return 0.5; }
+        pushIR(n) { this.ir.push(n); }
+        pushInitCode(str) { this.initCode.push(str); }
+        getIR() { return this.ir; }
+        getCurrentBlock() { return 'test_block'; }
+        getBlock() { return { id: 'test_block', parameters: {} }; }
+    }
 
-    const block = {
-        id: 'test_block',
-        type: metadata.type,
-        position: { x: 0, y: 0 },
-        parameters: {}
+    const primitiveMap = {
+        'input': 'input.adc',
+        'output': 'output.dac',
+        'pot0': 'input.pot',
+        'pot1': 'input.pot',
+        'pot2': 'input.pot',
+        'volume': 'gain.volume', // Assuming we have these or similar
+        'distortion': 'effect.distortion',
+        'overdrive': 'effect.distortion',
+        'phaser': 'effect.phaser',
+        'ringmod': 'effect.ringMod',
+        'chorus': 'effect.chorus',
+        'flanger': 'effect.flanger',
+        'reverb': 'effect.reverb',
+        'allpass': 'filter.allpass',
+        'lpf_rdfx': 'filter.lowpass',
+        'hpf_rdfx': 'filter.highpass',
+        'shelving_lowpass': 'filter.shelving_low_pass'
     };
 
-    if (metadata.parameters) {
-        for (const param of metadata.parameters) {
-            block.parameters[param.id] = param.default !== undefined ? param.default : 0.5;
+    for (const [id, menuInfo] of menuMap.entries()) {
+        const displayName = menuInfo.displayName;
+
+        // Try to find the matching metadata
+        let metadata = null;
+
+        // Potential type IDs to check
+        const candidates = [
+            `spincad_${id.toLowerCase()}`,
+            `spincad_${id.toLowerCase()}cadblock`,
+            `spincad_${id.toLowerCase()}block`,
+            `spincad_${id.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+            id.toLowerCase(),
+            id
+        ];
+
+        for (const candidate of candidates) {
+            if (atlMap.has(candidate)) {
+                metadata = atlMap.get(candidate);
+                break;
+            }
         }
-    }
 
-    const ctx = new MockContext();
-    const template = new BlockTemplate(metadata);
+        // Try fuzzy name match if still not found
+        if (!metadata) {
+            const nameSearch = Array.from(atlMap.values()).find(m =>
+                m.name.toLowerCase() === displayName.toLowerCase() ||
+                (m.type.startsWith('spincad_') && m.type.includes(id.toLowerCase()))
+            );
+            if (nameSearch) metadata = nameSearch;
+        }
 
-    try {
-        const nodes = template.generateIR(block, ctx);
-        nodes.forEach(n => ctx.pushIR(n));
+        if (!metadata) {
+            console.warn(`[MISSING] ${displayName} (ID: ${id})`);
+            missingCount++;
+            continue;
+        }
 
-        const irSections = { header: [], init: [], input: [], main: [], output: [] };
+        // Test compilation
+        try {
+            const block = {
+                id: 'test_block',
+                type: metadata.type,
+                position: { x: 0, y: 0 },
+                parameters: {}
+            };
+            if (metadata.parameters) {
+                for (const param of metadata.parameters) {
+                    block.parameters[param.id] = param.default !== undefined ? param.default : 0.5;
+                }
+            }
 
-        for (const node of ctx.getIR()) {
-            if (node.op.endsWith(':')) {
-                irSections[node.section].push(node.op);
-            } else if (node.op === ';') {
-                irSections[node.section].push(`;\t${node.args.join(' ')}`);
+            const ctx = new MockContext();
+            const template = new BlockTemplate(metadata);
+            const nodes = template.generateIR(block, ctx);
+            nodes.forEach(n => ctx.pushIR(n));
+
+            const irSections = { header: [], init: [], input: [], main: [], output: [] };
+            for (const node of ctx.getIR()) {
+                if (node.op.endsWith(':')) {
+                    irSections[node.section].push(node.op);
+                } else if (node.op === ';') {
+                    irSections[node.section].push(`;\t${node.args.join(' ')}`);
+                } else {
+                    const isDeclaration = ['EQU', 'MEM'].includes(node.op);
+                    const separator = isDeclaration ? '\t' : ', ';
+                    let line = `${node.op.toLowerCase()}\t${node.args.join(separator)}`;
+                    if (node.comment) line += `\t; ${node.comment}`;
+                    irSections[node.section].push(line);
+                }
+            }
+
+            const assembly = [
+                ...irSections.header,
+                ...irSections.init,
+                ...ctx.initCode,
+                ...irSections.input,
+                ...irSections.main,
+                ...irSections.output
+            ].join('\n');
+
+            const assembler = new FV1Assembler({ fv1AsmMemBug: true, clampReals: false });
+            const result = assembler.assemble(assembly);
+
+            if (result.problems.filter(p => p.isfatal).length > 0) {
+                console.error(`[FAIL]    ${displayName} (${path.basename(metadata._filePath)})`);
+                result.problems.filter(p => p.isfatal).forEach(e => console.error(`  Line ${e.line}: ${e.message}`));
+                failCount++;
             } else {
-                const isDeclaration = ['EQU', 'MEM'].includes(node.op);
-                const separator = isDeclaration ? '\t' : ', ';
-                let line = `${node.op.toLowerCase()}\t${node.args.join(separator)}`;
-                if (node.comment) line += `\t; ${node.comment}`;
-                irSections[node.section].push(line);
+                console.log(`[PASS]    ${displayName}`);
+                passCount++;
             }
-        }
-
-        const assemblyTestBody = [
-            ...irSections.header,
-            ...irSections.init,
-            ...ctx.initCode,
-            ...irSections.input,
-            ...irSections.main,
-            ...irSections.output
-        ].join('\n');
-
-        const assembler = new FV1Assembler({ fv1AsmMemBug: true, clampReals: false });
-        const result = assembler.assemble(assemblyTestBody);
-
-        const fatalErrors = result.problems.filter(p => p.isfatal);
-        if (fatalErrors.length > 0) {
-            console.error(`[FAIL] ${file}`);
-            fatalErrors.forEach(e => console.error(`  Line ${e.line}: ${e.message}`));
-            if (file === 'spincad_output.atl' || file === 'spincad_chorus.atl') {
-                console.error('--- INIT CODE DUMP ---');
-                console.error(ctx.initCode.join('\n'));
-                console.error('--- FULL BODY DUMP ---');
-                console.error(assemblyTestBody);
-            }
+        } catch (e) {
+            console.error(`[CRASH]   ${displayName}: ${e.message}`);
             failCount++;
-        } else {
-            console.log(`[PASS] ${file}`);
-            if (file === 'spincad_threetap.atl' || file === 'spincad_mn3011.atl') {
-                console.log(`--- ${file} FULL BODY DUMP ---`);
-                console.log(assemblyTestBody);
-            }
-            passCount++;
         }
-    } catch (e) {
-        console.error(`[CRASH] ${file}: ${e.message}`);
-        failCount++;
     }
+
+    console.log('\n--- Final Verification Summary ---');
+    console.log(`Passed:         ${passCount}`);
+    console.log(`Failed:         ${failCount}`);
+    console.log(`Missing/Skip:   ${missingCount}`);
+    console.log('---------------------------------');
+
+    if (failCount > 0) process.exit(1);
+    console.log('SUCCESS: All available blocks verified.');
 }
 
-console.log(`\nAssembly Tests Complete: ${passCount} Passed, ${failCount} Failed.`);
-if (failCount > 0) process.exit(1);
+run().catch(err => {
+    console.error(`Unhandled error: ${err.message}`);
+    process.exit(1);
+});

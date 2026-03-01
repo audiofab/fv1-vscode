@@ -1,0 +1,137 @@
+---
+{
+  "type": "effects.modulation.flanger",
+  "name": "Flanger",
+  "category": "Modulation",
+  "description": "Classic flanger effect with LFO modulation",
+  "color": "#24F2F2",
+  "width": 180,
+  "inputs": [
+    { "id": "input", "name": "Input", "type": "audio", "required": true },
+    { "id": "feedbackIn", "name": "Feedback In", "type": "audio", "required": false },
+    { "id": "rateIn", "name": "LFO Rate", "type": "control", "required": false },
+    { "id": "widthIn", "name": "LFO Width", "type": "control", "required": false },
+    { "id": "fbk", "name": "Feedback Gain", "type": "control", "required": false }
+  ],
+  "outputs": [
+    { "id": "output", "name": "Output", "type": "audio" },
+    { "id": "tap", "name": "Tap", "type": "audio" }
+  ],
+  "parameters": [
+    {
+      "id": "inputGain",
+      "name": "Input Gain",
+      "type": "number",
+      "default": 0,
+      "min": -24,
+      "max": 0,
+      "conversion": "DBLEVEL"
+    },
+    {
+      "id": "fbkGain",
+      "name": "Feedback Gain",
+      "type": "number",
+      "default": -6,
+      "min": -24,
+      "max": 0,
+      "conversion": "DBLEVEL"
+    },
+    {
+      "id": "delayLength",
+      "name": "Delay Time",
+      "type": "number",
+      "default": 64,
+      "min": 16,
+      "max": 512,
+      "conversion": "LENGTHTOTIME"
+    },
+    {
+      "id": "rate",
+      "name": "LFO Rate",
+      "type": "number",
+      "default": 20,
+      "min": 0,
+      "max": 511
+    },
+    {
+      "id": "width",
+      "name": "LFO Width",
+      "type": "number",
+      "default": 30,
+      "min": 5,
+      "max": 100
+    },
+    {
+      "id": "lfoSel",
+      "name": "LFO Select",
+      "type": "select",
+      "default": 0,
+      "options": [
+        { "label": "LFO 0", "value": 0 },
+        { "label": "LFO 1", "value": 1 }
+      ]
+    }
+  ],
+  "memories": [
+    { "id": "delayl", "size": 512 }
+  ]
+}
+---
+@if isequalto lfoSel 0
+@section header
+equ lfoNum SIN0
+equ lfoRange SIN0_RANGE
+equ lfoRateReg SIN0_RATE
+@else
+@section header
+equ lfoNum SIN1
+equ lfoRange SIN1_RANGE
+equ lfoRateReg SIN1_RATE
+@endif
+
+@section header
+equ number6554000 6554000.0
+@multiplydouble x1 ${delayLength}, ${width}
+@dividedouble x3 x1, number6554000
+@dividedouble x2 x1, 200.0
+@dividedouble rateScale ${rate}, 511.0
+
+@section init
+; Flanger LFO init
+skp run, done
+wlds ${lfoNum}, ${rate}, x2
+done:
+
+@section main
+; Flanger
+@if pinConnected(widthIn)
+rdax ${input.widthIn}, x3
+wrax ${lfoRange}, 0.0
+@endif
+
+@if pinConnected(rateIn)
+rdax ${input.rateIn}, rateScale
+wrax ${lfoRateReg}, 0.0
+@endif
+
+@if pinConnected(feedbackIn)
+rdax ${input.feedbackIn}, ${fbkGain}
+@if pinConnected(fbk)
+mulx ${input.fbk}
+@endif
+@endif
+
+rdax ${input.input}, ${inputGain}
+wra ${mem.delayl}, 0.0
+
+; tap1Center = 0.5
+@equals center ${mem.delayl} + (0.5 * ${delayLength})
+cho rda, ${lfoNum}, SIN | REG | COMPC, ${center}
+cho rda, ${lfoNum}, SIN, ${center} + 1
+wrax ${output.output}, 0.0
+
+@if pinConnected(tap)
+rda ${mem.delayl} + ${delayLength}, 1.0
+wrax ${output.tap}, 0.0
+@endif
+

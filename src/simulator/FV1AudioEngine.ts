@@ -260,7 +260,7 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         <div class="stimulus-box">
                             <select id="stimulusSelect">
                             <option value="none">Silence (No Input)</option>
-                            <option value="tone">Built-in: 440Hz Test Tone</option>
+                            <option value="tone">Built-in: White Noise</option>
                             <option value="built-in" selected>Built-in: Minor Chords</option>
                             <option value="custom">Select Custom File...</option>
                         </select>
