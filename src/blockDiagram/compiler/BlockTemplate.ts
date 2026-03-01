@@ -70,7 +70,7 @@ export class BlockTemplate {
             // Handle section directives
             if (line.startsWith('@section')) {
                 const section = line.split(' ')[1] as IRSection;
-                if (['init', 'input', 'main', 'output'].includes(section)) {
+                if (['header', 'init', 'input', 'main', 'output'].includes(section)) {
                     currentSection = section;
                 }
                 continue;
@@ -317,7 +317,10 @@ export class BlockTemplate {
         // Example: my_param == 1 or my_param != 'foo'
         const eqMatch = condition.match(/([^=!]+)\s*(==|!=)\s*(.+)/);
         if (eqMatch) {
-            const varName = eqMatch[1].trim();
+            let varName = eqMatch[1].trim();
+            if (varName.startsWith('${') && varName.endsWith('}')) {
+                varName = varName.substring(2, varName.length - 1);
+            }
             const op = eqMatch[2];
             const value = eqMatch[3].trim().replace(/['"]/g, '');
             const currentVal = block.parameters[varName] ?? this.definition.parameters.find(p => p.id === varName)?.default;
@@ -353,6 +356,15 @@ export class BlockTemplate {
                 ir.push({ op: 'CHO', args: ['RDAL', lfoType], section });
                 ir.push({ op: 'WRAX', args: [lfoResult, '0.0'], section });
                 break;
+            case 'equals': {
+                // @equals length 4096
+                const eqName = args[0];
+                const eqValue = this.resolveValue(args[1], block, ctx);
+                ctx.setVariable(eqName, eqValue.toString());
+                // Emit raw EQU to assembler space since dynamic EQUs aren't substituted with ${local.} yet
+                ir.push({ op: 'EQU', args: [eqName, eqValue.toString()], section: 'header' });
+                break;
+            }
             case 'lpf1p':
                 // @lpf1p result, input, freq [, ctrl]
                 if (args.length >= 4 && args[3]) {
@@ -399,19 +411,38 @@ export class BlockTemplate {
                 ir.push({ op: 'WRAX', args: [args[0], '0.0'], section });
                 break;
             case 'multiplydouble':
-                // @multiplyDouble result, a, b
+            case 'multiplyint': {
                 const mulA = this.resolveValue(args[1], block, ctx);
                 const mulB = this.resolveValue(args[2], block, ctx);
                 const mulVal = (typeof mulA === 'number' ? mulA : 0) * (typeof mulB === 'number' ? mulB : 0);
                 ctx.setVariable(args[0], mulVal.toString());
+                ir.push({ op: 'EQU', args: [`${ctx.getShortId(block.id)}_${args[0]}`, mulVal.toFixed(6)], section: 'header' });
                 break;
-            case 'dividedouble':
-                // @divideDouble result, a, b
+            }
+            case 'dividedouble': {
                 const divA = this.resolveValue(args[1], block, ctx);
                 const divB = this.resolveValue(args[2], block, ctx);
                 const divVal = (typeof divA === 'number' ? divA : 0) / (typeof divB === 'number' ? divB : 1);
                 ctx.setVariable(args[0], divVal.toString());
+                ir.push({ op: 'EQU', args: [`${ctx.getShortId(block.id)}_${args[0]}`, divVal.toFixed(6)], section: 'header' });
                 break;
+            }
+            case 'plusdouble': {
+                const pA = this.resolveValue(args[1], block, ctx);
+                const pB = this.resolveValue(args[2], block, ctx);
+                const pVal = (typeof pA === 'number' ? pA : 0) + (typeof pB === 'number' ? pB : 0);
+                ctx.setVariable(args[0], pVal.toString());
+                ir.push({ op: 'EQU', args: [`${ctx.getShortId(block.id)}_${args[0]}`, pVal.toFixed(6)], section: 'header' });
+                break;
+            }
+            case 'minusdouble': {
+                const mA = this.resolveValue(args[1], block, ctx);
+                const mB = this.resolveValue(args[2], block, ctx);
+                const mVal = (typeof mA === 'number' ? mA : 0) - (typeof mB === 'number' ? mB : 0);
+                ctx.setVariable(args[0], mVal.toString());
+                ir.push({ op: 'EQU', args: [`${ctx.getShortId(block.id)}_${args[0]}`, mVal.toFixed(6)], section: 'header' });
+                break;
+            }
             case 'isgreaterthan':
                 // @isGreaterThan a, b
                 if (parseFloat(args[0]) > parseFloat(args[1])) {

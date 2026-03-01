@@ -30,6 +30,7 @@ export class SpinCADConverter {
         const bodyLines: string[] = [];
         const managedRegs: string[] = [];
         const managedMemo: Array<{ id: string; size: number | string }> = [];
+        const managedEqus: string[] = [];
 
         for (let line of lines) {
             const trimmed = line.trim();
@@ -75,24 +76,40 @@ export class SpinCADConverter {
                             type: 'control'
                         });
                         break;
-                    case 'sliderLabel':
+                    case 'sliderLabel': {
+                        let min = parseFloat(parts[3]);
+                        let max = parseFloat(parts[4]);
+                        let def = parseFloat(parts[5]);
+                        const conversionType = parts[8] as any;
+
+                        // SpinCAD supplies parameters in native samples (0 to 32768).
+                        // FV-1 VSCode interprets `LENGTHTOTIME` on sliders via milliseconds and reconverts them.
+                        // We scale the UI limits on these custom blocks to match this expectation.
+                        if (conversionType === 'LENGTHTOTIME') {
+                            const Fs = 32768;
+                            min = Math.round((min / Fs) * 1000);
+                            max = Math.round((max / Fs) * 1000);
+                            def = Math.round((def / Fs) * 1000);
+                        }
+
                         definition.parameters.push({
                             id: parts[1],
                             name: (parts[2] || '').replace(/'/g, ''),
                             type: 'number',
-                            min: parseFloat(parts[3]),
-                            max: parseFloat(parts[4]),
-                            default: parseFloat(parts[5]),
-                            conversion: parts[8] as any
+                            min: min,
+                            max: max,
+                            default: def,
+                            conversion: conversionType
                         });
                         break;
+                    }
                     case 'comboBox':
                         definition.parameters.push({
                             id: parts[1],
                             name: parts[1],
                             type: 'select',
-                            default: (parts[2] || '').replace(/'/g, ''),
-                            options: parts.slice(2).map(o => ({ label: o.replace(/'/g, ''), value: o.replace(/'/g, '') }))
+                            default: 0,
+                            options: parts.slice(2).map((o, idx) => ({ label: o.replace(/'/g, ''), value: idx }))
                         });
                         break;
                     case 'isPinConnected':
@@ -128,6 +145,33 @@ export class SpinCADConverter {
                         const mSize = isNaN(Number(sizePart)) ? sizePart : parseInt(sizePart);
                         managedMemo.push({ id: mId, size: mSize });
                         break;
+                    case 'getDelayScaleControl':
+                        // @getDelayScaleControl tap1Ratio delayLength delayOffset 
+                        // -> sof ${tap1Ratio}, 0
+                        // -> mulx ${delayLength}
+                        // -> rdaf ${delayOffset}, 1
+                        bodyLines.push(`sof\t\${${parts[1]}}, 0`);
+                        bodyLines.push(`mulx\t\${${parts[2]}}`);
+                        bodyLines.push(`sof\t1.0, \${${parts[3]}} / 32768`);
+                        break;
+                    case 'getSamplesFromRatio':
+                        // @getSamplesFromRatio ratio tap1Ratio delayLength
+                        // Emits a constant calculation into the assembler
+                        // SpinCAD internally tracks this for GUI mapping. For ATL, we can just defer it 
+                        // by creating an inline equation. i.e `equ ratio tap1Ratio * delayLength`
+                        // (The FV-1 assembler will precalculate constant arithmetic if it has values)
+                        managedEqus.push(parts[1]);
+                        bodyLines.push(`equ\t${parts[1]}\t\${${parts[2]}} * \${${parts[3]}}`);
+                        break;
+                    case 'minusDouble':
+                    case 'multiplyDouble':
+                    case 'plusDouble':
+                    case 'multiplyInt':
+                    case 'divideDouble':
+                    case 'divideInt':
+                        managedEqus.push(parts[1]);
+                        headerLines.push(trimmed);
+                        break;
                     default:
                         // Keep other directives like @lpf1p etc.
                         bodyLines.push(trimmed);
@@ -154,6 +198,16 @@ export class SpinCADConverter {
                     const sizeStr = lineParts[2];
                     const memSize = isNaN(Number(sizeStr)) ? sizeStr : parseInt(sizeStr);
                     managedMemo.push({ id: memId, size: memSize });
+                } else if (lineParts[0].toLowerCase() === 'offset') {
+                    // "offset ratio 1" => "equ offset ratio" + something?
+                    // In MN3011a, it simply assigns the variable 'ratio' to 'ratio + 1' ?
+                    // Or it allocates an offset. "offset ratio 1" means ratio is an offset of 1? 
+                    // Actually, looking at the code, it probably means "equ offset ratio_1" or "offset" is a type.
+                    // Let's replace it with a valid equ to assign a constant or let it be redefined later.
+                    managedEqus.push(lineParts[1]);
+                    bodyLines.push(`equ\t${lineParts[1]}\t${lineParts[2] || '0'}`);
+                } else if (op === 'bool' || op === 'int') {
+                    // Ignore metadata declarations that ended up in the body
                 } else {
                     bodyLines.push(line);
                 }
@@ -202,7 +256,7 @@ export class SpinCADConverter {
         // Replace whole words only to avoid partial matches
         // Handle +/- suffixes by inserting a space
         const replaceToken = (id: string, target: string) => {
-            const regex = new RegExp(`\\b${id}\\b(?![^\\{]*\\})`, 'g');
+            const regex = new RegExp(`\\b${id}\\b(?![^\\{]*\\})`, 'gi');
             processedTemplate = processedTemplate.replace(regex, (match, offset, string) => {
                 const nextChar = string[offset + match.length];
                 if (nextChar === '+' || nextChar === '-') {
@@ -217,6 +271,7 @@ export class SpinCADConverter {
         for (const id of ids.param) replaceToken(id, `\${${id}}`);
         for (const id of ids.local) replaceToken(id, `\${reg.${id}}`);
         for (const id of ids.memo) replaceToken(id, `\${mem.${id}}`);
+        for (const id of managedEqus) replaceToken(id, `\${local.${id}}`);
 
         definition.template = processedTemplate;
         return definition;
