@@ -686,11 +686,14 @@ export class GraphCompiler {
         }
 
         // Merge IR code into structured sections
-        sections.init.push(...irSections.init);
-        sections.input.push(...irSections.input);
-        sections.main.push(...irSections.main);
-        sections.output.push(...irSections.output);
+        const finalSections = {
+            header: irSections.header,
+            init: [...sections.init, ...irSections.init],
+            input: [...sections.input, ...irSections.input],
+            main: [...sections.main, ...irSections.main],
+            output: [...sections.output, ...irSections.output]
+        };
 
-        return { sections, warnings };
+        return { sections: finalSections, warnings };
     }
 }

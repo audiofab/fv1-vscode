@@ -7,17 +7,59 @@
   "color": "#6060c4",
   "width": 200,
   "inputs": [
-    { "id": "in", "name": "Input", "type": "audio", "required": true },
-    { "id": "feedback", "name": "Feedback", "type": "audio", "required": false },
-    { "id": "delay_time_1", "name": "Delay Time 1", "type": "control", "required": false },
-    { "id": "delay_time_2", "name": "Delay Time 2", "type": "control", "required": false },
-    { "id": "delay_time_3", "name": "Delay Time 3", "type": "control", "required": false },
-    { "id": "fbk_ctrl", "name": "Feedback Gain", "type": "control", "required": false }
+    {
+      "id": "in",
+      "name": "Input",
+      "type": "audio",
+      "required": true
+    },
+    {
+      "id": "feedback",
+      "name": "Feedback",
+      "type": "audio",
+      "required": false
+    },
+    {
+      "id": "delay_time_1",
+      "name": "Delay Time 1",
+      "type": "control",
+      "required": false
+    },
+    {
+      "id": "delay_time_2",
+      "name": "Delay Time 2",
+      "type": "control",
+      "required": false
+    },
+    {
+      "id": "delay_time_3",
+      "name": "Delay Time 3",
+      "type": "control",
+      "required": false
+    },
+    {
+      "id": "fbk_ctrl",
+      "name": "Feedback Gain",
+      "type": "control",
+      "required": false
+    }
   ],
   "outputs": [
-    { "id": "tap1", "name": "Tap 1 Out", "type": "audio" },
-    { "id": "tap2", "name": "Tap 2 Out", "type": "audio" },
-    { "id": "tap3", "name": "Tap 3 Out", "type": "audio" }
+    {
+      "id": "tap1",
+      "name": "Tap 1 Out",
+      "type": "audio"
+    },
+    {
+      "id": "tap2",
+      "name": "Tap 2 Out",
+      "type": "audio"
+    },
+    {
+      "id": "tap3",
+      "name": "Tap 3 Out",
+      "type": "audio"
+    }
   ],
   "parameters": [
     {
@@ -27,7 +69,8 @@
       "default": 0,
       "min": -24,
       "max": 0,
-      "conversion": "DBLEVEL"
+      "conversion": "DBLEVEL",
+      "step": 0.01
     },
     {
       "id": "fbkGain",
@@ -36,7 +79,8 @@
       "default": -6,
       "min": -24,
       "max": 0,
-      "conversion": "DBLEVEL"
+      "conversion": "DBLEVEL",
+      "step": 0.01
     },
     {
       "id": "delayTime",
@@ -46,7 +90,8 @@
       "min": 10,
       "max": 1000,
       "conversion": "MS_TO_SAMPLES",
-      "description": "The total delay memory allocated in ms."
+      "description": "The total delay memory allocated in ms.",
+      "step": 1
     },
     {
       "id": "tap1Time",
@@ -55,7 +100,8 @@
       "default": 850,
       "min": 0,
       "max": 1000,
-      "conversion": "MS_TO_SAMPLES"
+      "conversion": "MS_TO_SAMPLES",
+      "step": 1
     },
     {
       "id": "tap2Time",
@@ -64,7 +110,8 @@
       "default": 600,
       "min": 0,
       "max": 1000,
-      "conversion": "MS_TO_SAMPLES"
+      "conversion": "MS_TO_SAMPLES",
+      "step": 1
     },
     {
       "id": "tap3Time",
@@ -73,11 +120,15 @@
       "default": 450,
       "min": 0,
       "max": 1000,
-      "conversion": "MS_TO_SAMPLES"
+      "conversion": "MS_TO_SAMPLES",
+      "step": 1
     }
   ],
   "memories": [
-    { "id": "delayl", "size": "delayTime" }
+    {
+      "id": "delayl",
+      "size": "delayTime"
+    }
   ]
 }
 ---

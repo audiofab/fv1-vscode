@@ -8,11 +8,25 @@
   "width": 180,
   "labelTemplate": "${inputConnected.freq_ctrl ? 'External Control' : param.frequency + ' Hz'}",
   "inputs": [
-    { "id": "in", "name": "Input", "type": "audio", "required": true },
-    { "id": "freq_ctrl", "name": "Frequency", "type": "control", "required": false }
+    {
+      "id": "in",
+      "name": "Input",
+      "type": "audio",
+      "required": true
+    },
+    {
+      "id": "freq_ctrl",
+      "name": "Frequency",
+      "type": "control",
+      "required": false
+    }
   ],
   "outputs": [
-    { "id": "out", "name": "Output", "type": "audio" }
+    {
+      "id": "out",
+      "name": "Output",
+      "type": "audio"
+    }
   ],
   "parameters": [
     {
@@ -23,7 +37,8 @@
       "min": 20,
       "max": 10000,
       "conversion": "LOGFREQ",
-      "description": "Low pass cutoff frequency in Hz. Frequencies above this will be attenuated."
+      "description": "Low pass cutoff frequency in Hz. Frequencies above this will be attenuated.",
+      "step": 1
     }
   ]
 }

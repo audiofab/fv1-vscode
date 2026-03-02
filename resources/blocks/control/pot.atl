@@ -9,7 +9,11 @@
   "labelTemplate": "POT ${param.potNumber}",
   "inputs": [],
   "outputs": [
-    { "id": "out", "name": "Control", "type": "control" }
+    {
+      "id": "out",
+      "name": "Control",
+      "type": "control"
+    }
   ],
   "parameters": [
     {
@@ -18,9 +22,18 @@
       "type": "select",
       "default": 0,
       "options": [
-        { "label": "POT0", "value": 0 },
-        { "label": "POT1", "value": 1 },
-        { "label": "POT2", "value": 2 }
+        {
+          "label": "POT0",
+          "value": 0
+        },
+        {
+          "label": "POT1",
+          "value": 1
+        },
+        {
+          "label": "POT2",
+          "value": 2
+        }
       ]
     },
     {
@@ -29,9 +42,18 @@
       "type": "select",
       "default": "none",
       "options": [
-        { "label": "None (Raw)", "value": "none" },
-        { "label": "Smoother (LPF)", "value": "smoother" },
-        { "label": "Speedup (Lead-Lag)", "value": "speedup" }
+        {
+          "label": "None (Raw)",
+          "value": "none"
+        },
+        {
+          "label": "Smoother (LPF)",
+          "value": "smoother"
+        },
+        {
+          "label": "Speedup (Lead-Lag)",
+          "value": "speedup"
+        }
       ]
     },
     {
@@ -41,7 +63,7 @@
       "default": 0.005,
       "min": 0.0001,
       "max": 0.1,
-      "step": 0.0001,
+      "step": 0.01,
       "visibleIf": "filterType == 'smoother'"
     },
     {
@@ -51,7 +73,7 @@
       "default": 0.001,
       "min": 0.0001,
       "max": 0.1,
-      "step": 0.0001,
+      "step": 0.01,
       "visibleIf": "filterType == 'speedup'"
     },
     {
@@ -60,7 +82,7 @@
       "type": "number",
       "default": -0.75,
       "min": -0.99,
-      "max": 0.0,
+      "max": 0,
       "step": 0.01,
       "visibleIf": "filterType == 'speedup'",
       "description": "Negative values provide lead (faster response)"
@@ -72,7 +94,10 @@
       "default": false
     }
   ],
-  "registers": ["f1", "f2"]
+  "registers": [
+    "f1",
+    "f2"
+  ]
 }
 ---
 @section input

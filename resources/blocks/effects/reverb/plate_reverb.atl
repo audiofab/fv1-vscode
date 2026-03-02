@@ -7,39 +7,170 @@
   "color": "#7100FC",
   "width": 180,
   "inputs": [
-    { "id": "in", "name": "Input", "type": "audio" },
-    { "id": "dampingCV", "name": "Damping", "type": "control" },
-    { "id": "decayTimeCV", "name": "Decay Time", "type": "control" },
-    { "id": "mixCV", "name": "Mix", "type": "control" }
+    {
+      "id": "in",
+      "name": "Input",
+      "type": "audio"
+    },
+    {
+      "id": "dampingCV",
+      "name": "Damping",
+      "type": "control"
+    },
+    {
+      "id": "decayTimeCV",
+      "name": "Decay Time",
+      "type": "control"
+    },
+    {
+      "id": "mixCV",
+      "name": "Mix",
+      "type": "control"
+    }
   ],
   "outputs": [
-    { "id": "outL", "name": "Left", "type": "audio" },
-    { "id": "outR", "name": "Right", "type": "audio" }
+    {
+      "id": "outL",
+      "name": "Left",
+      "type": "audio"
+    },
+    {
+      "id": "outR",
+      "name": "Right",
+      "type": "audio"
+    }
   ],
   "parameters": [
-    { "id": "damping", "name": "Damping", "type": "number", "default": 0.5, "min": 0, "max": 1, "description": "High-frequency damping in the reverb tanks." },
-    { "id": "decayTime", "name": "Decay Time", "type": "number", "default": 0.5, "min": 0, "max": 1, "description": "Reverb decay length (T60)." },
-    { "id": "mix", "name": "Mix", "type": "number", "default": 0.5, "min": 0, "max": 1, "description": "Wet/Dry mix balance." },
-    { "id": "preDelay", "name": "Pre-Delay (ms)", "type": "number", "default": 20.0, "min": 0, "max": 100.0, "conversion": "MS_TO_SAMPLES", "description": "Initial delay before reverb onset in ms." }
+    {
+      "id": "damping",
+      "name": "Damping",
+      "type": "number",
+      "default": 0.5,
+      "min": 0,
+      "max": 1,
+      "description": "High-frequency damping in the reverb tanks (0.0 to 1.0 feedback coefficient).",
+      "step": 0.01
+    },
+    {
+      "id": "decayTime",
+      "name": "Decay Time",
+      "type": "number",
+      "default": 0.5,
+      "min": 0,
+      "max": 1,
+      "description": "Reverb decay length (T60/feedback coefficient 0.0 to 1.0).",
+      "step": 0.01
+    },
+    {
+      "id": "mix",
+      "name": "Mix",
+      "type": "number",
+      "default": 0.5,
+      "min": 0,
+      "max": 1,
+      "description": "Wet/Dry mix balance. 0.0 is pure dry, 1.0 is pure wet.",
+      "step": 0.01
+    },
+    {
+      "id": "preDelay",
+      "name": "Pre-Delay (ms)",
+      "type": "number",
+      "default": 20,
+      "min": 0,
+      "max": 100,
+      "conversion": "MS_TO_SAMPLES",
+      "description": "Initial delay before reverb onset in ms. This is the only parameter that affects memory allocation.",
+      "step": 0.1
+    },
+    {
+      "id": "density",
+      "name": "Density",
+      "type": "select",
+      "default": "High",
+      "options": [
+        {
+          "value": "High",
+          "label": "High (4-stage diffusion, 14 taps)"
+        },
+        {
+          "value": "Standard",
+          "label": "Standard (2-stage diffusion, 8 taps)"
+        },
+        {
+          "value": "Economy",
+          "label": "Economy (1-stage diffusion, 4 taps)"
+        }
+      ],
+      "description": "Adjusts complexity to save instructions. Economy uses ~70, High uses ~110."
+    }
   ],
   "memories": [
-    { "id": "predelay", "size": "preDelay" },
-    { "id": "ap13_14", "size": 156 },
-    { "id": "ap19_20", "size": 117 },
-    { "id": "ap15_16", "size": 417 },
-    { "id": "ap21_22", "size": 305 },
-    { "id": "ap23_24", "size": 748 },
-    { "id": "del24_30", "size": 4903 },
-    { "id": "ap31_33", "size": 1990 },
-    { "id": "del33_39", "size": 4096 },
-    { "id": "ap46_48", "size": 1008 },
-    { "id": "del48_54", "size": 4643 },
-    { "id": "ap55_59", "size": 2932 },
-    { "id": "del59_63", "size": 3483 }
+    {
+      "id": "predelay",
+      "size": "preDelay"
+    },
+    {
+      "id": "ap13_14",
+      "size": 156
+    },
+    {
+      "id": "ap19_20",
+      "size": 117
+    },
+    {
+      "id": "ap15_16",
+      "size": 417
+    },
+    {
+      "id": "ap21_22",
+      "size": 305
+    },
+    {
+      "id": "ap23_24",
+      "size": 748
+    },
+    {
+      "id": "del24_30",
+      "size": 4903
+    },
+    {
+      "id": "ap31_33",
+      "size": 1990
+    },
+    {
+      "id": "del33_39",
+      "size": 4096
+    },
+    {
+      "id": "ap46_48",
+      "size": 1008
+    },
+    {
+      "id": "del48_54",
+      "size": 4643
+    },
+    {
+      "id": "ap55_59",
+      "size": 2932
+    },
+    {
+      "id": "del59_63",
+      "size": 3483
+    }
   ],
   "registers": [
-    "krl", "decay", "decay_diffusion_2", "damping_reg", "one_minus_dmpg",
-    "lp_inp", "lp30_31", "lp54_55", "mono", "diffuse_in", "temp", "temp2"
+    "krl",
+    "decay",
+    "decay_diffusion_2",
+    "damping_reg",
+    "one_minus_dmpg",
+    "lp_inp",
+    "lp30_31",
+    "lp54_55",
+    "mono",
+    "diffuse_in",
+    "temp",
+    "temp2"
   ]
 }
 ---
@@ -72,7 +203,7 @@ rdax ${input.mixCV}, 1.0
 mulx ${input.mixCV}
 @else
 @multiplydouble mixSq ${mix}, ${mix}
-sof 0.0, mixSq
+sof 0.0, ${mixSq}
 @endif
 wrax ${reg.krl}, 0.0
 
@@ -82,18 +213,18 @@ rdax ${input.decayTimeCV}, 1.0
 @else
 sof 0.0, ${decayTime}
 @endif
-sof decayLimit, 0.0
+sof ${decayLimit}, 0.0
 wrax ${reg.decay}, 1.0
 
 ; Calculate decay_diffusion_2
-sof 1.0, -c0_35
+sof 1.0, -${c0_35}
 skp neg, 1
 clr
-sof 1.0, c0_35
-sof 1.0, -c0_10
+sof 1.0, ${c0_35}
+sof 1.0, -${c0_10}
 skp gez, 1
 clr
-sof 1.0, c0_25
+sof 1.0, ${c0_25}
 wrax ${reg.decay_diffusion_2}, 0.0
 
 ; Damping
@@ -102,9 +233,9 @@ rdax ${input.dampingCV}, 1.0
 @else
 sof 0.0, ${damping}
 @endif
-sof -1.0, c0_99
+sof -1.0, ${c0_99}
 wrax ${reg.damping_reg}, -1.0
-sof 1.0, c0_999
+sof 1.0, ${c0_999}
 wrax ${reg.one_minus_dmpg}, 0.0
 
 ; Mono sum and pre-delay
@@ -113,19 +244,26 @@ wrax ${reg.mono}, 1.0
 wra ${mem.predelay}, 0.0
 
 ; Input low-pass
-rda ${mem.predelay}#, bandwidth
-rdax ${reg.lp_inp}, 1.0-bandwidth
+rda ${mem.predelay}#, ${bandwidth}
+rdax ${reg.lp_inp}, 1.0-${bandwidth}
 wrax ${reg.lp_inp}, 1.0
 
 ; Input diffusion
-rda ${mem.ap13_14}#, -inputDiff1
-wrap ${mem.ap13_14}, inputDiff1
-rda ${mem.ap19_20}#, -inputDiff1
-wrap ${mem.ap19_20}, inputDiff1
-rda ${mem.ap15_16}#, -inputDiff2
-wrap ${mem.ap15_16}, inputDiff2
-rda ${mem.ap21_22}#, -inputDiff2
-wrap ${mem.ap21_22}, inputDiff2
+rda ${mem.ap13_14}#, -${inputDiff1}
+wrap ${mem.ap13_14}, ${inputDiff1}
+
+@if density != 'Economy'
+rda ${mem.ap15_16}#, -${inputDiff2}
+wrap ${mem.ap15_16}, ${inputDiff2}
+@endif
+
+@if density == 'High'
+rda ${mem.ap19_20}#, -${inputDiff1}
+wrap ${mem.ap19_20}, ${inputDiff1}
+rda ${mem.ap21_22}#, -${inputDiff2}
+wrap ${mem.ap21_22}, ${inputDiff2}
+@endif
+
 wrax ${reg.diffuse_in}, 0.0
 
 ; Left Tank
@@ -136,9 +274,9 @@ wrax ${reg.temp}, 0.0
 
 cho rda, SIN0, SIN|REG|COMPC, ${mem.ap23_24}#-excursion-1
 cho rda, SIN0, SIN, ${mem.ap23_24}#-excursion
-wrax ${reg.temp2}, decayDiff1
+wrax ${reg.temp2}, ${decayDiff1}
 rdax ${reg.temp}, 1.0
-wra ${mem.ap23_24}, -decayDiff1
+wra ${mem.ap23_24}, -${decayDiff1}
 rdax ${reg.temp2}, 1.0
 
 wra ${mem.del24_30}, 0.0
@@ -173,9 +311,9 @@ wrax ${reg.temp}, 0.0
 
 cho rda, SIN0, COS|REG|COMPC, ${mem.ap46_48}#-excursion-1
 cho rda, SIN0, COS, ${mem.ap46_48}#-excursion
-wrax ${reg.temp2}, decayDiff1
+wrax ${reg.temp2}, ${decayDiff1}
 rdax ${reg.temp}, 1.0
-wra ${mem.ap46_48}, -decayDiff1
+wra ${mem.ap46_48}, -${decayDiff1}
 rdax ${reg.temp2}, 1.0
 
 wra ${mem.del48_54}, 0.0
@@ -202,13 +340,19 @@ rdax ${reg.temp2}, 1.0
 wra ${mem.del59_63}, 0.0
 
 ; Left Output Taps
-rda ${mem.del48_54}+292, tap0_6
-rda ${mem.del48_54}+3274, tap0_6
-rda ${mem.ap55_59}+2107, tapNeg0_6
-rda ${mem.del59_63}+2198, tap0_6
-rda ${mem.del24_30}+2192, tapNeg0_6
-rda ${mem.ap31_33}+205, tapNeg0_6
-rda ${mem.del33_39}+1174, tapNeg0_6
+rda ${mem.del48_54}+292, ${tap0_6}
+rda ${mem.del24_30}+2192, ${tapNeg0_6}
+
+@if density != 'Economy'
+rda ${mem.del48_54}+3274, ${tap0_6}
+rda ${mem.del33_39}+1174, ${tapNeg0_6}
+@endif
+
+@if density == 'High'
+rda ${mem.ap55_59}+2107, ${tapNeg0_6}
+rda ${mem.del59_63}+2198, ${tap0_6}
+rda ${mem.ap31_33}+205, ${tapNeg0_6}
+@endif
 
 rdax ${reg.mono}, -1.0
 mulx ${reg.krl}
@@ -216,13 +360,19 @@ rdax ${reg.mono}, 1.0
 wrax ${output.outL}, 0.0
 
 ; Right Output Taps
-rda ${mem.del24_30}+389, tap0_6
-rda ${mem.del24_30}+3993, tap0_6
-rda ${mem.ap31_33}+1352, tapNeg0_6
-rda ${mem.del33_39}+2943, tap0_6
-rda ${mem.del48_54}+2325, tapNeg0_6
-rda ${mem.ap55_59}+369, tapNeg0_6
-rda ${mem.del59_63}+133, tapNeg0_6
+rda ${mem.del24_30}+389, ${tap0_6}
+rda ${mem.del59_63}+133, ${tapNeg0_6}
+
+@if density != 'Economy'
+rda ${mem.del24_30}+3993, ${tap0_6}
+rda ${mem.del48_54}+2325, ${tapNeg0_6}
+@endif
+
+@if density == 'High'
+rda ${mem.ap31_33}+1352, ${tapNeg0_6}
+rda ${mem.del33_39}+2943, ${tap0_6}
+rda ${mem.ap55_59}+369, ${tapNeg0_6}
+@endif
 
 rdax ${reg.mono}, -1.0
 mulx ${reg.krl}

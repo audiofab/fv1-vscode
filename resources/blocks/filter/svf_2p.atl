@@ -7,13 +7,35 @@
   "color": "#24f26f",
   "width": 180,
   "inputs": [
-    { "id": "in", "name": "Audio Input", "type": "audio", "required": true },
-    { "id": "freq_ctrl", "name": "Frequency", "type": "control", "required": false }
+    {
+      "id": "in",
+      "name": "Audio Input",
+      "type": "audio",
+      "required": true
+    },
+    {
+      "id": "freq_ctrl",
+      "name": "Frequency",
+      "type": "control",
+      "required": false
+    }
   ],
   "outputs": [
-    { "id": "lpf", "name": "Lowpass Out", "type": "audio" },
-    { "id": "bpf", "name": "Bandpass Out", "type": "audio" },
-    { "id": "hpf", "name": "Hipass Out", "type": "audio" }
+    {
+      "id": "lpf",
+      "name": "Lowpass Out",
+      "type": "audio"
+    },
+    {
+      "id": "bpf",
+      "name": "Bandpass Out",
+      "type": "audio"
+    },
+    {
+      "id": "hpf",
+      "name": "Hipass Out",
+      "type": "audio"
+    }
   ],
   "parameters": [
     {
@@ -24,7 +46,8 @@
       "min": 20,
       "max": 10000,
       "conversion": "SVFFREQ",
-      "description": "Filter corner/center frequency in Hz."
+      "description": "Filter corner/center frequency in Hz.",
+      "step": 1
     },
     {
       "id": "q",
@@ -32,10 +55,15 @@
       "type": "number",
       "default": 1,
       "min": 1,
-      "max": 100
+      "max": 100,
+      "step": 0.01
     }
   ],
-  "registers": ["hpf", "bpf", "lpf"]
+  "registers": [
+    "hpf",
+    "bpf",
+    "lpf"
+  ]
 }
 ---
 ; SVF 2P

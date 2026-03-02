@@ -7,15 +7,48 @@
   "color": "#24F2F2",
   "width": 180,
   "inputs": [
-    { "id": "input", "name": "Input", "type": "audio", "required": true },
-    { "id": "feedbackIn", "name": "Feedback In", "type": "audio", "required": false },
-    { "id": "rateIn", "name": "LFO Rate", "type": "control", "required": false },
-    { "id": "widthIn", "name": "LFO Width", "type": "control", "required": false },
-    { "id": "fbk", "name": "Feedback Gain", "type": "control", "required": false }
+    {
+      "id": "input",
+      "name": "Input",
+      "type": "audio",
+      "required": true
+    },
+    {
+      "id": "feedbackIn",
+      "name": "Feedback In",
+      "type": "audio",
+      "required": false
+    },
+    {
+      "id": "rateIn",
+      "name": "LFO Rate",
+      "type": "control",
+      "required": false
+    },
+    {
+      "id": "widthIn",
+      "name": "LFO Width",
+      "type": "control",
+      "required": false
+    },
+    {
+      "id": "fbk",
+      "name": "Feedback Gain",
+      "type": "control",
+      "required": false
+    }
   ],
   "outputs": [
-    { "id": "output", "name": "Output", "type": "audio" },
-    { "id": "tap", "name": "Tap", "type": "audio" }
+    {
+      "id": "output",
+      "name": "Output",
+      "type": "audio"
+    },
+    {
+      "id": "tap",
+      "name": "Tap",
+      "type": "audio"
+    }
   ],
   "parameters": [
     {
@@ -25,7 +58,8 @@
       "default": 0,
       "min": -24,
       "max": 0,
-      "conversion": "DBLEVEL"
+      "conversion": "DBLEVEL",
+      "step": 0.01
     },
     {
       "id": "fbkGain",
@@ -34,17 +68,19 @@
       "default": -6,
       "min": -24,
       "max": 0,
-      "conversion": "DBLEVEL"
+      "conversion": "DBLEVEL",
+      "step": 0.01
     },
     {
       "id": "baseDelay",
       "name": "Base Delay (ms)",
       "type": "number",
-      "default": 1.0,
+      "default": 1,
       "min": 0.1,
-      "max": 10.0,
+      "max": 10,
       "conversion": "MS_TO_SAMPLES",
-      "description": "The center point of the flange modulation in ms."
+      "description": "The center point of the flange modulation in ms.",
+      "step": 0.1
     },
     {
       "id": "rate",
@@ -52,19 +88,21 @@
       "type": "number",
       "default": 0.5,
       "min": 0.05,
-      "max": 10.0,
+      "max": 10,
       "conversion": "HZ_TO_LFO_RATE",
-      "description": "Frequency of the flange modulation in Hz."
+      "description": "Frequency of the flange modulation in Hz.",
+      "step": 0.01
     },
     {
       "id": "width",
       "name": "LFO Depth (ms)",
       "type": "number",
-      "default": 1.0,
-      "min": 0.0,
-      "max": 10.0,
+      "default": 1,
+      "min": 0,
+      "max": 10,
       "conversion": "MS_TO_LFO_RANGE",
-      "description": "The depth of the flange sweep in ms."
+      "description": "The depth of the flange sweep in ms.",
+      "step": 0.1
     },
     {
       "id": "lfoSel",
@@ -72,13 +110,22 @@
       "type": "select",
       "default": 0,
       "options": [
-        { "label": "LFO 0", "value": 0 },
-        { "label": "LFO 1", "value": 1 }
+        {
+          "label": "LFO 0",
+          "value": 0
+        },
+        {
+          "label": "LFO 1",
+          "value": 1
+        }
       ]
     }
   ],
   "memories": [
-    { "id": "delayl", "size": 1024 }
+    {
+      "id": "delayl",
+      "size": 1024
+    }
   ]
 }
 ---

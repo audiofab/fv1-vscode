@@ -7,12 +7,31 @@
   "color": "#7100FC",
   "width": 180,
   "inputs": [
-    { "id": "input", "name": "Audio Input", "type": "audio", "required": true },
-    { "id": "reverb_time", "name": "Reverb Time", "type": "control", "required": false },
-    { "id": "mix_ctrl", "name": "Mix Control", "type": "control", "required": false }
+    {
+      "id": "input",
+      "name": "Audio Input",
+      "type": "audio",
+      "required": true
+    },
+    {
+      "id": "reverb_time",
+      "name": "Reverb Time",
+      "type": "control",
+      "required": false
+    },
+    {
+      "id": "mix_ctrl",
+      "name": "Mix",
+      "type": "control",
+      "required": false
+    }
   ],
   "outputs": [
-    { "id": "output", "name": "Audio Output", "type": "audio" }
+    {
+      "id": "output",
+      "name": "Audio Output",
+      "type": "audio"
+    }
   ],
   "parameters": [
     {
@@ -22,7 +41,8 @@
       "default": 0.5,
       "min": 0,
       "max": 0.99,
-      "description": "Feedback amount for the reverb tail. Higher values result in longer decay."
+      "description": "Feedback coefficient for the reverb tail (0.0 to 0.99). Controls the decay length.",
+      "step": 0.01
     },
     {
       "id": "mix",
@@ -31,20 +51,48 @@
       "default": 0.5,
       "min": 0,
       "max": 1,
-      "description": "Wet/Dry mix balance."
+      "step": 0.01,
+      "description": "Wet/Dry mix balance. 0.0 is pure dry, 1.0 is pure wet."
     }
   ],
   "memories": [
-    { "id": "api1", "size": 122 },
-    { "id": "api2", "size": 303 },
-    { "id": "api3", "size": 553 },
-    { "id": "api4", "size": 922 },
-    { "id": "ap1", "size": 3823 },
-    { "id": "del1", "size": 6512 },
-    { "id": "ap2", "size": 4732 },
-    { "id": "del2", "size": 5016 }
+    {
+      "id": "api1",
+      "size": 122
+    },
+    {
+      "id": "api2",
+      "size": 303
+    },
+    {
+      "id": "api3",
+      "size": 553
+    },
+    {
+      "id": "api4",
+      "size": 922
+    },
+    {
+      "id": "ap1",
+      "size": 3823
+    },
+    {
+      "id": "del1",
+      "size": 6512
+    },
+    {
+      "id": "ap2",
+      "size": 4732
+    },
+    {
+      "id": "del2",
+      "size": 5016
+    }
   ],
-  "registers": ["apout", "dry"]
+  "registers": [
+    "apout",
+    "dry"
+  ]
 }
 ---
 ; Minimal reverb
@@ -58,13 +106,13 @@ wrax ${reg.dry}, 0.0
 rdax ${reg.dry}, 0.25
 
 ; 4 series input allpass filters
-rda ${mem.api1}#, kap
+rda ${mem.api1}#, ${kap}
 wrap ${mem.api1}, -1.0
-rda ${mem.api2}#, kap
+rda ${mem.api2}#, ${kap}
 wrap ${mem.api2}, -1.0
-rda ${mem.api3}#, kap
+rda ${mem.api3}#, ${kap}
 wrap ${mem.api3}, -1.0
-rda ${mem.api4}#, kap
+rda ${mem.api4}#, ${kap}
 wrap ${mem.api4}, -1.0
 
 ; Save allpass output for second loop
@@ -79,8 +127,8 @@ rda ${mem.del2}#, ${reverbTime}
 @endif
 
 ; Loop allpass 1
-rda ${mem.ap1}#, -kap
-wrap ${mem.ap1}, kap
+rda ${mem.ap1}#, -${kap}
+wrap ${mem.ap1}, ${kap}
 
 ; Write to delay 1
 wra ${mem.del1}, 1.99
@@ -96,8 +144,8 @@ rda ${mem.del1}#, ${reverbTime}
 @endif
 
 ; Loop allpass 2
-rda ${mem.ap2}#, -kap
-wrap ${mem.ap2}, kap
+rda ${mem.ap2}#, -${kap}
+wrap ${mem.ap2}, ${kap}
 
 ; Write to delay 2 and output
 wra ${mem.del2}, 1.99
