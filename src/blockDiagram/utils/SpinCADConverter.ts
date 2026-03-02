@@ -190,7 +190,7 @@ export class SpinCADConverter {
                         break;
                     }
                     default:
-                        // Keep other directives like @lpf1p etc.
+                        // Keep other directives.
                         bodyLines.push(trimmed);
                 }
             } else {

@@ -1,0 +1,42 @@
+---
+{
+  "type": "test_alg",
+  "name": "AlgTest",
+  "category": "Test",
+  "description": "Tests full algebraic parser.",
+  "inputs": [],
+  "outputs": [],
+  "parameters": [],
+  "registers": ["f1", "f2"]
+}
+---
+
+; 1. Assignment from memory or scalar
+@acc = 0                    ; CLR
+@acc = POT0                 ; LDAX POT0 (or CLR\nRDA POT0, 1.0 if memory)
+@acc = ${reg.f1}            ; LDAX REG_f1
+${reg.f2} = @acc            ; WRAX REG_f2, 0.0
+
+; 2. Add/subtract
+@acc += 0.2                 ; SOF 1.0, 0.2
+@acc += POT1                ; RDAX POT1, 1.0 
+@acc -= ${reg.f2}           ; RDAX REG_f2, -1.0
+
+; 3. Logical
+@acc &= 0.9                 ; AND 0.9
+@acc |= ${reg.f1}           ; OR REG_f1
+@acc ^= POT2                ; XOR POT2
+
+; 4. Multiplication
+@acc = POT0 * 0.5           ; CLR\nRDAX POT0, 0.5
+@acc = ${reg.f1} * -0.5     ; CLR\nRDAX REG_f1, -0.5
+@acc = @acc * 0.2           ; SOF 0.2, 0.0
+
+; 5. Filtering (Standard)
+@acc = lpf(${reg.f1}, 0.2)           ; RDFX REG_f1, 0.2\nWRAX REG_f1, 1.0
+${reg.f2} = hpf(${reg.f1}, POT0)     ; RDFX REG_f1, POT0\nWRHX REG_f1, 0.0\nWRAX REG_f2, 0.0
+@acc = lpf_alt(${reg.f1}, 0.2, -0.5) ; RDFX REG_f1, 0.2\nWRLX REG_f1, -0.5
+
+; 6. Filtering (Modulated)
+@acc = lpf_modulated(${reg.f1}, 0.1, POT1) ; RDFX REG_f1, 0.1\nMULX POT1\nRDAX REG_f1, 1.0\nWRAX REG_f1, 1.0
+${reg.f2} = lpf_modulated(${reg.f1}, 0.1, POT1) ; RDFX REG_f1, 0.1\nMULX POT1\nRDAX REG_f1, 1.0\nWRAX REG_f1, 0.0\nWRAX REG_f2, 0.0

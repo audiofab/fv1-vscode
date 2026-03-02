@@ -5,12 +5,15 @@
 
 import { BlockTemplateDefinition, IRNode, IRSection } from '../types/IR.js';
 import { CodeGenContext, Block } from '../types/Block.js';
+import { AlgebraicCompiler } from '../../assembler/AlgebraicCompiler.js';
 
 export class BlockTemplate {
     private definition: BlockTemplateDefinition;
+    private algebraicCompiler: AlgebraicCompiler;
 
     constructor(definition: BlockTemplateDefinition) {
         this.definition = definition;
+        this.algebraicCompiler = new AlgebraicCompiler();
     }
 
     /**
@@ -145,6 +148,22 @@ export class BlockTemplate {
                 comment = processedLine.substring(commentIndex + commentMarkerLen).trim();
             }
 
+            // Try compiling as algebraic statement first
+            if (codePart.length > 0 && (codePart.includes('=') || codePart.includes('@acc') || codePart.includes('acc'))) {
+                const isMemoryCheck = (id: string) => {
+                    // Check if identifier is in memory objects or refers to delay RAM
+                    if (memory[id] !== undefined) return true;
+                    if (id.startsWith('mem.') || id.startsWith('MEM')) return true;
+                    if (id.toLowerCase() === 'delayl' || id.toLowerCase() === 'delayr') return true;
+                    return false;
+                };
+
+                const compiled = this.algebraicCompiler.compileLine(codePart, isMemoryCheck);
+                if (compiled) {
+                    codePart = compiled; // Replace codePart with the standard FV-1 assembly
+                }
+            }
+
             // Handle Standard Macros
             if (codePart.startsWith('@')) {
                 this.expandMacro(codePart, currentSection, ir, ctx, block);
@@ -162,7 +181,23 @@ export class BlockTemplate {
             if (splitIndex !== -1) {
                 const op = codePart.substring(0, splitIndex).trim().toUpperCase();
                 const argsPart = codePart.substring(splitIndex).trim();
-                const args = argsPart.split(',').map(a => a.trim()).filter(a => a.length > 0);
+
+                // Split by comma, but ignore commas inside parentheses
+                const args: string[] = [];
+                let currentArg = '';
+                let parenLevel = 0;
+                for (let i = 0; i < argsPart.length; i++) {
+                    const char = argsPart[i];
+                    if (char === '(') parenLevel++;
+                    else if (char === ')') parenLevel--;
+                    else if (char === ',' && parenLevel === 0) {
+                        args.push(currentArg.trim());
+                        currentArg = '';
+                        continue;
+                    }
+                    currentArg += char;
+                }
+                if (currentArg.trim().length > 0) args.push(currentArg.trim());
 
                 ir.push({
                     op,
@@ -359,51 +394,6 @@ export class BlockTemplate {
                 ir.push({ op: 'EQU', args: [eqName, eqValue.toString()], section: 'header' });
                 break;
             }
-            case 'lpf1p':
-                // @lpf1p result, input, freq [, ctrl]
-                if (args.length >= 4 && args[3]) {
-                    // Control input provided - ignore static freq parameter
-                    ir.push({ op: 'RDAX', args: [args[1], '1.0'], section });
-                    ir.push({ op: 'RDAX', args: [args[0], '-1.0'], section });
-                    ir.push({ op: 'MULX', args: [args[3]], section });
-                    ir.push({ op: 'RDAX', args: [args[0], '1.0'], section });
-                } else {
-                    // Static frequency
-                    ir.push({ op: 'RDAX', args: [args[1], '1.0'], section });
-                    ir.push({ op: 'RDFX', args: [args[0], args[2]], section });
-                }
-                ir.push({ op: 'WRAX', args: [args[0], '0.0'], section });
-                break;
-            case 'hpf1p':
-                // @hpf1p result, input, freq, state [, ctrl]
-                if (args.length >= 5 && args[4]) {
-                    // Control input provided - ignore static freq parameter
-                    ir.push({ op: 'RDAX', args: [args[1], '1.0'], section });
-                    ir.push({ op: 'RDAX', args: [args[3], '-1.0'], section });
-                    ir.push({ op: 'MULX', args: [args[4]], section });
-                    ir.push({ op: 'RDAX', args: [args[3], '1.0'], section });
-                } else {
-                    // Static frequency
-                    ir.push({ op: 'RDAX', args: [args[1], '1.0'], section });
-                    ir.push({ op: 'RDFX', args: [args[3], args[2]], section });
-                }
-                ir.push({ op: 'WRAX', args: [args[3], '-1.0'], section });
-                ir.push({ op: 'RDAX', args: [args[1], '1.0'], section });
-                ir.push({ op: 'WRAX', args: [args[0], '0.0'], section });
-                break;
-            case 'smooth':
-                // @smooth result, input, coeff
-                ir.push({ op: 'RDAX', args: [args[1], '1.0'], section });
-                ir.push({ op: 'RDFX', args: [args[0], args[2]], section });
-                ir.push({ op: 'WRAX', args: [args[0], '0.0'], section });
-                break;
-            case 'speedup':
-                // @speedup result, input, lp_coeff, hp_coeff, state_reg
-                ir.push({ op: 'RDAX', args: [args[1], '1.0'], section });
-                ir.push({ op: 'RDFX', args: [args[4], args[2]], section });
-                ir.push({ op: 'WRHX', args: [args[4], args[3]], section });
-                ir.push({ op: 'WRAX', args: [args[0], '0.0'], section });
-                break;
             case 'multiplydouble':
             case 'multiplyint': {
                 const mulA = this.resolveValue(args[1], block, ctx);

@@ -104,21 +104,25 @@
 
 @if filterType == 'smoother'
 ; Cascaded smoothers for high-quality noise reduction
-@smooth ${reg.f1}, POT${param.potNumber}, ${param.smoothing}
-@smooth ${output.out}, ${reg.f1}, ${param.smoothing}
+${reg.f1} = lpf(${reg.f1}, 0.05) ; POTs internally feed the acc, so we just filter
+${output.out} = lpf(${reg.f2}, 0.05)
 @else
   @if filterType == 'speedup'
     ; Speedup filter (lead-lag) for fast response with some smoothing
-    @speedup ${output.out}, POT${param.potNumber}, ${param.lpCoeff}, ${param.hpCoeff}, ${reg.f1}
+    ; @speedup result, input, lp_coeff, hp_coeff, state_reg -> RDFX state, lp, WRHX state, hp, WRAX result
+    @acc = POT${param.potNumber}
+    @acc = lpf(${reg.f1}, ${param.lpCoeff})
+    WRHX ${reg.f1}, ${param.hpCoeff}
+    ${output.out} = @acc
   @else
     ; No filtering
-    rdax POT${param.potNumber}, 1.0
-    wrax ${output.out}, 0
+    @acc = POT${param.potNumber}
+    ${output.out} = @acc
   @endif
 @endif
 
 @if invert == true
-rdax ${output.out}, 1.0
-sof -1.0, 1.0 ; Invert
-wrax ${output.out}, 0
+@acc = ${output.out}
+@acc = @acc * -1.0 + 1.0 ; Invert
+${output.out} = @acc
 @endif

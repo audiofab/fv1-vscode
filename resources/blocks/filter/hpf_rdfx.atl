@@ -46,4 +46,8 @@
   ]
 }
 ---
-@hpf1p ${output.out}, ${input.in}, ${param.frequency}, ${reg.lpf_state}, ${input.freq_ctrl}
+@if pinConnected(freq_ctrl)
+${output.out} = hpf_modulated(${reg.lpf_state}, ${param.frequency}, ${input.freq_ctrl})
+@else
+${output.out} = hpf(${reg.lpf_state}, ${param.frequency})
+@endif

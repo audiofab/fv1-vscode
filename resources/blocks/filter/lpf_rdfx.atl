@@ -40,7 +40,14 @@
       "description": "Low pass cutoff frequency in Hz. Frequencies above this will be attenuated.",
       "step": 1
     }
+  ],
+  "registers": [
+    "lpf_state"
   ]
 }
 ---
-@lpf1p ${output.out}, ${input.in}, ${param.frequency}, ${input.freq_ctrl}
+@if pinConnected(freq_ctrl)
+${output.out} = lpf_modulated(${reg.lpf_state}, ${param.frequency}, ${input.freq_ctrl})
+@else
+${output.out} = lpf(${reg.lpf_state}, ${param.frequency})
+@endif

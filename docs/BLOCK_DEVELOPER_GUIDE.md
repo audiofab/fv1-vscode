@@ -73,6 +73,23 @@ Allocates internal temporary registers.
 
 ## Assembly Template Features
 
+### Algebraic Syntax (New)
+ATL supports an algebraic assignment syntax that automatically translates into FV-1 assembly instructions at compile time, saving you from writing raw `RDAX`, `WRAX`, and `SOF` statements.
+
+Supported operations include:
+- **Assignment**: `@acc = POT0` translates to `RDAX POT0, 1.0`
+- **Math/Scaling**: `@acc = ${reg.f1} * 0.5` translates to `RDAX REG_f1, 0.5`
+- **Output Storage**: `${output.out} = @acc` translates to `WRAX OUT, 0.0`
+- **Accumulation**: `@acc += POT1` translates to `RDAX POT1, 1.0`
+- **Bitwise Logic**: `@acc &= 0.9` translates to `AND 0.9`
+- **Scale Off-Set (SOF)**: `@acc = @acc * 0.2 + 0.1` translates to `SOF 0.2, 0.1`
+- **Filtering**:
+  - `lpf` (Low Pass / `WRAX`), `hpf` (High Pass / `WRHX`), `lpf_alt` (Shelving / `WRLX`), and `lpf_modulated` (Envelope control / `MULX`).
+  - Example: `@acc = lpf(${reg.state}, POT0, 0.5)` translates to `RDFX REG_state, POT0\nWRAX REG_state, 0.5`.
+  - *Note: If assigning to a register instead of `@acc`, the compiler automatically passes `0.0` as the scale to clear the accumulator.*
+
+*Note: Algebraic syntax must be cleanly formatted and evaluate to a contiguous left-to-right macro translation.*
+
 ### Token Substitution
 Tokens are replaced at compile time with resolved register names, memory addresses, or parameter values.
 - `${input.pin_id}`: The register containing the value for that input.
