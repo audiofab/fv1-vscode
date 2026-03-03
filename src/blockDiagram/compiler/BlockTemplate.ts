@@ -386,12 +386,16 @@ export class BlockTemplate {
                 ir.push({ op: 'WRAX', args: [lfoResult, '0.0'], section });
                 break;
             case 'equals': {
-                // @equals length 4096
                 const eqName = args[0];
-                const eqValue = this.resolveValue(args[1], block, ctx);
+                const eqNameIndex = line.indexOf(eqName);
+                let expr = args[1];
+                if (eqNameIndex !== -1) {
+                    expr = line.substring(eqNameIndex + eqName.length).trim();
+                } else {
+                    expr = args.slice(1).join(' ');
+                }
+                const eqValue = this.resolveValue(expr, block, ctx);
                 ctx.setVariable(eqName, eqValue.toString());
-                // Emit raw EQU to assembler space since dynamic EQUs aren't substituted with ${local.} yet
-                ir.push({ op: 'EQU', args: [eqName, eqValue.toString()], section: 'header' });
                 break;
             }
             case 'multiplydouble':
@@ -400,7 +404,6 @@ export class BlockTemplate {
                 const mulB = this.resolveValue(args[2], block, ctx);
                 const mulVal = (typeof mulA === 'number' ? mulA : 0) * (typeof mulB === 'number' ? mulB : 0);
                 ctx.setVariable(args[0], mulVal.toString());
-                ir.push({ op: 'EQU', args: [`${ctx.getShortId(block.id)}_${args[0]}`, mulVal.toFixed(6)], section: 'header' });
                 break;
             }
             case 'dividedouble': {
@@ -408,7 +411,6 @@ export class BlockTemplate {
                 const divB = this.resolveValue(args[2], block, ctx);
                 const divVal = (typeof divA === 'number' ? divA : 0) / (typeof divB === 'number' ? divB : 1);
                 ctx.setVariable(args[0], divVal.toString());
-                ir.push({ op: 'EQU', args: [`${ctx.getShortId(block.id)}_${args[0]}`, divVal.toFixed(6)], section: 'header' });
                 break;
             }
             case 'plusdouble': {
@@ -416,7 +418,6 @@ export class BlockTemplate {
                 const pB = this.resolveValue(args[2], block, ctx);
                 const pVal = (typeof pA === 'number' ? pA : 0) + (typeof pB === 'number' ? pB : 0);
                 ctx.setVariable(args[0], pVal.toString());
-                ir.push({ op: 'EQU', args: [`${ctx.getShortId(block.id)}_${args[0]}`, pVal.toFixed(6)], section: 'header' });
                 break;
             }
             case 'minusdouble': {
@@ -424,7 +425,6 @@ export class BlockTemplate {
                 const mB = this.resolveValue(args[2], block, ctx);
                 const mVal = (typeof mA === 'number' ? mA : 0) - (typeof mB === 'number' ? mB : 0);
                 ctx.setVariable(args[0], mVal.toString());
-                ir.push({ op: 'EQU', args: [`${ctx.getShortId(block.id)}_${args[0]}`, mVal.toFixed(6)], section: 'header' });
                 break;
             }
             case 'isgreaterthan':
@@ -491,16 +491,15 @@ export class BlockTemplate {
             case 'SVFFREQ':
                 return (2.0 * Math.sin(Math.PI * val / Fs)).toFixed(6);
             case 'SINLFOFREQ':
-                return Math.round(val * (1 << 18) / Fs);
+            case 'HZ_TO_LFO_RATE':
+                return Math.round((1 << 18) * Math.PI * val / Fs);
             case 'DBLEVEL':
                 return Math.pow(10.0, val / 20.0).toFixed(6);
             case 'LENGTHTOTIME':
             case 'MS_TO_SAMPLES':
-                return Math.round((val / 1000) * Fs);
+                return Math.round((val * Fs / 1000));
             case 'MS_TO_LFO_RANGE':
-                return Math.round((val * Fs / 1000) / 2);
-            case 'HZ_TO_LFO_RATE':
-                return Math.round(val * (1 << 18) / Fs);
+                return Math.round((val * Fs / 1000) * 32767 / 16385);
             default:
                 return typeof val === 'number' ? val.toFixed(6) : val;
         }
@@ -567,6 +566,23 @@ export class BlockTemplate {
         const firstTokenIndex = line.indexOf('${');
 
         return line.replace(/\$\{([^}]+)\}/g, (match, key, offset) => {
+            // Check for property modifiers like .max and .min
+            const propMatch = key.match(/^(?:param\.)?([^.]+)\.(max|min)$/);
+            if (propMatch) {
+                const paramId = propMatch[1];
+                const prop = propMatch[2];
+                const paramDef = this.definition.parameters.find(p => p.id === paramId);
+                if (paramDef) {
+                    let val = prop === 'max' ? paramDef.max : paramDef.min;
+                    if (val !== undefined) {
+                        if (paramDef.conversion && ctx) {
+                            val = this.applyConversion(paramDef.conversion, val, ctx);
+                        }
+                        return val.toString();
+                    }
+                }
+            }
+
             if (key.startsWith('param.')) return params[key.split('.')[1]]?.toString() || '';
             if (key.startsWith('input.')) return inputs[key.split('.')[1]] || '';
             if (key.startsWith('output.')) return outputs[key.split('.')[1]] || '';

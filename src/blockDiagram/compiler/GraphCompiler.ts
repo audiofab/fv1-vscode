@@ -625,59 +625,88 @@ export class GraphCompiler {
 
         // Track accumulator state for move pruning
         let accValue: string | null = null;
+        let lastWraxNode: any | null = null;
         let optimizedCount = 0;
 
+        const optimizedNodes: any[] = [];
+
+        // Pass 1: Peephole AST Optimizer
         for (const node of irNodes) {
             let skipNode = false;
 
             // Reset accumulator tracking on control flow or labels
             if (node.op === 'SKP' || node.op === 'JMP' || node.op.endsWith(':')) {
                 accValue = null;
+                lastWraxNode = null;
             }
 
             // Specialized move pruning (WRAX -> LDAX optimization)
             if (node.op === 'LDAX') {
-                const reg = node.args[0];
-                if (reg === accValue) {
+                const reg = (node.args[0] || '').trim();
+                const lastWraxMultiplier = lastWraxNode ? (lastWraxNode.args[1] || '0.0').trim() : '';
+
+                if (reg === accValue && reg !== '') {
                     // Accumulator already contains this register value
                     skipNode = true;
                     optimizedCount++;
+                } else if (lastWraxNode && (lastWraxNode.args[0] || '').trim() === reg && (lastWraxMultiplier === '0' || lastWraxMultiplier === '0.0' || parseFloat(lastWraxMultiplier) === 0)) {
+                    // Previous WRAX cleared ACC, but we can change it to keep ACC and prune this LDAX
+                    lastWraxNode.args[1] = '1.0';
+                    skipNode = true;
+                    optimizedCount++;
+                    accValue = reg;
                 } else {
                     accValue = reg;
+                    lastWraxNode = null;
                 }
             } else if (node.op === 'WRAX') {
-                const reg = node.args[0];
-                const multiplier = node.args[1];
-                accValue = multiplier === '0' || multiplier === '0.0' ? reg : null;
+                const reg = (node.args[0] || '').trim();
+                const multiplier = (node.args[1] || '0.0').trim();
+                if (multiplier === '1' || multiplier === '1.0' || parseFloat(multiplier) === 1) {
+                    accValue = reg;
+                } else {
+                    accValue = null;
+                }
+                lastWraxNode = node;
             } else if (node.op === 'WRA' || node.op === 'WRAL' || node.op === 'WRAR') {
-                // These clear ACC or modify it, reset tracker for safety if not 0 multiplier
-                const multiplier = node.args[1];
+                // These clear ACC or modify it, reset tracker for safety
                 accValue = null;
+                lastWraxNode = null;
             } else if (['CLR', 'ABS', 'NEG', 'NOT'].includes(node.op)) {
                 accValue = null;
-            } else if (['RDAX', 'MAXX', 'MULX', 'RDA', 'CHO', 'SOF', 'LOG', 'EXP', 'MACX', 'MACS', 'MACSN'].includes(node.op)) {
+                lastWraxNode = null;
+            } else if (['RDAX', 'MAXX', 'MULX', 'RDA', 'CHO', 'SOF', 'LOG', 'EXP'].includes(node.op)) {
                 // Instructions that modify ACC based on a register/memory
                 accValue = null;
+                lastWraxNode = null;
+            } else if (node.op !== ';') {
+                // Any other active instruction clears the contiguous WRAX->LDAX chain
+                lastWraxNode = null;
             }
 
             if (!skipNode) {
-                // Special handling for labels (end with :) and comments (op is ;)
-                if (node.op.endsWith(':')) {
-                    irSections[node.section].push(node.op);
-                } else if (node.op === ';') {
-                    // Comments should join with space, not comma
-                    irSections[node.section].push(`;\t${node.args.join(' ')}`);
-                } else {
-                    const isDeclaration = ['EQU', 'MEM'].includes(node.op);
-                    const separator = isDeclaration ? '\t' : ', ';
-                    const line = `${node.op.toLowerCase()}\t${node.args.join(separator)}`;
+                optimizedNodes.push(node);
+            }
+        }
 
-                    let finalLine = line;
-                    if (node.comment) {
-                        finalLine += `\t; ${node.comment}`;
-                    }
-                    irSections[node.section].push(finalLine);
+        // Pass 2: Serialize AST nodes into formatted string instructions
+        for (const node of optimizedNodes) {
+            // Special handling for labels (end with :) and comments (op is ;)
+            if (node.op.endsWith(':')) {
+                irSections[node.section].push(node.op);
+            } else if (node.op === ';') {
+                // Comments should join with space, not comma
+                irSections[node.section].push(`;\t${node.args.join(' ')}`);
+            } else {
+                const isDeclaration = ['EQU', 'MEM'].includes(node.op);
+                const separator = isDeclaration ? '\t' : ', ';
+                const line = `${node.op.toLowerCase()}\t${node.args.join(separator)}`;
+
+                let finalLine = line;
+                if (node.comment) {
+                    finalLine += `\t; ${node.comment}`;
                 }
+                irSections[node.section].push(finalLine);
             }
         }
 

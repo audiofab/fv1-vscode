@@ -282,14 +282,10 @@ being processed
         // Special case for POT blocks: use the potNumber parameter
         let suffix = '';
         if (block.type === 'input.pot') {
-            if (block.parameters && block.parameters.potNumber !== undefined && block.parameters.potNumber !== null) {
-                suffix = `${block.parameters.potNumber}`;
-            } else {
-                // POT block without potNumber parameter - use index as fallback
-                const sameTypeBlocks = this.graph.blocks.filter(b => b.type === block.type);
-                const index = sameTypeBlocks.findIndex(b => b.id === blockId);
-                suffix = `${index}`;
-            }
+            const potNum = (block.parameters && block.parameters.potNumber !== undefined && block.parameters.potNumber !== null)
+                ? block.parameters.potNumber
+                : 0;
+            suffix = `${potNum}`;
         } else if (this.graph.blocks.filter(b => b.type === block.type).length > 1) {
             // If there are multiple blocks of the same type, add a number
             const sameTypeBlocks = this.graph.blocks.filter(b => b.type === block.type);
@@ -297,7 +293,17 @@ being processed
             suffix = `${index + 1}`;
         }
 
-        return this.sanitizeIdentifier(`${baseName}${suffix}_${portId}`);
+        const baseAlias = this.sanitizeIdentifier(`${baseName}${suffix}_${portId}`);
+        let finalAlias = baseAlias;
+        let counter = 2;
+
+        // Guarantee global alias uniqueness
+        while (this.registerAllocations.some(a => a.alias === finalAlias && (a.blockId !== blockId || a.portId !== portId))) {
+            finalAlias = `${baseAlias}_${counter}`;
+            counter++;
+        }
+
+        return finalAlias;
     }
 
     /**

@@ -86,7 +86,7 @@
       "id": "rate",
       "name": "LFO Rate (Hz)",
       "type": "number",
-      "default": 0.5,
+      "default": 1,
       "min": 0.05,
       "max": 10,
       "conversion": "HZ_TO_LFO_RATE",
@@ -148,12 +148,14 @@ done_lfo:
 @section main
 ; Flanger
 @if pinConnected(rateIn)
-rdax ${input.rateIn}, ${rate}
+rdax ${input.rateIn}, ${param.rate.max} / 511.0
+sof 1.0, ${param.rate.min} / 511.0
 wrax ${lfoRateReg}, 0.0
 @endif
 
 @if pinConnected(widthIn)
-rdax ${input.widthIn}, ${width}
+rdax ${input.widthIn}, ${param.width.max} / 32767.0
+sof 1.0, ${param.width.min} / 32767.0
 wrax ${lfoRange}, 0.0
 @endif
 

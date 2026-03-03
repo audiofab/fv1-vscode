@@ -598,9 +598,13 @@ export class FV1Simulator {
         if (lfoSelect === 0) {
             this.sin0_rate = f;
             this.sin0_range = a;
+            this.registers[0] = f; // SIN0_RATE (reg0)
+            this.registers[1] = a; // SIN0_RANGE (reg1)
         } else {
             this.sin1_rate = f;
             this.sin1_range = a;
+            this.registers[2] = f; // SIN1_RATE (reg2)
+            this.registers[3] = a; // SIN1_RANGE (reg3)
         }
     }
 
@@ -624,9 +628,13 @@ export class FV1Simulator {
         if (lfoSelect === 0) {
             this.rmp0_rate = f_val;
             this.rmp0_range = a_val;
+            this.registers[4] = f_val; // RMP0_RATE (reg4)
+            this.registers[5] = a_val; // RMP0_RANGE (reg5)
         } else {
             this.rmp1_rate = f_val;
             this.rmp1_range = a_val;
+            this.registers[6] = f_val; // RMP1_RATE (reg6)
+            this.registers[7] = a_val; // RMP1_RANGE (reg7)
         }
     }
 
@@ -918,6 +926,16 @@ export class FV1Simulator {
     }
 
     private updateLFOs() {
+        // Sync internal LFO modulations explicitly modified by WRAX or WRHX
+        this.sin0_rate = this.registers[0];
+        this.sin0_range = this.registers[1];
+        this.sin1_rate = this.registers[2];
+        this.sin1_range = this.registers[3];
+        this.rmp0_rate = this.registers[4];
+        this.rmp0_range = this.registers[5];
+        this.rmp1_rate = this.registers[6];
+        this.rmp1_range = this.registers[7];
+
         // C logic update_rmp0/1
         this.rmp0 -= this.rmp0_rate * (1.0 / 4096.0);
         while (this.rmp0 >= 1.0) this.rmp0 -= 1.0;
@@ -942,6 +960,10 @@ export class FV1Simulator {
     }
 
     private updateStateRegisters() {
+        // ONLY update accumulators here! Rate/Range is dictated by the program loop!
+        // Writing registers[0..7] here would explicitly overwrite mid-frame WRAX modulations!
+
+        // LFO State Accumulators
         this.registers[8] = this.sin0;
         this.registers[9] = this.cos0;
         this.registers[10] = this.sin1;
