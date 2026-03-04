@@ -8,14 +8,29 @@ import { TemplateBlock } from './TemplateBlock.js';
 import { BlockTemplateDefinition } from '../types/IR.js';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as vscode from 'vscode';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Native EventEmitter to decouple registry from VSCode API natively for headless testing
+class EventEmitter<T> {
+    private listeners: ((e: T) => any)[] = [];
+    public event = (listener: (e: T) => any) => {
+        this.listeners.push(listener);
+        return { dispose: () => this.listeners = this.listeners.filter(l => l !== listener) };
+    };
+    public fire(data?: T) {
+        this.listeners.forEach(l => l(data as T));
+    }
+}
 
 export class BlockRegistry {
     private blocks: Map<string, IBlockDefinition> = new Map();
     private categories: Map<string, string[]> = new Map();
     private isInitialized = false;
 
-    private _onDidChangeBlocks = new vscode.EventEmitter<void>();
+    private _onDidChangeBlocks = new EventEmitter<void>();
     public readonly onDidChangeBlocks = this._onDidChangeBlocks.event;
 
     constructor() {

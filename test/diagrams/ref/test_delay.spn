@@ -1,0 +1,62 @@
+;================================================================================
+; delay_crossfade_test
+; Tests mathematical routing loops, dual signal merging, and constant parameter folding.
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Register Aliases
+equ	adc_out	REG0
+equ	simple_audio_output	REG1
+equ	crossfade_output	REG2
+equ	simple_local_dry	REG3
+equ	simple_local_wet	REG4
+
+; Memory Allocations
+mem	mem0_delayl	16384
+
+
+; Input Section
+;--------------------------------------------------------------------------------
+rdax	ADCL, 1
+; wrax	adc_out, 0
+wrax	adc_out,	1.0	; Optimization: accumulator forwarded
+
+; Main Program
+;--------------------------------------------------------------------------------
+;	Simple Delay with Mix
+;	Store dry signal and write to delay
+; rdax	adc_out, 1.0	; rdax not needed with accumulator forwarding optimization
+wrax	simple_local_dry, 1.0
+wra	mem0_delayl, 0.0
+;	Calculate Delay Pointer (ADDR_PTR is an absolute address in delay RAM)
+;	Optimization - clr not required as ACC should be zero from earlier code
+;	clr
+sof	0.0, (mem0_delayl + 16384)/32768
+wrax	ADDR_PTR, 0.0
+;	Read wet signal
+rmpa	1.0
+;	Store to wet register (keep value in ACC)
+wrax	simple_local_wet, 1.0
+;	Mixing logic: dry + mix * (wet - dry)
+rdax	simple_local_dry, -0.999	; Use -0.999 to avoid potential overflow clipping at -1.0
+;	; ACC now equals (wet - dry)
+sof	1, 0.0
+rdax	simple_local_dry, 1.0
+wrax	simple_audio_output, 0.0
+;	Crossfade
+;	wet * fade + dry * (1 - fade)
+;	ACC = (wet - dry) * fade + dry
+rdax	simple_audio_output, 0.501187
+rdax	adc_out, -0.501187
+rdax	adc_out, 0.501187
+wrax	crossfade_output, 0.0
+; wrax	crossfade_output, 0.0
+wrax	crossfade_output,	1.0	; Optimization: accumulator forwarded
+
+; Output Section
+;--------------------------------------------------------------------------------
+;	DAC Output
+; rdax	crossfade_output, 1.0	; rdax not needed with accumulator forwarding optimization
+wrax	DACL, 0

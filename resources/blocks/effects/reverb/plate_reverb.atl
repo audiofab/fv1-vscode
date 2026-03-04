@@ -187,13 +187,13 @@
 @equals bandwidth 0.31852 ; 1 - 0.68148
 @equals tap0_6 0.6
 @equals tapNeg0_6 -0.6
-@equals excursion 8
+@equals 8 8
 
 @section init
 ; Plate Reverb init
 skp run, done
-wlds SIN0, 27, excursion
-wlds SIN1, 23, excursion
+wlds SIN0, 27, 8
+wlds SIN1, 23, 8
 done:
 
 @section main
@@ -272,8 +272,8 @@ mulx ${reg.decay}
 rdax ${reg.diffuse_in}, 1.0
 wrax ${reg.temp}, 0.0
 
-cho rda, SIN0, SIN|REG|COMPC, ${mem.ap23_24}#-excursion-1
-cho rda, SIN0, SIN, ${mem.ap23_24}#-excursion
+cho rda, SIN0, SIN|REG|COMPC, ${mem.ap23_24}#-8-1
+cho rda, SIN0, SIN, ${mem.ap23_24}#-8
 wrax ${reg.temp2}, ${decayDiff1}
 rdax ${reg.temp}, 1.0
 wra ${mem.ap23_24}, -${decayDiff1}
@@ -292,8 +292,8 @@ wrax ${reg.lp30_31}, 1.0
 mulx ${reg.decay}
 wrax ${reg.temp}, 0.0
 
-cho rda, SIN1, COS|REG|COMPC, ${mem.ap31_33}#-excursion-1
-cho rda, SIN1, COS, ${mem.ap31_33}#-excursion
+cho rda, SIN1, COS|REG|COMPC, ${mem.ap31_33}#-8-1
+cho rda, SIN1, COS, ${mem.ap31_33}#-8
 wrax ${reg.temp2}, -1.0
 mulx ${reg.decay_diffusion_2}
 rdax ${reg.temp}, 1.0
@@ -309,8 +309,8 @@ mulx ${reg.decay}
 rdax ${reg.diffuse_in}, 1.0
 wrax ${reg.temp}, 0.0
 
-cho rda, SIN0, COS|REG|COMPC, ${mem.ap46_48}#-excursion-1
-cho rda, SIN0, COS, ${mem.ap46_48}#-excursion
+cho rda, SIN0, COS|REG|COMPC, ${mem.ap46_48}#-8-1
+cho rda, SIN0, COS, ${mem.ap46_48}#-8
 wrax ${reg.temp2}, ${decayDiff1}
 rdax ${reg.temp}, 1.0
 wra ${mem.ap46_48}, -${decayDiff1}
@@ -328,8 +328,8 @@ wrax ${reg.lp54_55}, 1.0
 mulx ${reg.decay}
 wrax ${reg.temp}, 0.0
 
-cho rda, SIN1, SIN|REG|COMPC, ${mem.ap55_59}#-excursion-1
-cho rda, SIN1, SIN, ${mem.ap55_59}#-excursion
+cho rda, SIN1, SIN|REG|COMPC, ${mem.ap55_59}#-8-1
+cho rda, SIN1, SIN, ${mem.ap55_59}#-8
 wrax ${reg.temp2}, -1.0
 mulx ${reg.decay_diffusion_2}
 rdax ${reg.temp}, 1.0

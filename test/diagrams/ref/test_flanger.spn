@@ -1,0 +1,55 @@
+;================================================================================
+; flanger_pot_test
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Potentiometer Assignments
+;--------------------------------------------------------------------------------
+; POT0: Flanger (LFO Rate)
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Register Aliases
+equ	adc_out	REG0
+equ	pot0_out	REG1
+equ	flanger_output	REG2
+equ	pot0_local_f1	REG3
+equ	pot0_local_f2	REG4
+equ	flanger_tap	REG5
+
+; Memory Allocations
+mem	mem0_delayl	1024
+
+;	Flanger LFO init
+skp	run, done_lfo
+wlds	SIN0, 126, 655
+DONE_LFO:
+
+; Input Section
+;--------------------------------------------------------------------------------
+rdax	ADCL, 1
+wrax	adc_out, 0
+ldax	POT0
+;	No filtering
+sof	-1, 1	; Invert
+wrax	pot0_out, 0.0
+
+; Main Program
+;--------------------------------------------------------------------------------
+;	Flanger
+rdax	pot0_out, 251 / 511.0
+sof	1.0, 1 / 511.0
+wrax	SIN0_RATE, 0.0
+rdax	adc_out, 1.000000
+wra	mem0_delayl, 0.0
+;	tapCenter
+cho	rda, SIN0, SIN | REG | COMPC, mem0_delayl + 164
+cho	rda, SIN0, SIN, mem0_delayl + 164 + 1
+; wrax	flanger_output, 0.0
+wrax	flanger_output,	1.0	; Optimization: accumulator forwarded
+
+; Output Section
+;--------------------------------------------------------------------------------
+;	DAC Output
+; rdax	flanger_output, 1.0	; rdax not needed with accumulator forwarding optimization
+wrax	DACL, 0
