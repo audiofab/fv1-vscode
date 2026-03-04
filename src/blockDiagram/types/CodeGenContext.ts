@@ -47,6 +47,9 @@ export class CodeGenerationContext implements CodeGenContext {
     private outputCode: string[] = [];  // DAC writes
     private irNodes: any[] = []; // Semantic IR nodes
 
+    // Error tracking
+    private compilationErrors: string[] = [];
+
     // FV-1 hardware limits
     private readonly MAX_REGISTERS = 32;  // REG0-REG31
     private readonly MAX_MEMORY = 32768;  // Delay memory words
@@ -76,6 +79,25 @@ being processed
      */
     pushHeaderComment(...lines: string[]): void {
         this.headerComments.push(...lines);
+    }
+
+    /**
+     * Report an error that halts generation and alerts the user
+     */
+    addError(message: string): void {
+        if (this.currentBlockId) {
+            const shortId = this.getShortId(this.currentBlockId);
+            this.compilationErrors.push(`Block [${shortId}]: ${message}`);
+        } else {
+            this.compilationErrors.push(message);
+        }
+    }
+
+    /**
+     * Return all collected errors during AST template evaluation
+     */
+    getErrors(): string[] {
+        return this.compilationErrors;
     }
 
     /**

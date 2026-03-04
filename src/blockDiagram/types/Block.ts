@@ -135,6 +135,10 @@ export interface CodeGenContext {
     getUsedRegisterCount(): number;
     getUsedMemorySize(): number;
     getMemoryBlocks(): Array<{ name: string; address: number; size: number }>;
+
+    // Error Reporting
+    addError(message: string): void;
+    getErrors(): string[];
 }
 
 export interface ValidationContext {

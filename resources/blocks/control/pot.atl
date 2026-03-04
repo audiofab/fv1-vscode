@@ -92,6 +92,32 @@
       "name": "Invert",
       "type": "boolean",
       "default": false
+    },
+    {
+      "id": "custom_range",
+      "name": "Custom Scaling",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "id": "pot_min",
+      "name": "Min",
+      "type": "number",
+      "default": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.01,
+      "visibleIf": "custom_range == true"
+    },
+    {
+      "id": "pot_max",
+      "name": "Max",
+      "type": "number",
+      "default": 1.0,
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.01,
+      "visibleIf": "custom_range == true"
     }
   ],
   "registers": [
@@ -102,27 +128,31 @@
 ---
 @section input
 
+@acc = POT${param.potNumber}
 @if filterType == 'smoother'
-; Cascaded smoothers for high-quality noise reduction
-${reg.f1} = lpf(${reg.f1}, 0.05) ; POTs internally feed the acc, so we just filter
-${output.out} = lpf(${reg.f2}, 0.05)
+  ; Cascaded smoothers for high-quality noise reduction
+  @acc = lpf(${reg.f1}, 0.05) ; POTs internally feed the acc, so we just filter
+  @acc = lpf(${reg.f2}, 0.05)
 @else
   @if filterType == 'speedup'
     ; Speedup filter (lead-lag) for fast response with some smoothing
     ; @speedup result, input, lp_coeff, hp_coeff, state_reg -> RDFX state, lp, WRHX state, hp, WRAX result
-    @acc = POT${param.potNumber}
     @acc = lpf(${reg.f1}, ${param.lpCoeff})
     WRHX ${reg.f1}, ${param.hpCoeff}
-    ${output.out} = @acc
   @else
     ; No filtering
-    @acc = POT${param.potNumber}
-    ${output.out} = @acc
   @endif
 @endif
 
-@if invert == true
-@acc = ${output.out}
+@if ${param.invert} == true
 @acc = @acc * -1.0 + 1.0 ; Invert
-${output.out} = @acc
 @endif
+
+@if ${param.custom_range} == true
+  @if ${param.pot_min} != 0.0 || ${param.pot_max} != 1.0
+    @assert ${param.pot_max} > ${param.pot_min}, "Custom POT scaling: max must be greater than min"
+    @acc = @acc * (${param.pot_max} - ${param.pot_min}) + ${param.pot_min} ; Custom scaling
+  @endif
+@endif
+
+${output.out} = @acc

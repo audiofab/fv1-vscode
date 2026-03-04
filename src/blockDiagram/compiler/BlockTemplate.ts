@@ -124,6 +124,33 @@ export class BlockTemplate {
                 continue;
             }
 
+            // Handle @assert directives
+            if (line.startsWith('@assert')) {
+                const assertContent = line.substring(7).trim();
+                const commaIdx = assertContent.indexOf(',');
+
+                if (commaIdx !== -1) {
+                    const conditionStr = assertContent.substring(0, commaIdx).trim();
+                    let messageStr = assertContent.substring(commaIdx + 1).trim();
+
+                    // Allow parameter injections into the error message
+                    messageStr = this.performSubstitutions(messageStr, params, inputs, outputs, internalRegs, memory, block, ctx);
+
+                    if (messageStr.startsWith('"') && messageStr.endsWith('"')) {
+                        messageStr = messageStr.substring(1, messageStr.length - 1);
+                    } else if (messageStr.startsWith("'") && messageStr.endsWith("'")) {
+                        messageStr = messageStr.substring(1, messageStr.length - 1);
+                    }
+
+                    if (!this.evaluateCondition(conditionStr, block, ctx)) {
+                        ctx.addError(messageStr);
+                    }
+                } else {
+                    ctx.addError(`Invalid @assert syntax. Expected: @assert condition, "message". Got: ${line}`);
+                }
+                continue;
+            }
+
             const trimmed = line.trim().toLowerCase();
             const isEqu = trimmed.startsWith('equ');
             const firstTokenIndex = line.indexOf('${');
@@ -158,7 +185,7 @@ export class BlockTemplate {
                     return false;
                 };
 
-                const compiled = this.algebraicCompiler.compileLine(codePart, isMemoryCheck);
+                const compiled = this.algebraicCompiler.compileLine(codePart, isMemoryCheck, (msg) => ctx.addError(msg));
                 if (compiled) {
                     codePart = compiled; // Replace codePart with the standard FV-1 assembly
                 }
@@ -292,6 +319,26 @@ export class BlockTemplate {
     }
 
     private evaluateCondition(condition: string, block: Block, ctx: CodeGenContext): boolean {
+        // Pre-evaluate condition parameters by replacing ${...} macros BEFORE parsing the logic!
+        const params = block.parameters;
+        // Simple regex replace for right-hand side constants evaluated in conditionals 
+        // Example: `@assert param.max > ${param.min}` -> `@assert param.max > 0.0`
+        condition = condition.replace(/\$\{param\.([^}]+)\}/g, (match, paramName) => {
+            return (params[paramName] ?? this.definition.parameters.find(p => p.id === paramName)?.default)?.toString() || '0';
+        });
+
+        // Evaluate OR clauses
+        const orClauses = condition.split('||');
+        if (orClauses.length > 1) {
+            return orClauses.some(clause => this.evaluateCondition(clause.trim(), block, ctx));
+        }
+
+        // Evaluate AND clauses
+        const andClauses = condition.split('&&');
+        if (andClauses.length > 1) {
+            return andClauses.every(clause => this.evaluateCondition(clause.trim(), block, ctx));
+        }
+
         // Example: pinConnected(freq_ctrl)
         const pinMatch = condition.match(/pinConnected\(([^)]+)\)/);
         if (pinMatch) {
@@ -336,7 +383,7 @@ export class BlockTemplate {
         }
 
         // Example: my_param == 1 or my_param != 'foo'
-        const eqMatch = condition.match(/([^=!]+)\s*(==|!=)\s*(.+)/);
+        const eqMatch = condition.match(/([^=!<>]+)\s*(==|!=|>=|<=|>|<)\s*([^=!<>]+)/);
         if (eqMatch) {
             let varName = eqMatch[1].trim();
             if (varName.startsWith('${') && varName.endsWith('}')) {
@@ -344,14 +391,43 @@ export class BlockTemplate {
             }
             const op = eqMatch[2];
             const value = eqMatch[3].trim().replace(/['"]/g, '');
-            const cleanVarName = varName.startsWith('param.') ? varName.substring(6) :
-                varName.startsWith('input.') ? varName.substring(6) :
-                    varName.startsWith('output.') ? varName.substring(7) : varName;
+            let currentVal: any = varName;
 
-            const currentVal = block.parameters[cleanVarName] ?? this.definition.parameters.find(p => p.id === cleanVarName)?.default;
+            // Check if varName is a direct number first before looking up parameters
+            let numCurrent = parseFloat(varName);
 
-            const isMatch = currentVal?.toString() === value;
-            return op === '==' ? isMatch : !isMatch;
+            // If it's literally a pure number text like "0.2" (and not a param string like "0xFC" or "invert")
+            if (isNaN(numCurrent) || isNaN(Number(varName))) {
+                // Must be a parameter/variable lookup
+                const cleanVarName = varName.startsWith('param.') ? varName.substring(6) :
+                    varName.startsWith('input.') ? varName.substring(6) :
+                        varName.startsWith('output.') ? varName.substring(7) : varName;
+
+                const foundParam = block.parameters[cleanVarName] ?? this.definition.parameters.find(p => p.id === cleanVarName)?.default;
+                if (foundParam !== undefined) {
+                    currentVal = foundParam;
+                    numCurrent = parseFloat(currentVal?.toString() || '');
+                }
+            }
+
+            const numValue = parseFloat(value);
+
+            // Attempt strict numeric comparison if both sides are valid numbers
+            if (!isNaN(numCurrent) && !isNaN(numValue)) {
+                if (op === '==') return numCurrent === numValue;
+                if (op === '!=') return numCurrent !== numValue;
+                if (op === '>=') return numCurrent >= numValue;
+                if (op === '<=') return numCurrent <= numValue;
+                if (op === '>') return numCurrent > numValue;
+                if (op === '<') return numCurrent < numValue;
+            }
+
+            // Fallback to strict string comparison
+            const strCurrent = currentVal?.toString() || '';
+            const isMatch = strCurrent === value;
+            if (op === '==') return isMatch;
+            if (op === '!=') return !isMatch;
+            return false;
         }
 
         return false;

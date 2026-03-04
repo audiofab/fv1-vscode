@@ -125,8 +125,28 @@ export class GraphCompiler {
                 // For now, even legacy blocks can be adapted to push IR if they want
                 definition.generateCode(context);
 
+                const blockErrors = context.getErrors();
+                if (blockErrors.length > 0) {
+                    errors.push(...blockErrors);
+                }
+
                 context.resetScratchRegisters();
             }
+
+            // Short-circuit completely if template generation produced fatal errors
+            if (errors.length > 0) {
+                return {
+                    success: false,
+                    errors: errors,
+                    statistics: {
+                        instructionsUsed: 0,
+                        registersUsed: 0,
+                        memoryUsed: 0,
+                        blocksProcessed: 0
+                    }
+                };
+            }
+
         } catch (error) {
             return {
                 success: false,

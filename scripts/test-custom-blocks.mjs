@@ -141,30 +141,72 @@ async function run() {
         }
 
         if (!metadata) {
-            console.warn(`[MISSING] ${displayName} (ID: ${id})`);
-            missingCount++;
-            continue;
+            // Check if it's one of our expected skipped primitives
+            if (['input', 'output', 'pot0', 'pot1', 'pot2'].includes(id.toLowerCase())) {
+                // Try to find pot manually
+                metadata = atlMap.get('input.pot');
+                if (!metadata) {
+                    missingCount++;
+                    continue;
+                }
+            } else {
+                console.warn(`[MISSING] ${displayName} (ID: ${id})`);
+                missingCount++;
+                continue;
+            }
+        }
+
+        // Setup test configuration specifically for pot to test asserts
+        const block = { id: 'test_block', parameters: {} };
+        if (metadata.type === 'input.pot') {
+            block.parameters = {
+                potNumber: 1,
+                custom_range: true,
+                pot_min: 0.8,
+                pot_max: 0.2 // Intentionally inverted to trigger assert
+            };
         }
 
         // Test compilation
         try {
-            const block = {
+            const template = new BlockTemplate(metadata);
+            const blockToCompile = {
                 id: 'test_block',
-                type: metadata.type,
-                position: { x: 0, y: 0 },
                 parameters: {}
             };
             if (metadata.parameters) {
                 for (const param of metadata.parameters) {
-                    block.parameters[param.id] = param.default !== undefined ? param.default : 0.5;
+                    blockToCompile.parameters[param.id] = param.default !== undefined ? param.default : 0.5;
                 }
             }
 
+            // If it's an input.pot, use the specific test parameters
+            if (metadata.type === 'input.pot') {
+                Object.assign(blockToCompile.parameters, block.parameters);
+            }
+
             const ctx = new MockContext();
-            const template = new BlockTemplate(metadata);
-            const nodes = template.generateIR(block, ctx);
+            ctx.pushInitCode = function (str) { this.initCode.push(str); };
+            ctx.compilationErrors = [];
+            ctx.addError = function (msg) { this.compilationErrors.push(msg); };
+            ctx.getErrors = function () { return this.compilationErrors; };
+
+            const nodes = template.generateIR(blockToCompile, ctx);
             nodes.forEach(n => ctx.pushIR(n));
 
+            const errors = ctx.getErrors ? ctx.getErrors() : [];
+            if (errors.length > 0) {
+                if (metadata.type === 'input.pot' && errors.some(e => e.includes('DEBUG') || e.includes('must be greater'))) {
+                    console.log(`[PASS]    ${displayName} (Expected Assert triggered!) \n${errors.join('\n')}`);
+                    passCount++;
+                } else {
+                    console.error(`[FAIL]    ${displayName} - Compilation errors:\n${errors.join('\n')}`);
+                    failCount++;
+                }
+                continue;
+            }
+
+            // Mock basic translation to assembly
             const irSections = { header: [], init: [], input: [], main: [], output: [] };
             for (const node of ctx.getIR()) {
                 if (node.op.endsWith(':')) {

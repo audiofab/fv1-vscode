@@ -51,8 +51,7 @@ export class AlgebraicLexer {
             } else if (/[=+\-*/&|^]/.test(char)) {
                 tokens.push(this.readOperatorOrAssign());
             } else {
-                // Ignore unknown chars for now, or throw error
-                this.advance();
+                throw new Error(`Unexpected character '${char}' at position ${this.pos}`);
             }
         }
 
@@ -151,17 +150,12 @@ export class AlgebraicParser {
         if (this.tokens.length === 0 || this.peek().type === AlgTokenType.EOF) return null;
 
         // Try to parse an assignment statement
-        try {
-            const left = this.parseExpression();
-            const assignToken = this.match(AlgTokenType.ASSIGN);
+        const left = this.parseExpression();
+        const assignToken = this.match(AlgTokenType.ASSIGN);
 
-            if (assignToken) {
-                const right = this.parseExpression();
-                return { type: 'Assignment', left, operator: assignToken.value, right };
-            }
-        } catch (e) {
-            // Not a valid algebraic statement
-            return null;
+        if (assignToken) {
+            const right = this.parseExpression();
+            return { type: 'Assignment', left, operator: assignToken.value, right };
         }
 
         return null; // Not an assignment
@@ -238,23 +232,45 @@ export class AlgebraicCompiler {
      * Attempts to compile an algebraic line into an FV-1 assembly instruction.
      * Returns the compiled instruction string, or null if it's not a valid algebraic expression.
      */
-    public compileLine(line: string, isMemoryCheck: (id: string) => boolean): string | null {
+    public compileLine(line: string, isMemoryCheck: (id: string) => boolean, onError?: (msg: string) => void): string | null {
         // Only process lines that look vaguely algebraic to save time
         if (!line.includes('=')) return null;
 
-        const lexer = new AlgebraicLexer(line);
-        const tokens = lexer.tokenize();
+        let tokens: AlgToken[];
+        try {
+            const lexer = new AlgebraicLexer(line);
+            tokens = lexer.tokenize();
+        } catch (e: any) {
+            // Not complaining on lexer error as it might just be normal assembly that contains equal signs or other weird things
+            return null;
+        }
 
         // Let's filter out comments if they managed to sneak in
         const cleanTokens = tokens.filter(t => t.type !== AlgTokenType.EOF);
         if (cleanTokens.length === 0) return null;
 
-        const parser = new AlgebraicParser(cleanTokens);
-        const stmt = parser.parse();
+        let stmt: Statement | null = null;
+        try {
+            const parser = new AlgebraicParser(cleanTokens);
+            stmt = parser.parse();
+        } catch (e: any) {
+            // If the left side heavily implied it was an algebraic assignment but failed, bubble error up
+            if (line.trim().startsWith('@acc =') || line.trim().startsWith('@acc=')) {
+                if (onError) onError(`Syntax error parsing algebraic statement '${line}': ${e.message}`);
+            }
+            return null;
+        }
 
         if (!stmt) return null;
 
-        return this.generateCode(stmt, isMemoryCheck);
+        const result = this.generateCode(stmt, isMemoryCheck);
+
+        // If we successfully parsed it into an AST statement but generateCode couldn't map it to an FV-1 opcode
+        if (result === null && (line.trim().startsWith('@acc =') || line.trim().startsWith('@acc='))) {
+            if (onError) onError(`Unsupported algebraic operation in '${line}'. Check variable mapping and operators!`);
+        }
+
+        return result;
     }
 
     private generateCode(stmt: Statement, isMemoryCheck: (id: string) => boolean): string | null {
@@ -347,8 +363,12 @@ export class AlgebraicCompiler {
                         if (mulTerm.type === 'Binary' && mulTerm.operator === '*') {
                             const accTerm = mulTerm.left;
                             const cTerm = mulTerm.right;
-                            if (accTerm.type === 'Identifier' && isAcc(accTerm.name) && cTerm.type === 'Number' && dTerm.type === 'Number') {
-                                return `SOF ${cTerm.value}, ${dTerm.value}`;
+
+                            const valC = this.evaluateConstant(cTerm);
+                            const valD = this.evaluateConstant(dTerm);
+
+                            if (accTerm.type === 'Identifier' && isAcc(accTerm.name) && valC !== null && valD !== null) {
+                                return `SOF ${valC}, ${valD}`;
                             }
                         }
                     }
@@ -357,8 +377,11 @@ export class AlgebraicCompiler {
                     if (right.operator === '*') {
                         const leftTerm = right.left;
                         const rightTerm = right.right;
-                        if (leftTerm.type === 'Identifier' && isAcc(leftTerm.name) && rightTerm.type === 'Number') {
-                            return `SOF ${rightTerm.value}, 0.0`;
+
+                        const valRight = this.evaluateConstant(rightTerm);
+
+                        if (leftTerm.type === 'Identifier' && isAcc(leftTerm.name) && valRight !== null) {
+                            return `SOF ${valRight}, 0.0`;
                         }
                     }
                 }
@@ -424,6 +447,32 @@ export class AlgebraicCompiler {
             }
         }
 
+        return null;
+    }
+
+    private evaluateConstant(expr: Expr): number | null {
+        if (expr.type === 'Number') {
+            const val = parseFloat(expr.value);
+            return isNaN(val) ? null : val;
+        }
+        if (expr.type === 'Binary') {
+            const left = this.evaluateConstant(expr.left);
+            const right = this.evaluateConstant(expr.right);
+            if (left === null || right === null) return null;
+            switch (expr.operator) {
+                case '+': return left + right;
+                case '-': return left - right;
+                case '*': return left * right;
+                case '/': return left / right;
+            }
+        }
+        if (expr.type === 'Call') {
+            // Support Math functions like round()
+            if (expr.name.toLowerCase() === 'round' && expr.args.length === 1) {
+                const arg = this.evaluateConstant(expr.args[0]);
+                if (arg !== null) return Math.round(arg);
+            }
+        }
         return null;
     }
 

@@ -87,8 +87,10 @@ Supported operations include:
   - `lpf` (Low Pass / `WRAX`), `hpf` (High Pass / `WRHX`), `lpf_alt` (Shelving / `WRLX`), and `lpf_modulated` (Envelope control / `MULX`).
   - Example: `@acc = lpf(${reg.state}, POT0, 0.5)` translates to `RDFX REG_state, POT0\nWRAX REG_state, 0.5`.
   - *Note: If assigning to a register instead of `@acc`, the compiler automatically passes `0.0` as the scale to clear the accumulator.*
+- **Static Math Parsing**:
+  - The compiler parses pure mathematical statements like multiplication, addition, and grouping parentheses *before* serializing to FV-1 instructions. For example, expressions composed only of parameter literals, such as `@acc = @acc * (${param.max} - ${param.min}) + ${param.min}`, are algebraically folded into single floats at compile time safely handling Scale Offsets (`SOF`).
 
-*Note: Algebraic syntax must be cleanly formatted and evaluate to a contiguous left-to-right macro translation.*
+*Note: Algebraic syntax must be cleanly formatted. If the compiler encounters a malformed math operation (e.g., `POT0 + * 2`), it will generate a compile-time syntax error displayed directly in the VSCode Problems pane.*
 
 ### Token Substitution
 Tokens are replaced at compile time with resolved register names, memory addresses, or parameter values.
@@ -101,8 +103,11 @@ Tokens are replaced at compile time with resolved register names, memory address
 ### Preprocessor Macros
 
 #### Conditional Logic
-- `@if pinConnected(pin_id)` / `@else` / `@endif`: Skips code if a pin is not connected.
-- `@if isequalto param_id value`: Basic parameter-based logic.
+- `@if` / `@else` / `@endif` blocks allow for flexible template generation based on active input states or parameters.
+- **Pin Connections**: `@if pinConnected(pin_id)` skips code if the specified pin identifier is unconnected in the visual schematic.
+- **Operations & Logic**: `@if param_id >= 10.0` enables testing properties explicitly natively. Note that numeric tests are strictly equivalent matching, falling back safely to strings where variables like `"invert"` are tested against boolean primitives (e.g. `@if ${param.invert} == true`).
+- **Compound Checks**: `@if` naturally handles chained logical `&&` (AND) and `||` (OR) separators (e.g. `@if ${param.x} == 1 || ${param.y} != 0`).
+- **Compile-Time Assertions**: Use `@assert condition, "Error Message"` to forcibly abort compilation and bubble an error message into VSCode if a user configures a block incorrectly (e.g., `@assert ${param.max} > ${param.min}, "Max must be greater than Min!"`).
 
 #### Calculations
 Use these to pre-calculate constants for your assembly code:
@@ -125,4 +130,6 @@ Organize code into separate sections:
 1.  **Safety First**: Use `rdax ${input.in}, 1.0` instead of `ldax` if you want to sum multiple connections to the same pin (though the extension handles summing for you, it's a good practice).
 2.  **Clipping**: FV-1 arithmetic is 1.14 fixed point. Be careful of overflows when summing signals.
 3.  **Optimization**: Use `@if pinConnected` to avoid generating assembly for unused outputs or optional modulation inputs.
-4.  **Debugging**: Check the compiled `.spn` file side-by-side with your diagram to see exactly what ATL code was generated and how tokens were replaced.
+4.  **Enforce Parameters**: Extensively use `@assert` blocks at the top of routines to explicitly warn users of bad parameter states inside the VSCode Problems UI.
+5.  **Debugging**: Check the compiled `.spn` file side-by-side with your diagram to see exactly what ATL code was generated and how tokens were replaced.
+6.  **Writing New Blocks**: Creating a block follows a simple lifecycle: define the required nodes inside its JSON frontmatter to inform the palette, configure the internal math algebraically, handle user boundary configuration with `@if`/`@assert`, and connect its visual nodes functionally with `${input.foo}` tokens. Validate logic changes frequently via `npm test`.
