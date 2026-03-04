@@ -281,6 +281,18 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         <div id="openSelector" class="selector-trigger">Manage Registers...</div>
                     </div>
 
+                    <div id="specBox" class="viz-box">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                            <div class="viz-label">Spectrogram (L/R)</div>
+                            <button id="toggleSpecBtn" style="padding: 1px 6px; font-size: 8px;">ON</button>
+                        </div>
+                        <canvas id="spectrogram" width="400" height="120" class="scope-canvas"></canvas>
+                        <div id="specAxis" style="display: flex; justify-content: space-between; font-size: 7px; opacity: 0.5; margin-top: 1px; font-family: monospace;">
+                            <span>20 Hz</span>
+                            <span>16 kHz</span>
+                        </div>
+                    </div>
+
                     <div id="memBox" class="viz-box">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
                             <div class="viz-label">Delay Memory Map</div>
@@ -335,12 +347,17 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     const scopeCtx = scopeCanvas.getContext('2d');
                     const memCanvas = document.getElementById('memMap');
                     const memCtx = memCanvas.getContext('2d');
+                    const specCanvas = document.getElementById('spectrogram');
+                    const specCtx = specCanvas.getContext('2d');
 
                     const overlay = document.getElementById('overlay');
                     const bypassBtn = document.getElementById('bypassBtn');
                     const stimulusSelect = document.getElementById('stimulusSelect');
                     const scopeBox = document.getElementById('scopeBox');
                     const memBox = document.getElementById('memBox');
+                    const specBox = document.getElementById('specBox');
+                    const specAxis = document.getElementById('specAxis');
+                    const toggleSpecBtn = document.getElementById('toggleSpecBtn');
                     const perfStats = document.getElementById('perfStats');
                     const zoomIn = document.getElementById('zoomIn');
                     const zoomOut = document.getElementById('zoomOut');
@@ -358,6 +375,15 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     let bypassActive = false;
                     let bufferQueue = [];
                     let isBuffering = true;
+
+                    // Spectrogram state
+                    let specActive = true;
+                    let splitterNode = null;
+                    let analyserL = null;
+                    let analyserR = null;
+                    let freqDataL = null;
+                    let freqDataR = null;
+                    let specDrawId = null;
 
                     // Multi-Trace History
                     let SCOPE_HISTORY_LEN = 200;
@@ -396,6 +422,26 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         bypassBtn.className = bypassActive ? 'active' : '';
                         vscode.postMessage({ type: 'bypassChange', active: bypassActive });
                     });
+
+                    if (toggleSpecBtn) {
+                        toggleSpecBtn.addEventListener('click', () => {
+                            specActive = !specActive;
+                            toggleSpecBtn.innerText = specActive ? 'ON' : 'OFF';
+
+                            if (specActive) {
+                                specCanvas.style.display = 'block';
+                                specAxis.style.display = 'flex';
+                                drawSpectrogramLoop();
+                            } else {
+                                specCanvas.style.display = 'none';
+                                specAxis.style.display = 'none';
+                                if (specDrawId) {
+                                    cancelAnimationFrame(specDrawId);
+                                    specDrawId = null;
+                                }
+                            }
+                        });
+                    }
 
                     stimulusSelect.addEventListener('change', () => {
                         if (stimulusSelect.value === 'custom') {
@@ -543,6 +589,23 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         try {
                             const AudioContext = window.AudioContext || window.webkitAudioContext;
                             audioCtx = new AudioContext({ sampleRate });
+                            
+                            // Setup Analysers
+                            splitterNode = audioCtx.createChannelSplitter(2);
+                            analyserL = audioCtx.createAnalyser();
+                            analyserR = audioCtx.createAnalyser();
+                            analyserL.fftSize = 4096;
+                            analyserL.smoothingTimeConstant = 0.8;
+                            analyserR.fftSize = 4096;
+                            analyserR.smoothingTimeConstant = 0.8;
+                            splitterNode.connect(analyserL, 0);
+                            splitterNode.connect(analyserR, 1);
+                            freqDataL = new Float32Array(analyserL.frequencyBinCount);
+                            freqDataR = new Float32Array(analyserR.frequencyBinCount);
+                            if (specActive) {
+                                drawSpectrogramLoop();
+                            }
+
                             updateStatus('Live | ' + audioCtx.sampleRate + 'Hz');
                             if (audioCtx.state === 'running') hideOverlay();
                             return true;
@@ -626,6 +689,7 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             if (message.oscilloscopeEnabled !== undefined) {
                                 scopeBox.style.display = message.oscilloscopeEnabled ? 'block' : 'none';
                                 memBox.style.display = message.oscilloscopeEnabled ? 'block' : 'none';
+                                specBox.style.display = message.oscilloscopeEnabled ? 'block' : 'none';
                             }
                             if (message.oscilloscopeRefreshRate !== undefined) {
                                 currentRefreshRate = message.oscilloscopeRefreshRate;
@@ -668,6 +732,9 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             const source = audioCtx.createBufferSource();
                             source.buffer = buffer;
                             source.connect(audioCtx.destination);
+                            if (splitterNode) {
+                                source.connect(splitterNode);
+                            }
 
                             const now = audioCtx.currentTime;
                             if (startTime < now - 0.05) {
@@ -712,6 +779,68 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             }
                             scopeCtx.stroke();
                         });
+                    }
+
+                    function drawSpectrogramLoop() {
+                        if (!specActive || !analyserL || !analyserR) return;
+                        
+                        analyserL.getFloatFrequencyData(freqDataL);
+                        analyserR.getFloatFrequencyData(freqDataR);
+
+                        const w = specCanvas.width;
+                        const h = specCanvas.height;
+                        specCtx.clearRect(0, 0, w, h);
+
+                        // Draw grid lines
+                        specCtx.strokeStyle = '#222';
+                        specCtx.lineWidth = 1;
+                        specCtx.beginPath();
+                        for(let i=1; i<4; i++) {
+                            specCtx.moveTo(0, h * (i/4)); specCtx.lineTo(w, h * (i/4));
+                        }
+                        specCtx.stroke();
+
+                        const minDb = analyserL.minDecibels;
+                        const maxDb = analyserL.maxDecibels;
+                        const rangeDb = maxDb - minDb;
+
+                        const drawChannel = (data, color) => {
+                            specCtx.beginPath();
+                            specCtx.strokeStyle = color;
+                            specCtx.lineWidth = 1.2;
+                            
+                            const minFreq = 20;
+                            const maxFreq = sampleRate / 2;
+                            let firstPoint = true;
+                            
+                            for (let i = 0; i < data.length; i++) {
+                                const freq = i * (sampleRate / analyserL.fftSize);
+                                if (freq < minFreq) continue;
+                                
+                                const logMin = Math.log10(minFreq);
+                                const logMax = Math.log10(maxFreq);
+                                const x = ((Math.log10(freq) - logMin) / (logMax - logMin)) * w;
+                                
+                                let db = data[i];
+                                if (!isFinite(db)) db = minDb;
+                                let y = h - ((db - minDb) / rangeDb) * h;
+                                y = Math.max(0, Math.min(h, y));
+                                
+                                if (firstPoint) {
+                                    specCtx.moveTo(x, y);
+                                    firstPoint = false;
+                                } else {
+                                    specCtx.lineTo(x, y);
+                                }
+                            }
+                            specCtx.stroke();
+                        };
+
+                        // Draw channels: green for Left, red for Right
+                        drawChannel(freqDataL, 'rgba(0, 255, 0, 0.7)');
+                        drawChannel(freqDataR, 'rgba(255, 0, 0, 0.7)');
+                        
+                        specDrawId = requestAnimationFrame(drawSpectrogramLoop);
                     }
 
                     let lastMemories = [];

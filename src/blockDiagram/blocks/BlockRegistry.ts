@@ -10,8 +10,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// @ts-ignore
+const _ext_filename = typeof __filename !== 'undefined' ? __filename : (typeof import.meta !== 'undefined' && import.meta.url ? fileURLToPath(import.meta.url) : '');
+// @ts-ignore
+const _ext_dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(_ext_filename);
 
 // Native EventEmitter to decouple registry from VSCode API natively for headless testing
 class EventEmitter<T> {
@@ -67,10 +69,10 @@ export class BlockRegistry {
             possiblePaths.push(path.join(extensionPath, 'resources/blocks'));
         }
 
-        // Fallback or development paths relative to __dirname
-        possiblePaths.push(path.resolve(__dirname, '../../../resources/blocks')); // out/src/blockDiagram/blocks layout
-        possiblePaths.push(path.resolve(__dirname, '../resources/blocks'));       // dist layout (dist/extension.cjs -> root)
-        possiblePaths.push(path.resolve(__dirname, '../../resources/blocks'));    // deep dist layout
+        // Fallback or development paths relative to _ext_dirname
+        possiblePaths.push(path.resolve(_ext_dirname, '../../../resources/blocks')); // out/src/blockDiagram/blocks layout
+        possiblePaths.push(path.resolve(_ext_dirname, '../resources/blocks'));       // dist layout (dist/extension.cjs -> root)
+        possiblePaths.push(path.resolve(_ext_dirname, '../../resources/blocks'));    // deep dist layout
 
         let defaultDefinitionsPath = '';
         for (const p of possiblePaths) {
