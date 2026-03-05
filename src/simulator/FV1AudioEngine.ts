@@ -791,14 +791,42 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         const h = specCanvas.height;
                         specCtx.clearRect(0, 0, w, h);
 
+                        const minFreq = 20;
+                        const maxFreq = sampleRate / 2;
+                        const logMin = Math.log10(minFreq);
+                        const logMax = Math.log10(maxFreq);
+
                         // Draw grid lines
                         specCtx.strokeStyle = '#222';
                         specCtx.lineWidth = 1;
                         specCtx.beginPath();
+                        // Horizontal amplitude lines (divide into 4 sections)
                         for(let i=1; i<4; i++) {
                             specCtx.moveTo(0, h * (i/4)); specCtx.lineTo(w, h * (i/4));
                         }
+                        
+                        // Vertical logarithmic frequency grid lines
+                        const gridFrequencies = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
+                        specCtx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                        specCtx.font = '8px monospace';
+                        specCtx.textAlign = 'center';
+                        
+                        gridFrequencies.forEach(freq => {
+                            if (freq >= minFreq && freq <= maxFreq) {
+                                const x = ((Math.log10(freq) - logMin) / (logMax - logMin)) * w;
+                                specCtx.moveTo(x, 0); specCtx.lineTo(x, h);
+                            }
+                        });
                         specCtx.stroke();
+                        
+                        // Draw frequency labels (below horizontal lines so they don't get crossed out by the grid drawing)
+                        gridFrequencies.forEach(freq => {
+                            if (freq >= minFreq && freq <= maxFreq) {
+                                const x = ((Math.log10(freq) - logMin) / (logMax - logMin)) * w;
+                                const label = freq >= 1000 ? (freq/1000) + 'k' : freq.toString();
+                                specCtx.fillText(label, x, h - 2);
+                            }
+                        });
 
                         const minDb = analyserL.minDecibels;
                         const maxDb = analyserL.maxDecibels;
