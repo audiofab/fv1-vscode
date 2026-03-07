@@ -509,7 +509,7 @@
     "node-hid": "^3.3.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-konva": "^19.2.2",
+    "react-konva": "^19.2.3",
     "uuid": "^13.0.0"
   }
 }
