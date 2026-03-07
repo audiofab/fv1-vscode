@@ -70,13 +70,13 @@
     wrax ${output.output}, 0.0
 @else
     ; Fallback to simple crossfade using parameter
-    @equals fade ${fade}
-    @equals invFade (1.0 - ${fade})
+    @equals staticFade ${fade}
+    @equals staticInvFade (1.0 - ${fade})
     @if pinConnected(input1)
-    rdax ${input.input1}, ${local.invFade}
+    rdax ${input.input1}, ${staticInvFade}
     @endif
     @if pinConnected(input2)
-    rdax ${input.input2}, ${local.fade}
+    rdax ${input.input2}, ${staticFade}
     @endif
     wrax ${output.output}, 0.0
 @endif

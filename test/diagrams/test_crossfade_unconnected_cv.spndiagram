@@ -1,0 +1,47 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "test_crossfade_unconnected_cv",
+    "author": "",
+    "description": "Tests that crossfade2 and crossfade3 compile successfully when the fade control parameters are unconnected."
+  },
+  "blocks": [
+    {
+      "id": "input-1",
+      "type": "input.adc",
+      "position": { "x": 0, "y": 0 },
+      "parameters": { "gain": 1, "adcNumber": 0 }
+    },
+    {
+      "id": "crossfade-2",
+      "type": "math.crossfade2",
+      "position": { "x": 200, "y": 0 },
+      "parameters": {
+        "fade": 0.5
+      }
+    },
+    {
+      "id": "crossfade-3",
+      "type": "math.crossfade3",
+      "position": { "x": 400, "y": 0 },
+      "parameters": {
+        "fade": 0.5
+      }
+    },
+    {
+      "id": "output-1",
+      "type": "output.dac",
+      "position": { "x": 600, "y": 0 },
+      "parameters": { "dacNumber": 0 }
+    }
+  ],
+  "connections": [
+    { "source": "input-1", "sourcePort": "out", "target": "crossfade-2", "targetPort": "input1" },
+    { "source": "input-1", "sourcePort": "out", "target": "crossfade-2", "targetPort": "input2" },
+    
+    { "source": "crossfade-2", "sourcePort": "output", "target": "crossfade-3", "targetPort": "input1" },
+    { "source": "crossfade-2", "sourcePort": "output", "target": "crossfade-3", "targetPort": "input2" },
+    
+    { "source": "crossfade-3", "sourcePort": "output", "target": "output-1", "targetPort": "in" }
+  ]
+}
