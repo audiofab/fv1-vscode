@@ -1,0 +1,60 @@
+;================================================================================
+; new
+; Generated at 2/26/2026, 7:24:04 PM by the Audiofab Easy Spin (FV-1)
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Register Aliases
+equ	adc_out	REG0
+equ	pitchupdown_pitch2	REG1
+equ	pitchupdown_pitch1	REG2
+
+; Memory Allocations
+mem	mem0_delayd	4096
+mem	mem1_temp	1
+
+;	"Generated from spincad source file pitchupdown.spincad"
+
+; Input Section
+;--------------------------------------------------------------------------------
+rdax	ADCL, 1
+wrax	adc_out, 0
+
+; Main Program
+;--------------------------------------------------------------------------------
+;	establish the base address for this module
+;	then allocate memory
+skp	run, START
+wldr	1, 16384, 4096
+wldr	0, -8192, 4096
+START:
+wra	mem0_delayd, 0
+cho	rda, RMP0, REG|COMPC, mem0_delayd
+cho	rda, RMP0, 0, mem0_delayd + 1
+wra	mem1_temp, 0
+cho	rda, RMP0, RPTR2|COMPC, mem0_delayd
+cho	rda, RMP0, RPTR2, mem0_delayd + 1
+cho	sof, RMP0, NA|COMPC, 0
+cho	rda, RMP0, NA, mem1_temp
+wrax	pitchupdown_pitch1, 0
+;	second pitch shift
+cho	rda, RMP1, REG|COMPC, mem0_delayd
+cho	rda, RMP1, 0, mem0_delayd + 1
+wra	mem1_temp, 0
+cho	rda, RMP1, RPTR2|COMPC, mem0_delayd
+cho	rda, RMP1, RPTR2, mem0_delayd + 1
+cho	sof, RMP1, NA|COMPC, 0
+cho	rda, RMP1, NA, mem1_temp
+; wrax	pitchupdown_pitch2, 0	
+wrax	pitchupdown_pitch2,	1.0	; Optimization: accumulator forwarded
+
+; Output Section
+;--------------------------------------------------------------------------------
+; rdax	pitchupdown_pitch2, 1.0	; rdax not needed with accumulator forwarding optimization
+sof	1, 0.0
+wrax	DACL, 0
+rdax	pitchupdown_pitch1, 1.0
+sof	1, 0.0
+wrax	DACR, 0

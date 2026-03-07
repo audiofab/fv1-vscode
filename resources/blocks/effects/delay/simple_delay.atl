@@ -1,0 +1,104 @@
+---
+{
+  "type": "effects.delay.simple",
+  "name": "Simple Delay",
+  "category": "Effects",
+  "subcategory": "Delay",
+  "description": "Simple delay line with variable time and mix control",
+  "color": "#6060c4",
+  "width": 180,
+  "inputs": [
+    {
+      "id": "audio_input",
+      "name": "Audio Input",
+      "type": "audio",
+      "required": true
+    },
+    {
+      "id": "delay_time",
+      "name": "Delay Time",
+      "type": "control",
+      "required": false
+    },
+    {
+      "id": "mix_ctrl",
+      "name": "Mix",
+      "type": "control",
+      "required": false
+    }
+  ],
+  "outputs": [
+    {
+      "id": "audio_output",
+      "name": "Audio Output",
+      "type": "audio"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "delayLength",
+      "name": "Delay Length (ms)",
+      "type": "number",
+      "default": 500,
+      "min": 1,
+      "max": 1000,
+      "conversion": "MS_TO_SAMPLES",
+      "description": "The delay time in milliseconds. Determines the maximum possible delay time when controlled via a control signal.",
+      "step": 1
+    },
+    {
+      "id": "mix",
+      "name": "Mix",
+      "type": "number",
+      "default": 0.5,
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "description": "Dry/Wet mix balance. 0.0 is pure dry, 1.0 is pure wet."
+    }
+  ],
+  "memories": [
+    {
+      "id": "delayl",
+      "size": "delayLength"
+    }
+  ],
+  "registers": [
+    "dry",
+    "wet"
+  ]
+}
+---
+; Simple Delay with Mix
+; Store dry signal and write to delay
+rdax ${input.audio_input}, 1.0
+wrax ${reg.dry}, 1.0
+wra ${mem.delayl}, 0.0
+
+; Calculate Delay Pointer (ADDR_PTR is an absolute address in delay RAM)
+@if pinConnected(delay_time)
+rdax ${input.delay_time}, 1.0
+; Control sweeps from [base] to [base + size]
+sof ${mem.delayl.size}/${Fs}, ${mem.delayl}/${Fs}
+@else
+; Optimization - clr not required as ACC should be zero from earlier code
+; clr
+sof 0.0, (${mem.delayl} + ${delayLength})/${Fs}
+@endif
+wrax ADDR_PTR, 0.0
+
+; Read wet signal
+rmpa 1.0
+; Store to wet register (keep value in ACC)
+wrax ${reg.wet}, 1.0
+
+; Mixing logic: dry + mix * (wet - dry)
+rdax ${reg.dry}, -0.999 ; Use -0.999 to avoid potential overflow clipping at -1.0
+;; ACC now equals (wet - dry)
+@if pinConnected(mix_ctrl)
+mulx ${input.mix_ctrl}
+@else
+sof ${mix}, 0.0
+@endif
+rdax ${reg.dry}, 1.0
+wrax ${output.audio_output}, 0.0

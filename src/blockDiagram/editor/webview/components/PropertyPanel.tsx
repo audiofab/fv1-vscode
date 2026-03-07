@@ -21,23 +21,23 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
     vscode
 }) => {
     if (!metadata) return null;
-    
+
     // Track display values for all parameters
     const [displayValues, setDisplayValues] = useState<Record<string, number>>({});
-    
+
     // Convert code values to display values when block or metadata changes
     useEffect(() => {
         if (!metadata) return;
-        
+
         const newDisplayValues: Record<string, number> = {};
-        
+
         metadata.parameters.forEach(param => {
             const codeValue = block.parameters[param.id] ?? param.default;
-            
+
             if (param.type === 'number' && (param.displayMin !== undefined || param.toDisplay)) {
                 // Request conversion from extension
                 const requestId = `${block.id}_${param.id}_${Date.now()}`;
-                
+
                 const messageHandler = (event: MessageEvent) => {
                     const message = event.data;
                     if (message.type === 'convertToDisplayResponse' && message.requestId === requestId) {
@@ -51,9 +51,9 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                         }
                     }
                 };
-                
+
                 window.addEventListener('message', messageHandler);
-                
+
                 vscode.postMessage({
                     type: 'convertToDisplay',
                     blockType: metadata.type,
@@ -65,11 +65,11 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                 newDisplayValues[param.id] = codeValue;
             }
         });
-        
+
         // Set initial values for non-converted parameters
         setDisplayValues(prev => ({ ...prev, ...newDisplayValues }));
     }, [block, metadata, vscode]);
-    
+
     const handleParameterChange = (paramId: string, value: any) => {
         onUpdate({
             parameters: {
@@ -78,20 +78,20 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
             }
         });
     };
-    
+
     const handleDisplayValueChange = (paramId: string, newDisplayValue: number) => {
         const param = metadata.parameters.find(p => p.id === paramId);
         if (!param) return;
-        
+
         // Update display value immediately for responsive UI
         setDisplayValues(prev => ({
             ...prev,
             [paramId]: newDisplayValue
         }));
-        
+
         // Request conversion from extension
         const requestId = `${block.id}_${paramId}_${Date.now()}`;
-        
+
         const messageHandler = (event: MessageEvent) => {
             const message = event.data;
             if (message.type === 'convertToCodeResponse' && message.requestId === requestId) {
@@ -101,9 +101,9 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                 }
             }
         };
-        
+
         window.addEventListener('message', messageHandler);
-        
+
         vscode.postMessage({
             type: 'convertToCode',
             blockType: metadata.type,
@@ -112,33 +112,54 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
             requestId
         });
     };
-    
+
     return (
         <div className="property-panel">
             <h3>{metadata.name}</h3>
             <p style={{ fontSize: '12px', color: 'var(--vscode-descriptionForeground)', marginBottom: '16px' }}>
                 {metadata.description}
             </p>
-            
+
             {metadata.parameters && metadata.parameters.length > 0 && (
                 <div>
                     <h4 style={{ marginBottom: '12px', fontSize: '12px' }}>Parameters</h4>
-                    
+
                     {metadata.parameters.map((param: any) => {
                         // Get the raw display value from state
                         const rawDisplayValue = displayValues[param.id] ?? (block.parameters[param.id] ?? param.default);
-                        
+
                         // Use display range if available, otherwise use code range
                         const minValue = param.displayMin ?? param.min;
                         const maxValue = param.displayMax ?? param.max;
                         const stepValue = param.displayStep ?? param.step;
                         const decimals = param.displayDecimals ?? 2;
-                        
-                        // For display, format to the correct number of decimals
-                        const displayValue = typeof rawDisplayValue === 'number' 
+
+                        // Format display value
+                        const displayValue = typeof rawDisplayValue === 'number'
                             ? parseFloat(rawDisplayValue.toFixed(decimals))
                             : rawDisplayValue;
-                        
+
+                        // Check visibility condition
+                        if (param.visibleIf) {
+                            try {
+                                const match = param.visibleIf.match(/(\w+)\s*(==|!=)\s*(['"]?[\w.-]+['"]?)/);
+                                if (match) {
+                                    const [, key, op, valStr] = match;
+                                    const currentVal = block.parameters[key] ?? metadata.parameters.find((p: any) => p.id === key)?.default;
+                                    const targetVal = valStr.replace(/['"]/g, '');
+
+                                    let comparisonVal: any = targetVal;
+                                    if (typeof currentVal === 'number') comparisonVal = parseFloat(targetVal);
+                                    if (typeof currentVal === 'boolean') comparisonVal = (targetVal === 'true');
+
+                                    const isVisible = op === '==' ? currentVal === comparisonVal : currentVal !== comparisonVal;
+                                    if (!isVisible) return null;
+                                }
+                            } catch (e) {
+                                console.error('Failed to evaluate visibility condition:', param.visibleIf, e);
+                            }
+                        }
+
                         return (
                             <div key={param.id} className="property-group">
                                 <label className="property-label">
@@ -154,7 +175,7 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                                         </span>
                                     )}
                                 </label>
-                                
+
                                 {param.type === 'number' && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         <input
@@ -207,7 +228,7 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                                         />
                                     </div>
                                 )}
-                                
+
                                 {param.type === 'select' && (
                                     <select
                                         className="property-input"
@@ -230,7 +251,7 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                                         ))}
                                     </select>
                                 )}
-                                
+
                                 {param.type === 'boolean' && (
                                     <input
                                         type="checkbox"
@@ -238,13 +259,13 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                                         onChange={(e) => handleParameterChange(param.id, e.target.checked)}
                                     />
                                 )}
-                                
+
                                 {param.type === 'string' && (
                                     param.multiline ? (
                                         <textarea
                                             className="property-input"
-                                            style={{ 
-                                                width: '100%', 
+                                            style={{
+                                                width: '100%',
                                                 minHeight: '100px',
                                                 fontFamily: 'var(--vscode-editor-font-family)',
                                                 fontSize: '12px',
@@ -267,7 +288,7 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                     })}
                 </div>
             )}
-            
+
             <button
                 onClick={onClose}
                 style={{

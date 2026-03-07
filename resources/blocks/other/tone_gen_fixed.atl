@@ -1,0 +1,109 @@
+---
+{
+  "type": "other.tonegen.fixed",
+  "category": "Other",
+  "name": "Tone Generator (Fixed)",
+  "description": "Fixed frequency sine wave generator with amplitude control",
+  "color": "#FF9800",
+  "labelTemplate": "${param.frequency} Hz",
+  "inputs": [
+    { "id": "amplitude", "name": "Amplitude", "type": "control", "required": false }
+  ],
+  "outputs": [
+    { "id": "out", "name": "Output", "type": "audio" }
+  ],
+  "parameters": [
+    {
+      "id": "frequency",
+      "name": "Frequency",
+      "type": "number",
+      "default": 440,
+      "min": 20,
+      "max": 10000,
+      "step": 1
+    },
+    {
+      "id": "amplitude",
+      "name": "Amplitude",
+      "type": "number",
+      "default": 0.5,
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.01
+    }
+  ],
+  "registers": [
+    "freq", "s", "c", "p2fil", "amp"
+  ]
+}
+---
+@section init
+; Tone Generator (Fixed) init
+skp run, tonegen_fixed_init
+sof 0.0, 0.5
+wrax ${reg.s}, 0.0
+; The angle for frequency is approx (2*PI*freq) / (SampleRate*4) 
+sof 0.0, (6.2831853 * ${frequency}) / 131072.0
+wrax ${reg.freq}, 0.0
+tonegen_fixed_init:
+
+@section main
+; Sine Wave Generator - ${frequency} Hz (fixed)
+
+; Calculate amplitude (dB/step)
+@if pinConnected(amplitude)
+rdax ${input.amplitude}, 0.9375
+@else
+sof 0.0, (${amplitude} * 0.9375)
+@endif
+
+; Filter amplitude control
+rdfx ${reg.p2fil}, 0.01
+wrax ${reg.p2fil}, 1.0
+sof 1.0, -0.9375
+exp 1.0, 0.0
+wrax ${reg.amp}, 0.0
+
+; Rotation matrix oscillator (4x oversampled)
+
+; Iteration 1
+rdax ${reg.c}, 1.0
+mulx ${reg.freq}
+rdax ${reg.s}, 1.0
+wrax ${reg.s}, -1.0
+mulx ${reg.freq}
+rdax ${reg.c}, 1.0
+wrax ${reg.c}, 0.0
+
+; Iteration 2
+rdax ${reg.c}, 1.0
+mulx ${reg.freq}
+rdax ${reg.s}, 1.0
+wrax ${reg.s}, -1.0
+mulx ${reg.freq}
+rdax ${reg.c}, 1.0
+wrax ${reg.c}, 0.0
+
+; Iteration 3
+rdax ${reg.c}, 1.0
+mulx ${reg.freq}
+rdax ${reg.s}, 1.0
+wrax ${reg.s}, -1.0
+mulx ${reg.freq}
+rdax ${reg.c}, 1.0
+wrax ${reg.c}, 0.0
+
+; Iteration 4 (final - accumulate in ACC)
+rdax ${reg.c}, 1.0
+mulx ${reg.freq}
+rdax ${reg.s}, 1.0
+wrax ${reg.s}, -1.0
+mulx ${reg.freq}
+rdax ${reg.c}, 1.0
+wrax ${reg.c}, 1.99
+
+; Scale output by amplitude
+mulx ${reg.amp}
+
+; Write to output
+wrax ${output.out}, 0.0

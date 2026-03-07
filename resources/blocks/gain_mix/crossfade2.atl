@@ -1,0 +1,86 @@
+---
+{
+  "type": "math.crossfade2",
+  "name": "Crossfade 2",
+  "category": "Gain/Mixing",
+  "description": "Curbed crossfade between two audio inputs.",
+  "color": "#f2f224",
+  "inputs": [
+    {
+      "id": "input1",
+      "name": "Audio In 1",
+      "type": "audio"
+    },
+    {
+      "id": "input2",
+      "name": "Audio In 2",
+      "type": "audio"
+    },
+    {
+      "id": "fade",
+      "name": "Control Input",
+      "type": "control"
+    }
+  ],
+  "outputs": [
+    {
+      "id": "output",
+      "name": "Audio Output",
+      "type": "audio"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "fade",
+      "name": "Fade",
+      "type": "number",
+      "default": 0.5,
+      "min": 0,
+      "max": 1,
+      "step": 0.01
+    }
+  ],
+  "registers": [
+    "temp"
+  ]
+}
+---
+; Crossfade 2
+@section main
+
+@if pinConnected(fade)
+    ; Input 2 path
+    @if pinConnected(input2)
+    clr
+    rdax ${input.fade}, -1.0
+    sof -2.0, 0.0
+    wrax ${reg.temp}, 1.0
+    mulx ${input.input2}
+    wrax ${reg.temp}, 0.0
+    @endif
+
+    ; Input 1 path
+    @if pinConnected(input1)
+    clr
+    rdax ${input.fade}, 1.0
+    sof 1.0, -1.0
+    sof -2.0, 0.0
+    wrax ${reg.temp}, 1.0
+    mulx ${input.input1}
+    @endif
+
+    ; Combined output
+    rdax ${reg.temp}, 1.0
+    wrax ${output.output}, 0.0
+@else
+    ; Fallback to simple crossfade using parameter
+    @equals staticFade ${fade}
+    @equals staticInvFade (1.0 - ${fade})
+    @if pinConnected(input1)
+    rdax ${input.input1}, ${staticInvFade}
+    @endif
+    @if pinConnected(input2)
+    rdax ${input.input2}, ${staticFade}
+    @endif
+    wrax ${output.output}, 0.0
+@endif

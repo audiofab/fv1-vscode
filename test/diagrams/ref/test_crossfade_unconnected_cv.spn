@@ -1,0 +1,40 @@
+;================================================================================
+; test_crossfade_unconnected_cv
+; Tests that crossfade2 and crossfade3 compile successfully when the fade control parameters are unconnected.
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Register Aliases
+equ	adc_out	REG0
+equ	crossfade2_output	REG1
+equ	crossfade3_output	REG2
+equ	crossfade2_local_temp	REG3
+equ	crossfade3_local_temp	REG4
+
+
+; Input Section
+;--------------------------------------------------------------------------------
+rdax	ADCL, 1
+wrax	adc_out, 0
+
+; Main Program
+;--------------------------------------------------------------------------------
+;	Crossfade 2
+;	Fallback to simple crossfade using parameter
+rdax	adc_out, (1.0 - 0.5)
+rdax	adc_out, 0.5
+wrax	crossfade2_output, 0.0
+;	Crossfade 3 (Restored Java logic)
+;	Fallback to simple crossfade using parameter
+rdax	crossfade2_output, (1.0 - 0.5)
+rdax	crossfade2_output, 0.5
+; wrax	crossfade3_output, 0.0
+wrax	crossfade3_output,	1.0	; Optimization: accumulator forwarded
+
+; Output Section
+;--------------------------------------------------------------------------------
+;	DAC Output
+; rdax	crossfade3_output, 1.0	; rdax not needed with accumulator forwarding optimization
+wrax	DACL, 0

@@ -118,6 +118,16 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             }
         });
 
+        const registrySubscription = blockRegistry.onDidChangeBlocks(() => {
+            webviewPanel.webview.postMessage({
+                type: 'blockMetadata',
+                metadata: blockRegistry.getAllMetadata()
+            });
+            updateWebview();
+            // Recompile immediately since blocks changed
+            this.documentManager.onDocumentChange(document);
+        });
+
         // Handle messages from the webview
         webviewPanel.webview.onDidReceiveMessage(async e => {
             switch (e.type) {
@@ -223,7 +233,19 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                     const blockDefForLabel = blockRegistry.getBlock(e.blockType);
                     if (blockDefForLabel && blockDefForLabel.getCustomLabel) {
                         try {
-                            const label = blockDefForLabel.getCustomLabel(e.parameters);
+                            const graph = this.getDocumentAsGraph(document);
+
+                            // Mock context for connection checking in the UI
+                            const uiCtx = {
+                                getInputRegister: (blockId: string, portId: string) => {
+                                    const conn = graph.connections.find(c =>
+                                        c.to.blockId === blockId && c.to.portId === portId
+                                    );
+                                    return conn ? 'connected' : undefined;
+                                }
+                            };
+
+                            const label = (blockDefForLabel as any).getCustomLabel(e.parameters, uiCtx, e.blockId);
                             webviewPanel.webview.postMessage({
                                 type: 'customLabelResponse',
                                 blockId: e.blockId,
@@ -238,6 +260,21 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                 case 'savePaletteState':
                     // Save the expanded categories to workspace state
                     await this.context.workspaceState.update('blockDiagram.expandedCategories', e.expandedCategories);
+                    return;
+
+                case 'copyBlockATL':
+                    const blockToCopy = blockRegistry.getBlock(e.blockType);
+                    if (blockToCopy && blockToCopy.getRawTemplate) {
+                        const rawTemplate = blockToCopy.getRawTemplate();
+                        if (rawTemplate) {
+                            await vscode.env.clipboard.writeText(rawTemplate);
+                            vscode.window.showInformationMessage(`Copied ATL for '${blockToCopy.name}' to clipboard!`);
+                        } else {
+                            vscode.window.showErrorMessage(`No ATL explicitly available for block type '${e.blockType}'.`);
+                        }
+                    } else {
+                        vscode.window.showErrorMessage(`Block type '${e.blockType}' does not support copying raw ATL.`);
+                    }
                     return;
 
                 case 'showAssembly':
@@ -263,6 +300,7 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             }
             compilationListener.dispose();
             changeDocumentSubscription.dispose();
+            registrySubscription.dispose();
         });
     }
 
@@ -612,6 +650,31 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             outline: 1px solid var(--vscode-focusBorder);
         }
         
+        .context-menu {
+            position: absolute;
+            background-color: var(--vscode-menu-background);
+            color: var(--vscode-menu-foreground);
+            border: 1px solid var(--vscode-menu-border);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            border-radius: 4px;
+            padding: 4px 0;
+            z-index: 2000;
+            min-width: 160px;
+        }
+
+        .context-menu-item {
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+        }
+
+        .context-menu-item:hover {
+            background-color: var(--vscode-menu-selectionBackground);
+            color: var(--vscode-menu-selectionForeground);
+        }
+
         /* Hide number input spinner arrows */
         input[type=number]::-webkit-inner-spin-button,
         input[type=number]::-webkit-outer-spin-button {

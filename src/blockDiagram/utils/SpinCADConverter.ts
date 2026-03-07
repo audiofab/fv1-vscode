@@ -1,0 +1,307 @@
+/**
+ * SpinCADConverter
+ * Parses .spincad files and generates JSON or ATL (Frontmatter) block definitions.
+ */
+
+import { BlockTemplateDefinition } from '../types/IR.js';
+
+export class SpinCADConverter {
+    /**
+     * Convert a SpinCAD template string to an ATL BlockTemplateDefinition
+     * Metadata is extracted from @ directives.
+     */
+    static convert(content: string, typeOverride?: string, sourceFile?: string): BlockTemplateDefinition {
+        const lines = content.split('\n');
+        const definition: BlockTemplateDefinition = {
+            type: typeOverride || '',
+            category: 'SpinCAD',
+            name: '',
+            description: '',
+            inputs: [],
+            outputs: [],
+            parameters: [],
+            template: ''
+        };
+
+        const headerLines: string[] = [];
+        if (sourceFile) {
+            headerLines.push(`@comment "Generated from spincad source file ${sourceFile}"`);
+        }
+        const bodyLines: string[] = [];
+        const managedRegs: string[] = [];
+        const managedMemories: Array<{ id: string; size: number | string }> = [];
+        const managedEqus: string[] = [];
+
+        for (let line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+
+            if (trimmed.startsWith('@')) {
+                const parts = trimmed.match(/[^\s"']+|"([^"]*)"|'([^']*)'/g)?.map(m => m.replace(/^["']|["']$/g, '')) || [];
+                if (parts.length === 0) continue;
+
+                const directive = parts[0].substring(1);
+
+                switch (directive) {
+                    case 'name':
+                        definition.name = parts.slice(1).join(' ');
+                        if (!typeOverride) {
+                            definition.type = definition.name.toLowerCase()
+                                .replace(/[^a-z0-9]+/g, '_')
+                                .replace(/^_+|_+$/g, '');
+                        }
+                        break;
+                    case 'color':
+                        definition.color = parts[1].replace(/"/g, '').replace('0x', '#');
+                        break;
+                    case 'audioInput':
+                        definition.inputs.push({
+                            id: parts[1],
+                            name: parts[2] || parts[1],
+                            type: 'audio'
+                        });
+                        break;
+                    case 'audioOutput':
+                    case 'controlOutput':
+                        definition.outputs.push({
+                            id: parts[1],
+                            name: parts[2] || parts[1],
+                            type: directive === 'audioOutput' ? 'audio' : 'control'
+                        });
+                        break;
+                    case 'controlInput':
+                        definition.inputs.push({
+                            id: parts[1],
+                            name: parts[2] || parts[1],
+                            type: 'control'
+                        });
+                        break;
+                    case 'sliderLabel': {
+                        let min = parseFloat(parts[3]);
+                        let max = parseFloat(parts[4]);
+                        let def = parseFloat(parts[5]);
+                        const conversionType = parts[8] as any;
+
+                        // SpinCAD supplies parameters in native samples (0 to 32768).
+                        // FV-1 VSCode interprets `LENGTHTOTIME` on sliders via milliseconds and reconverts them.
+                        // We scale the UI limits on these custom blocks to match this expectation.
+                        if (conversionType === 'LENGTHTOTIME') {
+                            const Fs = 32768;
+                            min = Math.round((min / Fs) * 1000);
+                            max = Math.round((max / Fs) * 1000);
+                            def = Math.round((def / Fs) * 1000);
+                        }
+
+                        definition.parameters.push({
+                            id: parts[1],
+                            name: (parts[2] || '').replace(/'/g, ''),
+                            type: 'number',
+                            min: min,
+                            max: max,
+                            default: def,
+                            conversion: conversionType
+                        });
+                        break;
+                    }
+                    case 'comboBox':
+                        definition.parameters.push({
+                            id: parts[1],
+                            name: parts[1],
+                            type: 'select',
+                            default: 0,
+                            options: parts.slice(2).map((o, idx) => ({ label: o.replace(/'/g, ''), value: idx }))
+                        });
+                        break;
+                    case 'isPinConnected':
+                        bodyLines.push(`@if pinConnected(${parts[1]})`);
+                        break;
+                    case 'isEqualTo':
+                        bodyLines.push(`@if ${parts[1]} == ${parts[2]}`);
+                        break;
+                    case 'else':
+                        bodyLines.push('@else');
+                        break;
+                    case 'endif':
+                        bodyLines.push('@endif');
+                        break;
+                    case 'setOutputPin':
+                        // Legacy directive, ignore
+                        break;
+                    case 'equ':
+                        const eqId = parts[1];
+                        const eqVal = parts[2];
+                        const isPinEq = definition.inputs.some(i => i.id === eqId) || definition.outputs.some(o => o.id === eqId);
+                        if (!isPinEq) {
+                            if (eqVal && eqVal.toLowerCase().startsWith('reg')) {
+                                managedRegs.push(eqId);
+                            } else {
+                                headerLines.push(`${directive}\t${parts.slice(1).join('\t')}`);
+                            }
+                        }
+                        break;
+                    case 'mem':
+                        const mId = parts[1];
+                        const sizePart = parts[2];
+                        const mSize = isNaN(Number(sizePart)) ? sizePart : parseInt(sizePart);
+                        managedMemories.push({ id: mId, size: mSize });
+                        break;
+                    case 'getDelayScaleControl':
+                        // @getDelayScaleControl tap1Ratio delayLength delayOffset 
+                        // -> sof ${tap1Ratio}, 0
+                        // -> sof ${delayLength} / 32768, (${mem.delayl} + 1) / 32768
+                        const baseOffsetExpr = managedMemories.length > 0 ? `(\${mem.${managedMemories[0].id}} + 1)` : `\${${parts[3]}}`;
+                        bodyLines.push(`sof\t\${${parts[1]}}, 0`);
+                        bodyLines.push(`sof\t\${${parts[2]}} / 32768, ${baseOffsetExpr} / 32768`);
+                        break;
+                    case 'getSamplesFromRatio':
+                        // @getSamplesFromRatio ratio tap1Ratio delayLength
+                        // Emits a constant calculation into the assembler
+                        // SpinCAD internally tracks this for GUI mapping. For ATL, we can just defer it 
+                        // by creating an inline equation. i.e `equ ratio tap1Ratio * delayLength`
+                        // (The FV-1 assembler will precalculate constant arithmetic if it has values)
+                        managedEqus.push(parts[1]);
+                        bodyLines.push(`equ\t${parts[1]}\t\${${parts[2]}} * \${${parts[3]}}`);
+                        break;
+                    case 'minusDouble':
+                    case 'multiplyDouble':
+                    case 'plusDouble':
+                    case 'multiplyInt':
+                    case 'divideDouble':
+                    case 'divideInt':
+                        managedEqus.push(parts[1]);
+                        headerLines.push(trimmed);
+                        break;
+                    case 'getBaseAddress':
+                        managedEqus.push('delayOffset');
+                        bodyLines.push('equ\tdelayOffset\t-1');
+                        break;
+                    case 'readChorusTap': {
+                        // @readChorusTap lfoSel 0 tap1Center delayLength delayOffset 
+                        const lfo = parts[1];
+                        const instance = parts[2];
+                        const center = parts[3];
+                        const depth = parts[4];
+                        const offset = parts[5];
+                        let lfoName = `SIN${instance}`;
+                        if (instance === '2') lfoName = 'COS0';
+                        if (instance === '3') lfoName = 'COS1';
+                        bodyLines.push(`cho\trda,\t${lfoName},\tREG | COMPC,\t\${${offset}}`);
+                        bodyLines.push(`cho\trda,\t${lfoName},\t0,\t\${${offset}} + 1`);
+                        break;
+                    }
+                    default:
+                        // Keep other directives.
+                        bodyLines.push(trimmed);
+                }
+            } else {
+                // Assembly line
+                const trimmedLine = line.trim();
+                const lineParts = trimmedLine.split(/[,\s\t]+/);
+                const op = lineParts[0].toLowerCase();
+
+                if (op === 'equ') {
+                    const eqId = lineParts[1];
+                    const eqVal = lineParts[2];
+                    const isPinEq = definition.inputs.some(i => i.id === eqId) || definition.outputs.some(o => o.id === eqId);
+                    if (!isPinEq) {
+                        if (eqVal && eqVal.toLowerCase().startsWith('reg')) {
+                            managedRegs.push(eqId);
+                        } else {
+                            headerLines.push(line);
+                        }
+                    }
+                } else if (op === 'mem') {
+                    const memId = lineParts[1];
+                    const sizeStr = lineParts[2];
+                    const memSize = isNaN(Number(sizeStr)) ? sizeStr : parseInt(sizeStr);
+                    managedMemories.push({ id: memId, size: memSize });
+                } else if (lineParts[0].toLowerCase() === 'offset') {
+                    // "offset ratio 1" => "equ offset ratio" + something?
+                    // In MN3011a, it simply assigns the variable 'ratio' to 'ratio + 1' ?
+                    // Or it allocates an offset. "offset ratio 1" means ratio is an offset of 1? 
+                    // Actually, looking at the code, it probably means "equ offset ratio_1" or "offset" is a type.
+                    // Let's replace it with a valid equ to assign a constant or let it be redefined later.
+                    managedEqus.push(lineParts[1]);
+                    bodyLines.push(`equ\t${lineParts[1]}\t${lineParts[2] || '0'}`);
+                } else if (op === 'bool' || op === 'int') {
+                    // Ignore metadata declarations that ended up in the body
+                } else {
+                    bodyLines.push(line);
+                }
+            }
+        }
+
+        if (managedRegs.length > 0) definition.registers = managedRegs;
+        if (managedMemories.length > 0) definition.memories = managedMemories;
+
+        const templateLines: string[] = [];
+        if (headerLines.length > 0) {
+            const filteredHeaders = headerLines.filter(line => {
+                const parts = line.trim().split(/\s+/);
+                if (parts[0].toLowerCase() === 'equ' || parts[0].toLowerCase() === '@equ') {
+                    const eqId = parts[1];
+                    if (definition.parameters.some(p => p.id === eqId)) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+            if (filteredHeaders.length > 0) {
+                templateLines.push('@section header');
+                templateLines.push(...filteredHeaders);
+                templateLines.push('');
+            }
+        }
+        if (bodyLines.length > 0) {
+            if (headerLines.length > 0) {
+                templateLines.push('@section main');
+            }
+            templateLines.push(...bodyLines);
+        }
+
+        // Variable substitution pass: Replace raw IDs with ${type.id} tokens
+        const ids = {
+            input: definition.inputs.map(i => i.id),
+            output: definition.outputs.map(o => o.id),
+            param: definition.parameters.map(p => p.id),
+            local: managedRegs,
+            memories: managedMemories.map(m => m.id)
+        };
+
+        let processedTemplate = templateLines.join('\n');
+
+        // Replace whole words only to avoid partial matches
+        // Handle +/- suffixes by inserting a space
+        const replaceToken = (id: string, target: string) => {
+            const regex = new RegExp(`\\b${id}\\b(?![^\\{]*\\})`, 'gi');
+            processedTemplate = processedTemplate.replace(regex, (match, offset, string) => {
+                const nextChar = string[offset + match.length];
+                if (nextChar === '+' || nextChar === '-') {
+                    return target + ' ';
+                }
+                return target;
+            });
+        };
+
+        for (const id of ids.input) replaceToken(id, `\${input.${id}}`);
+        for (const id of ids.output) replaceToken(id, `\${output.${id}}`);
+        for (const id of ids.param) replaceToken(id, `\${${id}}`);
+        for (const id of ids.local) replaceToken(id, `\${reg.${id}}`);
+        for (const id of ids.memories) replaceToken(id, `\${mem.${id}}`);
+        for (const id of managedEqus) replaceToken(id, `\${local.${id}}`);
+
+        definition.template = processedTemplate;
+        return definition;
+    }
+
+    /**
+     * Format a definition as an ATL file with JSON frontmatter
+     */
+    static toATL(definition: BlockTemplateDefinition): string {
+        const metadata = { ...definition };
+        const template = metadata.template;
+        delete (metadata as any).template;
+
+        return `---\n${JSON.stringify(metadata, null, 2)}\n---\n${template}`;
+    }
+}

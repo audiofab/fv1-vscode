@@ -13,17 +13,17 @@ import { Block, BlockMetadata } from '../../../types/Block';
 function getLuminance(hexColor: string): number {
     // Remove # if present
     const hex = hexColor.replace('#', '');
-    
+
     // Parse RGB values
     const r = parseInt(hex.substring(0, 2), 16) / 255;
     const g = parseInt(hex.substring(2, 4), 16) / 255;
     const b = parseInt(hex.substring(4, 6), 16) / 255;
-    
+
     // Apply gamma correction
     const rsRGB = r <= 0.03928 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4);
     const gsRGB = g <= 0.03928 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4);
     const bsRGB = b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4);
-    
+
     // Calculate relative luminance
     return 0.2126 * rsRGB + 0.7152 * gsRGB + 0.0722 * bsRGB;
 }
@@ -47,6 +47,7 @@ interface BlockComponentProps {
     onDragStart?: () => void;
     onDragEnd?: () => void;
     onPortClick: (blockId: string, portId: string, isOutput: boolean) => void;
+    onContextMenu?: (e: any) => void;
     vscode: any;
 }
 
@@ -59,24 +60,25 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
     onDragStart,
     onDragEnd,
     onPortClick,
+    onContextMenu,
     vscode
 }) => {
     if (!metadata) return null;
-    
+
     const [customLabel, setCustomLabel] = useState<string | null>(null);
-    
+
     const width = metadata.width || 200;
     const height = metadata.height || 100;
     const color = metadata.color || '#607D8B';
     const textColor = getTextColor(color);
     const portRadius = 6;
     const portSpacing = 20;
-    
-    const dragStateRef = useRef({ 
+
+    const dragStateRef = useRef({
         isDragging: false,
         frameCount: 0
     });
-    
+
     // Request custom label if block supports it
     useEffect(() => {
         if (metadata.hasCustomLabel) {
@@ -87,9 +89,9 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                     setCustomLabel(message.label);
                 }
             };
-            
+
             window.addEventListener('message', handleMessage);
-            
+
             // Request custom label
             vscode.postMessage({
                 type: 'getCustomLabel',
@@ -97,13 +99,13 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                 blockType: block.type,
                 parameters: block.parameters
             });
-            
+
             return () => {
                 window.removeEventListener('message', handleMessage);
             };
         }
     }, [block.id, block.type, block.parameters, metadata.hasCustomLabel]);
-    
+
     return (
         <Group
             x={block.position.x}
@@ -118,20 +120,20 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
             }}
             onDragMove={(e) => {
                 if (!dragStateRef.current.isDragging) return;
-                
+
                 dragStateRef.current.frameCount++;
-                
+
                 // Get Konva's current position
                 const konvaX = e.target.x();
                 const konvaY = e.target.y();
-                
+
                 // Calculate delta from current block.position (not cached value)
                 // This prevents accumulated error since block.position is the source of truth
                 const delta = {
                     x: konvaX - block.position.x,
                     y: konvaY - block.position.y
                 };
-                
+
                 // Update every few frames to reduce update frequency but stay responsive
                 // Use modulo to throttle: update every 2nd frame for smoother performance
                 if (dragStateRef.current.frameCount % 2 === 0 && (Math.abs(delta.x) > 0.1 || Math.abs(delta.y) > 0.1)) {
@@ -140,7 +142,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
             }}
             onDragEnd={(e) => {
                 if (!dragStateRef.current.isDragging) return;
-                
+
                 // Calculate final delta from current block.position to Konva's end position
                 const konvaX = e.target.x();
                 const konvaY = e.target.y();
@@ -148,18 +150,23 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                     x: konvaX - block.position.x,
                     y: konvaY - block.position.y
                 };
-                
+
                 dragStateRef.current.isDragging = false;
-                
+
                 // Always send final update to ensure perfect sync
                 if (Math.abs(finalDelta.x) > 0.01 || Math.abs(finalDelta.y) > 0.01) {
                     onMove(finalDelta);
                 }
-                
+
                 onDragEnd?.();
             }}
             onClick={(e) => {
                 onSelect(e.evt.ctrlKey || e.evt.metaKey);
+            }}
+            onContextMenu={(e) => {
+                if (onContextMenu) {
+                    onContextMenu(e);
+                }
             }}
             onTap={(e) => {
                 onSelect(false); // Touch doesn't have ctrl key
@@ -179,7 +186,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                 shadowOffsetX={2}
                 shadowOffsetY={2}
             />
-            
+
             {/* Block title */}
             <Text
                 text={metadata.name}
@@ -190,7 +197,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                 fontStyle="bold"
                 fill={textColor}
             />
-            
+
             {/* Custom label (if available) */}
             {customLabel && (
                 <Text
@@ -207,7 +214,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                     ellipsis={block.type.includes('stickynote') ? true : false}
                 />
             )}
-            
+
             {/* Input ports */}
             {metadata.inputs.map((input, index) => {
                 const y = 40 + index * portSpacing;
@@ -240,7 +247,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                     </Group>
                 );
             })}
-            
+
             {/* Output ports */}
             {metadata.outputs.map((output, index) => {
                 const y = 40 + index * portSpacing;

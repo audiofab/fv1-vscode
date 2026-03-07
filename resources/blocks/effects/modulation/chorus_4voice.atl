@@ -1,0 +1,188 @@
+---
+{
+  "type": "effects.modulation.chorus4voice",
+  "category": "Effects",
+  "subcategory": "Modulation",
+  "name": "4-Voice Chorus",
+  "description": "Four-voice chorus with independent outputs",
+  "color": "#24F2F2",
+  "labelTemplate": "LFO ${param.lfoSel}",
+  "inputs": [
+    { "id": "input", "name": "Input", "type": "audio", "required": true },
+    { "id": "rateIn", "name": "LFO Rate", "type": "control", "required": false },
+    { "id": "widthIn", "name": "LFO Width", "type": "control", "required": false }
+  ],
+  "outputs": [
+    { "id": "voice1", "name": "Voice 1", "type": "audio" },
+    { "id": "voice2", "name": "Voice 2", "type": "audio" },
+    { "id": "voice3", "name": "Voice 3", "type": "audio" },
+    { "id": "voice4", "name": "Voice 4", "type": "audio" }
+  ],
+  "parameters": [
+    {
+      "id": "gain1",
+      "name": "Input Gain",
+      "type": "number",
+      "min": -24,
+      "max": 0,
+      "default": -6,
+      "conversion": "DBLEVEL"
+    },
+    {
+      "id": "delayLength",
+      "name": "Chorus Time",
+      "type": "number",
+      "default": 15,
+      "min": 0,
+      "max": 50,
+      "conversion": "MS_TO_SAMPLES",
+      "description": "Delay time in ms.",
+      "step": 1
+    },
+    {
+      "id": "tap1Center",
+      "name": "Tap 1 Center",
+      "type": "number",
+      "default": 0.25,
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.001
+    },
+    {
+      "id": "tap2Center",
+      "name": "Tap 2 Center",
+      "type": "number",
+      "default": 0.33,
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.001
+    },
+    {
+      "id": "tap3Center",
+      "name": "Tap 3 Center",
+      "type": "number",
+      "default": 0.63,
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.001
+    },
+    {
+      "id": "tap4Center",
+      "name": "Tap 4 Center",
+      "type": "number",
+      "default": 0.75,
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.001
+    },
+    {
+      "id": "rate",
+      "name": "LFO Rate (Hz)",
+      "type": "number",
+      "default": 1.0,
+      "min": 0.05,
+      "max": 10,
+      "conversion": "HZ_TO_LFO_RATE",
+      "description": "Frequency of the chorus modulation in Hz.",
+      "step": 0.01
+    },
+    {
+      "id": "width",
+      "name": "LFO Width (ms)",
+      "type": "number",
+      "default": 1,
+      "min": 0,
+      "max": 20,
+      "conversion": "MS_TO_LFO_RANGE",
+      "description": "The width of modulation in ms.",
+      "step": 0.1
+    },
+    {
+      "id": "lfoSel",
+      "name": "LFO Select",
+      "type": "select",
+      "default": 0,
+      "options": [
+        { "label": "LFO 0", "value": 0 },
+        { "label": "LFO 1", "value": 1 }
+      ]
+    }
+  ],
+  "memories": [
+    { "id": "delayLine", "size": "${delayLength}" }
+  ]
+}
+---
+@section header
+; Calculations for Centers:
+EQU tap1 (0.9 * ${tap1Center} * ${delayLength} + 0.05 * ${delayLength})
+EQU tap2 (0.9 * ${tap2Center} * ${delayLength} + 0.05 * ${delayLength})
+EQU tap3 (0.9 * ${tap3Center} * ${delayLength} + 0.05 * ${delayLength})
+EQU tap4 (0.9 * ${tap4Center} * ${delayLength} + 0.05 * ${delayLength})
+
+@if isequalto lfoSel 0
+@equals lfoNum SIN0
+@equals lfoRateReg SIN0_RATE
+@equals lfoRange SIN0_RANGE
+@else
+@equals lfoNum SIN1
+@equals lfoRateReg SIN1_RATE
+@equals lfoRange SIN1_RANGE
+@endif
+
+@section init
+; Initialize LFO
+skp run, done_4voice_lfo
+wlds ${lfoNum}, ${rate}, ${width}
+done_4voice_lfo:
+
+@section main
+@if pinConnected(input)
+
+; Validate LFO Rate
+@if pinConnected(rateIn)
+rdax ${input.rateIn}, (${rate} / 511.0)
+wrax ${lfoRateReg}, 0.0
+@endif
+
+; Validate LFO Width
+@if pinConnected(widthIn)
+rdax ${input.widthIn}, (${width} / 16384.0)
+wrax ${lfoRange}, 0.0
+@endif
+
+; Write input to delay line
+rdax ${input.input}, ${gain1}
+wra ${mem.delayLine}, 0.0
+
+; Voice 1: SIN, REG|COMPC
+@if pinConnected(voice1)
+cho rda, ${lfoNum}, SIN|REG|COMPC, ${mem.delayLine} + tap1
+cho rda, ${lfoNum}, SIN, ${mem.delayLine} + tap1 + 1
+wrax ${output.voice1}, 0.0
+@endif
+
+; Voice 2: SIN, REG|COMPA
+@if pinConnected(voice2)
+cho rda, ${lfoNum}, SIN|REG|COMPA, ${mem.delayLine} + tap2
+cho rda, ${lfoNum}, SIN|COMPC|COMPA, ${mem.delayLine} + tap2 + 1
+wrax ${output.voice2}, 0.0
+@endif
+
+; Voice 3: COS, REG|COMPC
+@if pinConnected(voice3)
+cho rda, ${lfoNum}, COS|REG|COMPC, ${mem.delayLine} + tap3
+cho rda, ${lfoNum}, COS, ${mem.delayLine} + tap3 + 1
+wrax ${output.voice3}, 0.0
+@endif
+
+; Voice 4: COS, REG|COMPA
+@if pinConnected(voice4)
+cho rda, ${lfoNum}, COS|REG|COMPA, ${mem.delayLine} + tap4
+cho rda, ${lfoNum}, COS|COMPC|COMPA, ${mem.delayLine} + tap4 + 1
+wrax ${output.voice4}, 0.0
+@endif
+
+@else
+; 4-Voice Chorus (no input connected)
+@endif

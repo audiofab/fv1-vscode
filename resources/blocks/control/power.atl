@@ -1,0 +1,77 @@
+---
+{
+  "type": "control.power",
+  "category": "Control",
+  "name": "Power",
+  "description": "Applies a non-linear curve optionally inverted/flipped",
+  "inputs": [
+    {
+      "id": "control_input_1",
+      "name": "Control Input 1",
+      "type": "control"
+    }
+  ],
+  "outputs": [
+    {
+      "id": "control_output_1",
+      "name": "Control Output 1",
+      "type": "control"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "power",
+      "name": "Power",
+      "type": "number",
+      "default": 3,
+      "min": 1,
+      "max": 5,
+      "step": 1
+    },
+    {
+      "id": "invert",
+      "name": "Invert",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "id": "flip",
+      "name": "Flip",
+      "type": "boolean",
+      "default": false
+    }
+  ],
+  "registers": [
+    "value"
+  ]
+}
+---
+@section header
+@comment "Generated from spincad source file PowerControlCADBlock.java"
+
+@section main
+; Applies a non-linear curve (square) optionally inverted/flipped
+rdax	${input.control_input_1},	1.0
+@if ${invert} == true
+; ---Invert
+sof	-0.9990234375,	0.9990234375
+@endif
+wrax	${reg.value},	1.0
+
+@if ${power} >= 2
+mulx	${reg.value}
+@endif
+@if ${power} >= 3
+mulx	${reg.value}
+@endif
+@if ${power} >= 4
+mulx	${reg.value}
+@endif
+@if ${power} >= 5
+mulx	${reg.value}
+@endif
+@if ${flip} == true
+; ---Flip
+sof	-0.9990234375,	0.9990234375
+@endif
+wrax	${output.control_output_1},	0

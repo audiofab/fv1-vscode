@@ -6,7 +6,7 @@ import { FV1AssemblerResult } from '../assembler/FV1Assembler.js';
 import { FV1AudioStreamer } from './FV1AudioStreamer.js';
 import { FV1AudioEngine } from './FV1AudioEngine.js';
 import { AssemblyService } from '../services/AssemblyService.js';
-import { resolveToUri } from '../core/editor-utils.js';
+import { resolveToUri, isUri } from '../core/editor-utils.js';
 
 export class FV1DebugSession implements vscode.DebugAdapter {
     private simulator: FV1Simulator;
@@ -224,8 +224,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         }
 
         // Check if sourcePath is a URI string or a local path
-        const isUri = this.sourcePath.includes(':') && !path.isAbsolute(this.sourcePath);
-        if (!isUri && !fs.existsSync(this.sourcePath)) {
+        if (!isUri(this.sourcePath) && !fs.existsSync(this.sourcePath)) {
             response.success = false;
             response.message = `File does not exist: ${this.sourcePath}`;
             return;
@@ -903,8 +902,8 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             this.sendEvent('output', { category: 'console', output: `Input stimulus: None (Silence)\n` });
         } else if (m.value === 'tone') {
             this.audioStreamer.unload();
-            this.audioStreamer.setToneEnabled(true);
-            this.sendEvent('output', { category: 'console', output: `Input stimulus: 440Hz Test Tone\n` });
+            this.audioStreamer.setNoiseEnabled(true);
+            this.sendEvent('output', { category: 'console', output: `Input stimulus: White Noise\n` });
         } else if (m.value === 'built-in') {
             this.audioStreamer.unload();
             const defaultWav = 'src/simulator/wav/minor-chords-32k.wav';

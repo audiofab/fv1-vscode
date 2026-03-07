@@ -1,0 +1,73 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Audiofab Template Language",
+    "scopeName": "source.fv1-atl",
+    "patterns": [
+        {
+            "include": "#frontmatter"
+        },
+        {
+            "include": "#template-vars"
+        },
+        {
+            "include": "#comments"
+        },
+        {
+            "include": "source.fv1-assembly"
+        }
+    ],
+    "repository": {
+        "frontmatter": {
+            "begin": "\\A---$",
+            "beginCaptures": {
+                "0": {
+                    "name": "comment.block.frontmatter.begin.fv1-atl"
+                }
+            },
+            "end": "^---$",
+            "endCaptures": {
+                "0": {
+                    "name": "comment.block.frontmatter.end.fv1-atl"
+                }
+            },
+            "contentName": "meta.embedded.block.json",
+            "patterns": [
+                {
+                    "include": "source.json"
+                }
+            ]
+        },
+        "template-vars": {
+            "patterns": [
+                {
+                    "match": "(\\$|#)\\{([^}]+)\\}",
+                    "captures": {
+                        "1": {
+                            "name": "keyword.other.unit.fv1-atl"
+                        },
+                        "2": {
+                            "name": "variable.parameter.fv1-atl"
+                        }
+                    },
+                    "name": "entity.name.tag.template-expression.fv1-atl"
+                },
+                {
+                    "match": "@(comment|setOutputPin)\\b",
+                    "name": "keyword.control.directive.fv1-atl"
+                }
+            ]
+        },
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.line.double-slash.fv1-atl",
+                    "match": "//.*$"
+                },
+                {
+                    "name": "comment.line.semicolon.fv1-atl",
+                    "match": ";.*$"
+                }
+            ]
+        }
+    }
+}

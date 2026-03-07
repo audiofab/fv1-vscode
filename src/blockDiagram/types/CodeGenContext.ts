@@ -35,29 +35,44 @@ export class CodeGenerationContext implements CodeGenContext {
     private nextScratchRegister: number = 31;  // Allocate scratch registers from REG31 downward
     private nextMemoryAddress: number = 0;
     private currentBlockId: string | null = null;
-    
+    private blockShortIdMap: Map<string, string> = new Map();
+    private nextShortId: number = 1;
+    private blockVariables: Map<string, string> = new Map();
+
     // Code sections
     private headerComments: string[] = []; // User comments from sticky notes
     private initCode: string[] = [];    // EQU, MEM declarations, SKP logic
     private inputCode: string[] = [];   // ADC reads, POT reads
     private mainCode: string[] = [];    // Main processing logic
     private outputCode: string[] = [];  // DAC writes
-    
+    private irNodes: any[] = []; // Semantic IR nodes
+
+    // Error tracking
+    private compilationErrors: string[] = [];
+
     // FV-1 hardware limits
     private readonly MAX_REGISTERS = 32;  // REG0-REG31
     private readonly MAX_MEMORY = 32768;  // Delay memory words
-    
+
     constructor(graph: BlockGraph) {
         this.graph = graph;
     }
-    
+
     /**
-     * Set the current block being processed
+     * Get the current block ID being processed
+     */
+    getCurrentBlock(): string | null {
+        return this.currentBlockId;
+    }
+
+    /**
+     * Set the current block ID
+being processed
      */
     setCurrentBlock(blockId: string): void {
         this.currentBlockId = blockId;
     }
-    
+
     /**
      * Push comments to the header section
      * For documentation and notes from sticky note blocks
@@ -65,7 +80,26 @@ export class CodeGenerationContext implements CodeGenContext {
     pushHeaderComment(...lines: string[]): void {
         this.headerComments.push(...lines);
     }
-    
+
+    /**
+     * Report an error that halts generation and alerts the user
+     */
+    addError(message: string): void {
+        if (this.currentBlockId) {
+            const shortId = this.getShortId(this.currentBlockId);
+            this.compilationErrors.push(`Block [${shortId}]: ${message}`);
+        } else {
+            this.compilationErrors.push(message);
+        }
+    }
+
+    /**
+     * Return all collected errors during AST template evaluation
+     */
+    getErrors(): string[] {
+        return this.compilationErrors;
+    }
+
     /**
      * Push code to the initialization section
      * For EQU/MEM declarations and SKP logic
@@ -73,7 +107,7 @@ export class CodeGenerationContext implements CodeGenContext {
     pushInitCode(...lines: string[]): void {
         this.initCode.push(...lines);
     }
-    
+
     /**
      * Push code to the input section
      * For ADC reads and POT reads
@@ -81,7 +115,7 @@ export class CodeGenerationContext implements CodeGenContext {
     pushInputCode(...lines: string[]): void {
         this.inputCode.push(...lines);
     }
-    
+
     /**
      * Push code to the main code section
      * For main processing logic
@@ -89,7 +123,7 @@ export class CodeGenerationContext implements CodeGenContext {
     pushMainCode(...lines: string[]): void {
         this.mainCode.push(...lines);
     }
-    
+
     /**
      * Push code to the output section
      * For DAC writes
@@ -97,14 +131,14 @@ export class CodeGenerationContext implements CodeGenContext {
     pushOutputCode(...lines: string[]): void {
         this.outputCode.push(...lines);
     }
-    
+
     /**
      * Get header comments (from sticky notes)
      */
     getHeaderComments(): string[] {
         return [...this.headerComments];
     }
-    
+
     /**
      * Get all code sections
      * Also generates EQU and MEM declarations at the beginning of init section
@@ -116,7 +150,7 @@ export class CodeGenerationContext implements CodeGenContext {
         output: string[];
     } {
         const init: string[] = [];
-        
+
         // Add EQU declarations for constants
         const equDecls = this.getEquDeclarations();
         if (equDecls.length > 0) {
@@ -126,7 +160,7 @@ export class CodeGenerationContext implements CodeGenContext {
             }
             init.push('');
         }
-        
+
         // Add EQU declarations for register aliases
         const aliases = this.getRegisterAliases();
         if (aliases.length > 0) {
@@ -136,7 +170,7 @@ export class CodeGenerationContext implements CodeGenContext {
             }
             init.push('');
         }
-        
+
         // Add MEM declarations
         const memBlocks = this.getMemoryBlocks();
         if (memBlocks.length > 0) {
@@ -146,7 +180,7 @@ export class CodeGenerationContext implements CodeGenContext {
             }
             init.push('');
         }
-        
+
         // Add any custom init code from blocks
         if (this.initCode.length > 0) {
             init.push(...this.initCode);
@@ -159,7 +193,7 @@ export class CodeGenerationContext implements CodeGenContext {
             output: [...this.outputCode]
         };
     }
-    
+
     /**
      * Check if an output port is connected to anything
      * Used to skip generating code for unused outputs (optimization)
@@ -167,13 +201,13 @@ export class CodeGenerationContext implements CodeGenContext {
     isOutputConnected(blockIdOrType: string, portId: string): boolean {
         // If blockIdOrType looks like a type (contains '.'), use current block ID
         const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
-        
+
         // Check if any connection uses this output
         return this.graph.connections.some(
             conn => conn.from.blockId === blockId && conn.from.portId === portId
         );
     }
-    
+
     /**
      * Get the register that feeds a block's input port
      * Returns null if input is not connected (for optional inputs like CV)
@@ -181,33 +215,33 @@ export class CodeGenerationContext implements CodeGenContext {
     getInputRegister(blockIdOrType: string, portId: string): string | null {
         // If blockIdOrType looks like a type (contains '.'), use current block ID
         const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
-        
+
         // Find the connection feeding this input
         const connection = this.graph.connections.find(
             conn => conn.to.blockId === blockId && conn.to.portId === portId
         );
-        
+
         if (!connection) {
             // No connection - this is OK for optional inputs
             return null;
         }
-        
+
         // Find the register allocated to the source output
         const allocation = this.registerAllocations.find(
-            alloc => alloc.blockId === connection.from.blockId && 
-                     alloc.portId === connection.from.portId
+            alloc => alloc.blockId === connection.from.blockId &&
+                alloc.portId === connection.from.portId
         );
-        
+
         if (!allocation) {
             throw new Error(
                 `No register allocated for ${connection.from.blockId}.${connection.from.portId}`
             );
         }
-        
+
         // Return the alias (symbolic name) instead of raw register name
         return allocation.alias;
     }
-    
+
     /**
      * Allocate a register for a block's output port
      * These are permanent registers allocated from REG0 upward
@@ -215,41 +249,41 @@ export class CodeGenerationContext implements CodeGenContext {
     allocateRegister(blockIdOrType: string, portId: string): string {
         // If blockIdOrType looks like a type (contains '.'), use current block ID
         const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
-        
+
         // Check if already allocated
         const existing = this.registerAllocations.find(
             alloc => alloc.blockId === blockId && alloc.portId === portId
         );
-        
+
         if (existing) {
             return existing.alias;  // Return alias, not raw register name
         }
-        
+
         // Check if we have room for another permanent register
         // Need to ensure we don't collide with scratch registers
         if (this.nextRegister > this.nextScratchRegister) {
             throw new Error(
-                'Out of registers! Permanent registers (REG0-REG' + (this.nextRegister - 1) + 
+                'Out of registers! Permanent registers (REG0-REG' + (this.nextRegister - 1) +
                 ') have collided with scratch registers (REG' + (this.nextScratchRegister + 1) + '-REG31).'
             );
         }
-        
+
         const registerName = `REG${this.nextRegister}`;
         this.nextRegister++;
-        
+
         // Generate a meaningful alias for this register
         const alias = this.generateRegisterAlias(blockId, portId);
-        
+
         this.registerAllocations.push({
             blockId,
             portId,
             register: registerName,
             alias
         });
-        
+
         return alias;  // Return the alias, not the raw register name
     }
-    
+
     /**
      * Generate a meaningful alias for a register
      */
@@ -260,41 +294,47 @@ export class CodeGenerationContext implements CodeGenContext {
             // Fallback to blockId
             return this.sanitizeIdentifier(`${blockId}_${portId}`);
         }
-        
+
         // Create alias from block type and port
         // e.g., "input.adcl" + "out" -> "adcl_out"
         // e.g., "math.gain" + "out" -> "gain_out"
         const typeParts = block.type.split('.');
         const baseName = typeParts[typeParts.length - 1]; // Get last part (e.g., "adcl", "gain")
-        
+
         // Special case for POT blocks: use the potNumber parameter
         let suffix = '';
         if (block.type === 'input.pot') {
-            if (block.parameters && block.parameters.potNumber !== undefined && block.parameters.potNumber !== null) {
-                suffix = `${block.parameters.potNumber}`;
-            } else {
-                // POT block without potNumber parameter - use index as fallback
-                const sameTypeBlocks = this.graph.blocks.filter(b => b.type === block.type);
-                const index = sameTypeBlocks.findIndex(b => b.id === blockId);
-                suffix = `${index}`;
-            }
+            const potNum = (block.parameters && block.parameters.potNumber !== undefined && block.parameters.potNumber !== null)
+                ? block.parameters.potNumber
+                : 0;
+            suffix = `${potNum}`;
         } else if (this.graph.blocks.filter(b => b.type === block.type).length > 1) {
             // If there are multiple blocks of the same type, add a number
             const sameTypeBlocks = this.graph.blocks.filter(b => b.type === block.type);
             const index = sameTypeBlocks.findIndex(b => b.id === blockId);
             suffix = `${index + 1}`;
         }
-        
-        return this.sanitizeIdentifier(`${baseName}${suffix}_${portId}`);
+
+        const baseAlias = this.sanitizeIdentifier(`${baseName}${suffix}_${portId}`);
+        let finalAlias = baseAlias;
+        let counter = 2;
+
+        // Guarantee global alias uniqueness
+        while (this.registerAllocations.some(a => a.alias === finalAlias && (a.blockId !== blockId || a.portId !== portId))) {
+            finalAlias = `${baseAlias}_${counter}`;
+            counter++;
+        }
+
+        return finalAlias;
     }
-    
+
     /**
      * Sanitize an identifier to make it valid for assembly
      */
     private sanitizeIdentifier(name: string): string {
         return name.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
     }
-    
+
     /**
      * Get a scratch/temporary register for intermediate calculations
      * Scratch registers are allocated from REG31 downward and are automatically
@@ -309,13 +349,13 @@ export class CodeGenerationContext implements CodeGenContext {
                 'have collided with permanent registers (REG0-REG' + (this.nextRegister - 1) + ').'
             );
         }
-        
+
         const registerName = `REG${this.nextScratchRegister}`;
         this.nextScratchRegister--;
-        
+
         return registerName;
     }
-    
+
     /**
      * Reset scratch register allocation
      * Called after each block's code generation to make scratch registers available again
@@ -323,7 +363,7 @@ export class CodeGenerationContext implements CodeGenContext {
     resetScratchRegisters(): void {
         this.nextScratchRegister = 31;
     }
-    
+
     /**
      * Register an EQU constant declaration
      * For common values, use standardized names
@@ -338,7 +378,7 @@ export class CodeGenerationContext implements CodeGenContext {
         this.constantMap.set(name, valueStr);
         return name;
     }
-    
+
     /**
      * Get or create a standard EQU name for a constant value
      * Returns the EQU name to use in code
@@ -362,21 +402,21 @@ export class CodeGenerationContext implements CodeGenContext {
 
         return name;
     }
-    
+
     /**
      * Check if an EQU constant has been registered
      */
     hasEqu(name: string): boolean {
         return this.equDeclarations.some(equ => equ.name === name);
     }
-    
+
     /**
      * Get all registered EQU declarations
      */
     getEquDeclarations(): Array<{ name: string; value: string }> {
         return [...this.equDeclarations];
     }
-    
+
     /**
      * Get all register aliases for EQU declarations
      */
@@ -386,7 +426,7 @@ export class CodeGenerationContext implements CodeGenContext {
             register: alloc.register
         }));
     }
-    
+
     /**
      * Allocate delay memory for a block
      */
@@ -399,11 +439,11 @@ export class CodeGenerationContext implements CodeGenContext {
         // const existing = this.memoryAllocations.find(
         //     alloc => alloc.blockId === blockId
         // );
-        
+
         // if (existing) {
         //     return existing;
         // }
-        
+
         // Check if enough memory available
         if (this.nextMemoryAddress + size > this.MAX_MEMORY) {
             // Update nextMemoryAddress to reflect total attempted allocation
@@ -419,12 +459,12 @@ export class CodeGenerationContext implements CodeGenContext {
         // Follow same pattern as register aliases: use block type name + instance number
         // const block = this.graph.blocks.find(b => b.id === blockId);
         // let memName: string;
-        
+
         // if (block) {
         //     // Extract base name from block type (e.g., "effects.delay" -> "delay")
         //     const typeParts = block.type.split('.');
         //     const baseName = typeParts[typeParts.length - 1];
-            
+
         //     // If there are multiple blocks of the same type, add instance number
         //     const sameTypeBlocks = this.graph.blocks.filter(b => b.type === block.type);
         //     let suffix = '';
@@ -432,7 +472,7 @@ export class CodeGenerationContext implements CodeGenContext {
         //         const index = sameTypeBlocks.findIndex(b => b.id === blockId);
         //         suffix = `${index + 1}`;
         //     }
-            
+
         //     memName = this.sanitizeIdentifier(`mem_${baseName}${suffix}_${name}`);
         // } else {
         //     // Fallback to generic name with counter
@@ -440,7 +480,7 @@ export class CodeGenerationContext implements CodeGenContext {
         // }
         // Just use a generic name with counter
         let memName = `mem${this.memoryAllocations.length}_${name}`;
-        
+
         // Ensure name doesn't exceed 32 characters (FV-1 limit)
         if (memName.length > 32) {
             memName = memName.substring(0, 32);
@@ -458,36 +498,71 @@ export class CodeGenerationContext implements CodeGenContext {
 
         return allocation;
     }
-    
+
+    /**
+     * Get a block instance
+     */
+    getBlock(blockId: string): any {
+        return this.graph.blocks.find(b => b.id === blockId);
+    }
+
     /**
      * Get a parameter value from a block
      */
     getParameter(blockIdOrType: string, parameterId: string): any {
         // If blockIdOrType looks like a type (contains '.'), use current block ID
         const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
-        
+
         const block = this.graph.blocks.find(b => b.id === blockId);
         if (!block) {
             throw new Error(`Block ${blockId} not found`);
         }
-        
+
         return block.parameters[parameterId];
     }
-    
+
+    /**
+     * Push an IR node
+     */
+    pushIR(node: any): void {
+        this.irNodes.push(node);
+    }
+
+    /**
+     * Get a short, unique identifier for a block (e.g. "b1", "b2") to avoid long UUIDs in assembly
+     */
+    getShortId(blockId: string): string {
+        const existing = this.blockShortIdMap.get(blockId);
+        if (existing) {
+            return existing;
+        }
+
+        const newId = `b${this.nextShortId++}`;
+        this.blockShortIdMap.set(blockId, newId);
+        return newId;
+    }
+
+    /**
+     * Get all IR nodes
+     */
+    getIR(): any[] {
+        return [...this.irNodes];
+    }
+
     /**
      * Get count of used registers
      */
     getUsedRegisterCount(): number {
         return this.nextRegister;
     }
-    
+
     /**
      * Get total used memory size
      */
     getUsedMemorySize(): number {
         return this.nextMemoryAddress;
     }
-    
+
     /**
      * Get all memory allocations
      */
@@ -498,7 +573,21 @@ export class CodeGenerationContext implements CodeGenContext {
             size: alloc.size
         }));
     }
-    
+
+    /**
+     * Get a local variable value (used by macros)
+     */
+    getVariable(name: string): string | undefined {
+        return this.blockVariables.get(name);
+    }
+
+    /**
+     * Set a local variable value (used by macros)
+     */
+    setVariable(name: string, value: string): void {
+        this.blockVariables.set(name, value);
+    }
+
     /**
      * Reset allocations (for re-compilation)
      */
@@ -506,6 +595,7 @@ export class CodeGenerationContext implements CodeGenContext {
         this.registerAllocations = [];
         this.memoryAllocations = [];
         this.equDeclarations = [];
+        this.blockVariables.clear();
         this.constantMap.clear();
         this.initCode = [];
         this.inputCode = [];

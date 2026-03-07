@@ -1,0 +1,184 @@
+---
+{
+  "type": "fx.delay.tripletap",
+  "name": "ThreeTap",
+  "category": "Effects",
+  "subcategory": "Delay",
+  "description": "Triple tap delay with independent outputs and CV modulation",
+  "color": "#6060c4",
+  "width": 200,
+  "inputs": [
+    {
+      "id": "in",
+      "name": "Input",
+      "type": "audio",
+      "required": true
+    },
+    {
+      "id": "feedback",
+      "name": "Feedback",
+      "type": "audio",
+      "required": false
+    },
+    {
+      "id": "delay_time_1",
+      "name": "Delay Time 1",
+      "type": "control",
+      "required": false
+    },
+    {
+      "id": "delay_time_2",
+      "name": "Delay Time 2",
+      "type": "control",
+      "required": false
+    },
+    {
+      "id": "delay_time_3",
+      "name": "Delay Time 3",
+      "type": "control",
+      "required": false
+    },
+    {
+      "id": "fbk_ctrl",
+      "name": "Feedback Gain",
+      "type": "control",
+      "required": false
+    }
+  ],
+  "outputs": [
+    {
+      "id": "tap1",
+      "name": "Tap 1 Out",
+      "type": "audio"
+    },
+    {
+      "id": "tap2",
+      "name": "Tap 2 Out",
+      "type": "audio"
+    },
+    {
+      "id": "tap3",
+      "name": "Tap 3 Out",
+      "type": "audio"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "inputGain",
+      "name": "Input Gain (dB)",
+      "type": "number",
+      "default": 0,
+      "min": -24,
+      "max": 0,
+      "conversion": "DBLEVEL",
+      "step": 0.01
+    },
+    {
+      "id": "fbkGain",
+      "name": "Feedback Gain (dB)",
+      "type": "number",
+      "default": -6,
+      "min": -24,
+      "max": 0,
+      "conversion": "DBLEVEL",
+      "step": 0.01
+    },
+    {
+      "id": "delayTime",
+      "name": "Total Delay (ms)",
+      "type": "number",
+      "default": 1000,
+      "min": 10,
+      "max": 1000,
+      "conversion": "MS_TO_SAMPLES",
+      "description": "The total delay memory allocated in ms.",
+      "step": 1
+    },
+    {
+      "id": "tap1Time",
+      "name": "Tap 1 Time (ms)",
+      "type": "number",
+      "default": 850,
+      "min": 0,
+      "max": 1000,
+      "conversion": "MS_TO_SAMPLES",
+      "step": 1
+    },
+    {
+      "id": "tap2Time",
+      "name": "Tap 2 Time (ms)",
+      "type": "number",
+      "default": 600,
+      "min": 0,
+      "max": 1000,
+      "conversion": "MS_TO_SAMPLES",
+      "step": 1
+    },
+    {
+      "id": "tap3Time",
+      "name": "Tap 3 Time (ms)",
+      "type": "number",
+      "default": 450,
+      "min": 0,
+      "max": 1000,
+      "conversion": "MS_TO_SAMPLES",
+      "step": 1
+    }
+  ],
+  "memories": [
+    {
+      "id": "delayl",
+      "size": "delayTime"
+    }
+  ]
+}
+---
+; ThreeTap Delay
+@if pinConnected(feedback)
+rdax ${input.feedback}, ${fbkGain}
+@if pinConnected(fbk_ctrl)
+mulx ${input.fbk_ctrl}
+@endif
+@endif
+rdax ${input.in}, ${inputGain}
+wra ${mem.delayl}, 0.0
+
+@if pinConnected(tap1)
+; Tap 1
+clr
+or $7FFF00
+@if pinConnected(delay_time_1)
+mulx ${input.delay_time_1}
+@endif
+sof (0.95 * ${tap1Time}) / ${Fs}, (${mem.delayl} + (0.05 * ${tap1Time})) / ${Fs}
+wrax ADDR_PTR, 0.0
+rmpa 1.0
+wrax ${output.tap1}, 0.0
+@endif
+
+@if pinConnected(tap2)
+; Tap 2
+clr
+or $7FFF00
+@if pinConnected(delay_time_2)
+mulx ${input.delay_time_2}
+@endif
+sof (0.95 * ${tap2Time}) / ${Fs}, (${mem.delayl} + (0.05 * ${tap2Time})) / ${Fs}
+wrax ADDR_PTR, 0.0
+rmpa 1.0
+wrax ${output.tap2}, 0.0
+@endif
+
+@if pinConnected(tap3)
+; Tap 3
+clr
+or $7FFF00
+@if pinConnected(delay_time_3)
+mulx ${input.delay_time_3}
+@endif
+sof (0.95 * ${tap3Time}) / ${Fs}, (${mem.delayl} + (0.05 * ${tap3Time})) / ${Fs}
+wrax ADDR_PTR, 0.0
+rmpa 1.0
+wrax ${output.tap3}, 0.0
+@endif
+

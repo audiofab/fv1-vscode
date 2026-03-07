@@ -3,7 +3,7 @@
  * Orchestrates the compilation of a block diagram to FV-1 assembly
  */
 
-import * as vscode from 'vscode';
+
 import { BlockGraph } from '../types/Graph.js';
 import { Block } from '../types/Block.js';
 import { BlockRegistry } from '../blocks/BlockRegistry.js';
@@ -41,7 +41,13 @@ export class GraphCompiler {
     /**
      * Compile a block diagram to FV-1 assembly code
      */
-    compile(graph: BlockGraph, options: { regCount: number; progSize: number; delaySize: number }): CompilationResult {
+    compile(graph: BlockGraph, options: {
+        regCount: number;
+        progSize: number;
+        delaySize: number;
+        fv1AsmMemBug?: boolean;
+        clampReals?: boolean;
+    }): CompilationResult {
         const errors: string[] = [];
         const warnings: string[] = [];
 
@@ -89,31 +95,23 @@ export class GraphCompiler {
         this.preallocateAllOutputs(graph, context);
 
         // 5. Generate code for each block in execution order
-        // Blocks will push their code to appropriate sections (init, input, main, output)
+        // Blocks will push their code to appropriate sections or push IR nodes
         try {
-            // First, process sticky notes (which may be disconnected but need to generate comments)
+            // First, process sticky notes (header comments)
             for (const block of graph.blocks) {
-                // Only process sticky note blocks that are not in execution order
                 if (!executionOrder.includes(block.id) && block.type.includes('stickynote')) {
                     const definition = this.registry.getBlock(block.type);
-                    if (!definition) {
-                        continue;
+                    if (definition) {
+                        context.setCurrentBlock(block.id);
+                        definition.generateCode(context);
                     }
-
-                    // Set current block context
-                    context.setCurrentBlock(block.id);
-
-                    // Generate block code (sticky notes will push header comments)
-                    definition.generateCode(context);
                 }
             }
 
             // Then process connected blocks in execution order
             for (const blockId of executionOrder) {
                 const block = graph.blocks.find(b => b.id === blockId);
-                if (!block) {
-                    continue;
-                }
+                if (!block) continue;
 
                 const definition = this.registry.getBlock(block.type);
                 if (!definition) {
@@ -121,44 +119,56 @@ export class GraphCompiler {
                     continue;
                 }
 
-                // Set current block context
                 context.setCurrentBlock(blockId);
 
-                // Generate block code (blocks push to sections internally)
+                // If it's a template-based block (to be implemented), it will push to IR
+                // For now, even legacy blocks can be adapted to push IR if they want
                 definition.generateCode(context);
 
-                // Reset scratch registers for next block
+                const blockErrors = context.getErrors();
+                if (blockErrors.length > 0) {
+                    errors.push(...blockErrors);
+                }
+
                 context.resetScratchRegisters();
             }
-        } catch (error) {
-            // Even on error, try to provide statistics if context has any data
-            const statistics: CompilationStatistics = {
-                instructionsUsed: 0,
-                registersUsed: context.getUsedRegisterCount(),
-                memoryUsed: context.getUsedMemorySize(),
-                blocksProcessed: 0
-            };
 
+            // Short-circuit completely if template generation produced fatal errors
+            if (errors.length > 0) {
+                return {
+                    success: false,
+                    errors: errors,
+                    statistics: {
+                        instructionsUsed: 0,
+                        registersUsed: 0,
+                        memoryUsed: 0,
+                        blocksProcessed: 0
+                    }
+                };
+            }
+
+        } catch (error) {
             return {
                 success: false,
-                statistics,
                 errors: [`Code generation failed: ${error}`]
             };
         }
 
-        // 6. Assemble the final program with proper structure
-        const codeLines: string[] = [];
+        // 6. Process IR and optimize (Move Pruning)
+        const irResult = this.processIR(context);
+        const sections = irResult.sections;
+        warnings.push(...irResult.warnings);
 
-        // Get all code sections from context
-        const sections = context.getCodeSections();
+        // 7. Assemble the final program with proper structure
+        const codeLines: string[] = [];
 
         // Section 1: Header comment
         codeLines.push(';================================================================================');
-        codeLines.push(`; ${graph.metadata.name}`);
-        if (graph.metadata.description) {
+        codeLines.push(`; ${graph.metadata?.name || 'Untitled Diagram'}`);
+        if (graph.metadata?.description) {
             codeLines.push(`; ${graph.metadata.description}`);
         }
-        if (graph.metadata.author) {
+        if (graph.metadata?.author) {
             codeLines.push(`; Author: ${graph.metadata.author}`);
         }
         codeLines.push(`; Generated at ${new Date().toLocaleString()} by the Audiofab Easy Spin (FV-1)`);
@@ -180,6 +190,14 @@ export class GraphCompiler {
         }
 
         codeLines.push('');
+
+        // Section 1.5: IR Header (EQU, MEM from blocks)
+        if (irResult.sections.header && irResult.sections.header.length > 0) {
+            codeLines.push('; Block Declarations');
+            codeLines.push(';--------------------------------------------------------------------------------');
+            codeLines.push(...irResult.sections.header);
+            codeLines.push('');
+        }
 
         // Section 2: Initialization (EQU, MEM, SKP)
         if (sections.init.length > 0) {
@@ -220,8 +238,8 @@ export class GraphCompiler {
         let instructions = 0;
         try {
             const assembler = new FV1Assembler({
-                fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
-                clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
+                fv1AsmMemBug: options.fv1AsmMemBug ?? true,
+                clampReals: options.clampReals ?? true,
                 regCount: options.regCount,
                 progSize: options.progSize,
                 delaySize: options.delaySize
@@ -602,5 +620,129 @@ export class GraphCompiler {
             const [blockId, portId] = key.split(':');
             context.allocateRegister(blockId, portId);
         }
+    }
+
+    /**
+     * Process semantic IR nodes and optimize assembly
+     */
+    private processIR(context: CodeGenerationContext): { sections: any, warnings: string[] } {
+        const sections = context.getCodeSections();
+        const irNodes = context.getIR();
+        const warnings: string[] = [];
+
+        if (irNodes.length === 0) {
+            return { sections, warnings };
+        }
+
+        // Convert IR nodes to code and group by section
+        const irSections: Record<string, string[]> = {
+            header: [],
+            init: [],
+            input: [],
+            main: [],
+            output: []
+        };
+
+        // Track accumulator state for move pruning
+        let accValue: string | null = null;
+        let lastWraxNode: any | null = null;
+        let optimizedCount = 0;
+
+        const optimizedNodes: any[] = [];
+
+        // Pass 1: Peephole AST Optimizer
+        for (const node of irNodes) {
+            let skipNode = false;
+
+            // Reset accumulator tracking on control flow or labels
+            if (node.op === 'SKP' || node.op === 'JMP' || node.op.endsWith(':')) {
+                accValue = null;
+                lastWraxNode = null;
+            }
+
+            // Specialized move pruning (WRAX -> LDAX optimization)
+            if (node.op === 'LDAX') {
+                const reg = (node.args[0] || '').trim();
+                const lastWraxMultiplier = lastWraxNode ? (lastWraxNode.args[1] || '0.0').trim() : '';
+
+                if (reg === accValue && reg !== '') {
+                    // Accumulator already contains this register value
+                    skipNode = true;
+                    optimizedCount++;
+                } else if (lastWraxNode && (lastWraxNode.args[0] || '').trim() === reg && (lastWraxMultiplier === '0' || lastWraxMultiplier === '0.0' || parseFloat(lastWraxMultiplier) === 0)) {
+                    // Previous WRAX cleared ACC, but we can change it to keep ACC and prune this LDAX
+                    lastWraxNode.args[1] = '1.0';
+                    skipNode = true;
+                    optimizedCount++;
+                    accValue = reg;
+                } else {
+                    accValue = reg;
+                    lastWraxNode = null;
+                }
+            } else if (node.op === 'WRAX') {
+                const reg = (node.args[0] || '').trim();
+                const multiplier = (node.args[1] || '0.0').trim();
+                if (multiplier === '1' || multiplier === '1.0' || parseFloat(multiplier) === 1) {
+                    accValue = reg;
+                } else {
+                    accValue = null;
+                }
+                lastWraxNode = node;
+            } else if (node.op === 'WRA' || node.op === 'WRAL' || node.op === 'WRAR') {
+                // These clear ACC or modify it, reset tracker for safety
+                accValue = null;
+                lastWraxNode = null;
+            } else if (['CLR', 'ABS', 'NEG', 'NOT'].includes(node.op)) {
+                accValue = null;
+                lastWraxNode = null;
+            } else if (['RDAX', 'MAXX', 'MULX', 'RDA', 'CHO', 'SOF', 'LOG', 'EXP'].includes(node.op)) {
+                // Instructions that modify ACC based on a register/memory
+                accValue = null;
+                lastWraxNode = null;
+            } else if (node.op !== ';') {
+                // Any other active instruction clears the contiguous WRAX->LDAX chain
+                lastWraxNode = null;
+            }
+
+            if (!skipNode) {
+                optimizedNodes.push(node);
+            }
+        }
+
+        // Pass 2: Serialize AST nodes into formatted string instructions
+        for (const node of optimizedNodes) {
+            // Special handling for labels (end with :) and comments (op is ;)
+            if (node.op.endsWith(':')) {
+                irSections[node.section].push(node.op);
+            } else if (node.op === ';') {
+                // Comments should join with space, not comma
+                irSections[node.section].push(`;\t${node.args.join(' ')}`);
+            } else {
+                const isDeclaration = ['EQU', 'MEM'].includes(node.op);
+                const separator = isDeclaration ? '\t' : ', ';
+                const line = `${node.op.toLowerCase()}\t${node.args.join(separator)}`;
+
+                let finalLine = line;
+                if (node.comment) {
+                    finalLine += `\t; ${node.comment}`;
+                }
+                irSections[node.section].push(finalLine);
+            }
+        }
+
+        if (optimizedCount > 0) {
+            warnings.push(`Pruned ${optimizedCount} redundant move instruction(s)`);
+        }
+
+        // Merge IR code into structured sections
+        const finalSections = {
+            header: irSections.header,
+            init: [...sections.init, ...irSections.init],
+            input: [...sections.input, ...irSections.input],
+            main: [...sections.main, ...irSections.main],
+            output: [...sections.output, ...irSections.output]
+        };
+
+        return { sections: finalSections, warnings };
     }
 }

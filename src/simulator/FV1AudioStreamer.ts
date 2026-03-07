@@ -12,7 +12,7 @@ export class FV1AudioStreamer {
     private dataOffset: number = 44;
     private lastL: number = 0;
     private lastR: number = 0;
-    private toneEnabled: boolean = false;
+    private noiseEnabled: boolean = false;
     private phase: number = 0;
 
     /**
@@ -61,15 +61,11 @@ export class FV1AudioStreamer {
      * Returns 0s if end of file reached (or loops).
      */
     public getNextSample(): { l: number, r: number } {
-        if (this.toneEnabled) {
-            // Generate 440Hz sine wave (70% amplitude to avoid immediate numeric clipping)
-            const freq = 440.0;
-            const sample = Math.sin(2.0 * Math.PI * freq * (this.phase / this.sampleRate)) * 0.7;
+        if (this.noiseEnabled) {
+            // Generate white noise (50% amplitude to avoid heavy clipping and keep it usable)
+            const sample = (Math.random() * 2.0 - 1.0) * 0.5;
             this.lastL = sample;
             this.lastR = sample;
-            this.phase++;
-            // Prevent phase accumulation precision issues (though not critical for 440Hz)
-            if (this.phase >= this.sampleRate) this.phase -= this.sampleRate;
             return { l: this.lastL, r: this.lastR };
         }
 
@@ -130,12 +126,12 @@ export class FV1AudioStreamer {
         this.currentSample = 0;
         this.lastL = 0;
         this.lastR = 0;
-        this.toneEnabled = false;
+        this.noiseEnabled = false;
         this.phase = 0;
     }
 
-    public setToneEnabled(enabled: boolean) {
-        this.toneEnabled = enabled;
+    public setNoiseEnabled(enabled: boolean) {
+        this.noiseEnabled = enabled;
         if (enabled) {
             this.phase = 0;
         }

@@ -18,6 +18,9 @@ async function main() {
     outfile: 'dist/extension.cjs',
     external: ['vscode', 'node-hid', 'pkg-prebuilds'],  // native modules must be external
     logLevel: 'warning',
+    logOverride: {
+      'empty-import-meta': 'silent'
+    },
     plugins: [esbuildProblemMatcherPlugin]
   });
 

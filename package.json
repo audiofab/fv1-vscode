@@ -68,7 +68,7 @@
         "extensions": [
           ".spn"
         ],
-        "configuration": "./language-configuration.json",
+        "configuration": "./syntaxes/language-configuration.json",
         "icon": {
           "light": "./resources/light/spn-file.svg",
           "dark": "./resources/dark/spn-file.svg"
@@ -99,6 +99,20 @@
           "light": "./resources/light/spndiagram-file.svg",
           "dark": "./resources/dark/spndiagram-file.svg"
         }
+      },
+      {
+        "id": "fv1-atl",
+        "aliases": [
+          "Audiofab Template Language"
+        ],
+        "extensions": [
+          ".atl"
+        ],
+        "configuration": "./syntaxes/language-configuration.json",
+        "icon": {
+          "light": "./resources/light/spn-file.svg",
+          "dark": "./resources/dark/spn-file.svg"
+        }
       }
     ],
     "grammars": [
@@ -106,6 +120,11 @@
         "language": "fv1-assembly",
         "scopeName": "source.fv1-assembly",
         "path": "./syntaxes/fv1-assembly.tmGrammar.json"
+      },
+      {
+        "language": "fv1-atl",
+        "scopeName": "source.fv1-atl",
+        "path": "./syntaxes/fv1-atl.tmGrammar.json"
       }
     ],
     "customEditors": [
@@ -197,6 +216,11 @@
       {
         "command": "fv1.startSimulator",
         "title": "Run In Simulator",
+        "category": "FV-1"
+      },
+      {
+        "command": "fv1.refreshBlocks",
+        "title": "Refresh Custom Blocks",
         "category": "FV-1"
       }
     ],
@@ -441,6 +465,14 @@
           "type": "boolean",
           "default": true,
           "description": "Stop at the first instruction after launch."
+        },
+        "fv1.customBlockPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "List of absolute paths to directories containing custom .atl block definitions. Reload with 'FV-1: Refresh Custom Blocks'."
         }
       }
     }
@@ -452,8 +484,9 @@
     "watch:esbuild": "node esbuild.cjs --watch",
     "compile-tests": "tsc -p ./ --outDir out",
     "pretest": "npm run compile-tests",
-    "test": "node test/assembler-test.mjs",
+    "test": "node test/assembler-test.mjs && node test/block-compiler-test.mjs && node test/test-atl-blocks.mjs",
     "test-sim": "node test/simulator-test.mjs",
+    "convert-spincad": "node scripts/batch-convert-spincad.js && node scripts/test-custom-blocks.mjs",
     "vscode:prepublish": "npm run package",
     "package": "npm run check-types && node esbuild.cjs --production"
   },
