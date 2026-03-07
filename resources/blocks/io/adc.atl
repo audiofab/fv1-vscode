@@ -2,7 +2,7 @@
 {
   "type": "input.adc",
   "name": "ADC Input",
-  "category": "I/O",
+  "category": "Input/Output",
   "description": "Reads audio from an analog input (ADC) with adjustable gain.",
   "color": "#2196F3",
   "width": 150,

@@ -1,7 +1,8 @@
 ---
 {
   "type": "effects.reverb.room",
-  "category": "Reverb",
+  "category": "Effects",
+  "subcategory": "Reverb",
   "name": "Room Reverb",
   "description": "Hall-style reverb with pre-delay, damping, and stereo output",
   "color": "#7100FC",

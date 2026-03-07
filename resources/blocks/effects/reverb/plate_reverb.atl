@@ -2,7 +2,8 @@
 {
   "type": "effects.platereverb",
   "name": "Plate Reverb",
-  "category": "Reverb",
+  "category": "Effects",
+  "subcategory": "Reverb",
   "description": "High-quality plate reverb",
   "color": "#7100FC",
   "width": 180,

@@ -3,7 +3,7 @@
   "type": "math.volume",
   "category": "Gain/Mixing",
   "name": "Volume",
-  "description": "",
+  "description": "Applies a gain to the input signal",
   "inputs": [
     {
       "id": "input",

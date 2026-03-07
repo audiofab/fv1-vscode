@@ -3,7 +3,7 @@
   "type": "control.tremolizer",
   "category": "Control",
   "name": "Tremolizer",
-  "description": "",
+  "description": "Adjusts the LFO width based on a control signal",
   "inputs": [
     {
       "id": "input",

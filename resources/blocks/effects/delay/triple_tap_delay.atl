@@ -2,7 +2,8 @@
 {
   "type": "fx.delay.tripletap",
   "name": "ThreeTap",
-  "category": "Delay",
+  "category": "Effects",
+  "subcategory": "Delay",
   "description": "Triple tap delay with independent outputs and CV modulation",
   "color": "#6060c4",
   "width": 200,

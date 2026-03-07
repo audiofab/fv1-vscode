@@ -2,7 +2,8 @@
 {
   "type": "effects.delay.simple",
   "name": "Simple Delay",
-  "category": "Delay",
+  "category": "Effects",
+  "subcategory": "Delay",
   "description": "Simple delay line with variable time and mix control",
   "color": "#6060c4",
   "width": 180,

@@ -1,7 +1,8 @@
 ---
 {
   "type": "effects.modulation.chorus4voice",
-  "category": "Modulation",
+  "category": "Effects",
+  "subcategory": "Modulation",
   "name": "4-Voice Chorus",
   "description": "Four-voice chorus with independent outputs",
   "color": "#24F2F2",

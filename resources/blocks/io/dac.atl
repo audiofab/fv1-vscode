@@ -2,7 +2,7 @@
 {
   "type": "output.dac",
   "name": "DAC Output",
-  "category": "I/O",
+  "category": "Input/Output",
   "description": "Writes audio to an analog output (DAC) with adjustable gain.",
   "color": "#F44336",
   "width": 150,

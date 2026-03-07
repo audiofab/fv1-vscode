@@ -1,7 +1,8 @@
 ---
 {
   "type": "effects.springreverb",
-  "category": "Reverb",
+  "category": "Effects",
+  "subcategory": "Reverb",
   "name": "Spring Reverb",
   "description": "Fender-style spring reverb with RS127 filtering",
   "color": "#7100FC",

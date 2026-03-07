@@ -3,7 +3,7 @@
   "type": "math.crossfade",
   "name": "Crossfade",
   "category": "Gain/Mixing",
-  "description": "",
+  "description": "Crossfades between two audio inputs based on a control signal",
   "inputs": [
     {
       "id": "input1",

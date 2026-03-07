@@ -3,7 +3,7 @@
   "type": "control.smoother",
   "category": "Control",
   "name": "Smoother",
-  "description": "",
+  "description": "Applies a simple low pass filter to smooth the control signal",
   "inputs": [
     {
       "id": "input",

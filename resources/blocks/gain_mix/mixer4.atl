@@ -3,7 +3,7 @@
   "type": "math.mixer4",
   "category": "Gain/Mixing",
   "name": "4:1 Mixer",
-  "description": "",
+  "description": "Mixes 4 audio inputs with optional gain control",
   "inputs": [
     {
       "id": "input1",

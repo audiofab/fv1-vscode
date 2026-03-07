@@ -3,7 +3,7 @@
   "type": "control.power",
   "category": "Control",
   "name": "Power",
-  "description": "",
+  "description": "Applies a non-linear curve optionally inverted/flipped",
   "inputs": [
     {
       "id": "control_input_1",

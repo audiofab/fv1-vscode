@@ -2,7 +2,8 @@
 {
   "type": "effects.modulation.flanger",
   "name": "Flanger",
-  "category": "Modulation",
+  "category": "Effects",
+  "subcategory": "Modulation",
   "description": "Classic flanger effect with LFO modulation",
   "color": "#24F2F2",
   "width": 180,

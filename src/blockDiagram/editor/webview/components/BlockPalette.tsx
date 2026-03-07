@@ -5,6 +5,18 @@
 import React, { useState, useEffect } from 'react';
 import { BlockMetadata } from '../../../types/Block';
 
+// Define the preferred order of block categories here. 
+// Unknown categories not in this list will sort alphabetically at the bottom.
+const CATEGORY_ORDER = [
+    'Input/Output',
+    'Control',
+    'Gain/Mixing',
+    'Filter',
+    'Effects',
+    'Other',
+    'SpinCAD'
+];
+
 interface BlockPaletteProps {
     metadata: BlockMetadata[];
     onAddBlock: (type: string, position: { x: number; y: number }) => void;
@@ -79,10 +91,29 @@ export const BlockPalette: React.FC<BlockPaletteProps> = ({ metadata, onAddBlock
                     <div className="palette-content">
                         {Object.entries(hierarchy)
                             .sort(([a], [b]) => {
-                                if (a === 'SpinCAD (elmgen)') return 1;
-                                if (b === 'SpinCAD (elmgen)') return -1;
-                                if (a === 'SpinCAD') return 1;
-                                if (b === 'SpinCAD') return -1;
+                                // Special handling for SpinCAD variations to group them together
+                                const catA = a === 'SpinCAD (elmgen)' ? 'SpinCAD' : a;
+                                const catB = b === 'SpinCAD (elmgen)' ? 'SpinCAD' : b;
+
+                                const indexA = CATEGORY_ORDER.indexOf(catA);
+                                const indexB = CATEGORY_ORDER.indexOf(catB);
+
+                                // If both are in the predefined list, sort by order
+                                if (indexA !== -1 && indexB !== -1) {
+                                    return indexA - indexB;
+                                }
+
+                                // If only A is in list, it comes first
+                                if (indexA !== -1) return -1;
+
+                                // If only B is in list, it comes first
+                                if (indexB !== -1) return 1;
+
+                                // Internal sorting rules for items not on the predefined list
+                                if (catA === 'SpinCAD') return 1;
+                                if (catB === 'SpinCAD') return -1;
+
+                                // Alphabetical fallback for everything else
                                 return a.localeCompare(b);
                             })
                             .map(([category, content]) => {
