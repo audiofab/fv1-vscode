@@ -114,24 +114,26 @@
 ---
 @section header
 ; Calculations for Centers:
-EQU ${local.tap1} 0.9 * ${tap1Center} * ${delayLength} + 0.05 * ${delayLength}
-EQU ${local.tap2} 0.9 * ${tap2Center} * ${delayLength} + 0.05 * ${delayLength}
-EQU ${local.tap3} 0.9 * ${tap3Center} * ${delayLength} + 0.05 * ${delayLength}
-EQU ${local.tap4} 0.9 * ${tap4Center} * ${delayLength} + 0.05 * ${delayLength}
+EQU tap1 (0.9 * ${tap1Center} * ${delayLength} + 0.05 * ${delayLength})
+EQU tap2 (0.9 * ${tap2Center} * ${delayLength} + 0.05 * ${delayLength})
+EQU tap3 (0.9 * ${tap3Center} * ${delayLength} + 0.05 * ${delayLength})
+EQU tap4 (0.9 * ${tap4Center} * ${delayLength} + 0.05 * ${delayLength})
+
+@if isequalto lfoSel 0
+@equals lfoNum SIN0
+@equals lfoRateReg SIN0_RATE
+@equals lfoRange SIN0_RANGE
+@else
+@equals lfoNum SIN1
+@equals lfoRateReg SIN1_RATE
+@equals lfoRange SIN1_RANGE
+@endif
 
 @section init
-@if pinConnected(input)
-; 4-Voice Chorus LFO init
-@if ${lfoSel} == 0
-skp run, chorus4voice_init
-wlds SIN0, 50, 64
-chorus4voice_init:
-@else
-skp run, chorus4voice_init
-wlds SIN1, 50, 64
-chorus4voice_init:
-@endif
-@endif
+; Initialize LFO
+skp run, done_4voice_lfo
+wlds ${lfoNum}, ${rate}, ${width}
+done_4voice_lfo:
 
 @section main
 @if pinConnected(input)
@@ -139,87 +141,45 @@ chorus4voice_init:
 ; Validate LFO Rate
 @if pinConnected(rateIn)
 rdax ${input.rateIn}, (${rate} / 511.0)
-@if ${lfoSel} == 0
-wrax SIN0_RATE, 0.0
-@else
-wrax SIN1_RATE, 0.0
-@endif
+wrax ${lfoRateReg}, 0.0
 @endif
 
 ; Validate LFO Width
 @if pinConnected(widthIn)
 rdax ${input.widthIn}, (${width} / 16384.0)
-@if ${lfoSel} == 0
-wrax SIN0_RANGE, 0.0
-@else
-wrax SIN1_RANGE, 0.0
-@endif
+wrax ${lfoRange}, 0.0
 @endif
 
 ; Write input to delay line
 rdax ${input.input}, ${gain1}
 wra ${mem.delayLine}, 0.0
 
-@if ${lfoSel} == 0
-
 ; Voice 1: SIN, REG|COMPC
 @if pinConnected(voice1)
-cho rda, SIN0, SIN|REG|COMPC, ${mem.delayLine} + ${local.tap1}
-cho rda, SIN0, SIN, ${mem.delayLine} + ${local.tap1} + 1
+cho rda, ${lfoNum}, SIN|REG|COMPC, ${mem.delayLine} + tap1
+cho rda, ${lfoNum}, SIN, ${mem.delayLine} + tap1 + 1
 wrax ${output.voice1}, 0.0
 @endif
 
 ; Voice 2: SIN, REG|COMPA
 @if pinConnected(voice2)
-cho rda, SIN0, SIN|REG|COMPA, ${mem.delayLine} + ${local.tap2}
-cho rda, SIN0, SIN|COMPC|COMPA, ${mem.delayLine} + ${local.tap2} + 1
+cho rda, ${lfoNum}, SIN|REG|COMPA, ${mem.delayLine} + tap2
+cho rda, ${lfoNum}, SIN|COMPC|COMPA, ${mem.delayLine} + tap2 + 1
 wrax ${output.voice2}, 0.0
 @endif
 
 ; Voice 3: COS, REG|COMPC
 @if pinConnected(voice3)
-cho rda, SIN0, COS|REG|COMPC, ${mem.delayLine} + ${local.tap3}
-cho rda, SIN0, COS, ${mem.delayLine} + ${local.tap3} + 1
+cho rda, ${lfoNum}, COS|REG|COMPC, ${mem.delayLine} + tap3
+cho rda, ${lfoNum}, COS, ${mem.delayLine} + tap3 + 1
 wrax ${output.voice3}, 0.0
 @endif
 
 ; Voice 4: COS, REG|COMPA
 @if pinConnected(voice4)
-cho rda, SIN0, COS|REG|COMPA, ${mem.delayLine} + ${local.tap4}
-cho rda, SIN0, COS|COMPC|COMPA, ${mem.delayLine} + ${local.tap4} + 1
+cho rda, ${lfoNum}, COS|REG|COMPA, ${mem.delayLine} + tap4
+cho rda, ${lfoNum}, COS|COMPC|COMPA, ${mem.delayLine} + tap4 + 1
 wrax ${output.voice4}, 0.0
-@endif
-
-@else
-
-; Voice 1: SIN, REG|COMPC
-@if pinConnected(voice1)
-cho rda, SIN1, SIN|REG|COMPC, ${mem.delayLine} + ${local.tap1}
-cho rda, SIN1, SIN, ${mem.delayLine} + ${local.tap1} + 1
-wrax ${output.voice1}, 0.0
-@endif
-
-; Voice 2: SIN, REG|COMPA
-@if pinConnected(voice2)
-cho rda, SIN1, SIN|REG|COMPA, ${mem.delayLine} + ${local.tap2}
-cho rda, SIN1, SIN|COMPC|COMPA, ${mem.delayLine} + ${local.tap2} + 1
-wrax ${output.voice2}, 0.0
-@endif
-
-; Voice 3: COS, REG|COMPC
-@if pinConnected(voice3)
-cho rda, SIN1, COS|REG|COMPC, ${mem.delayLine} + ${local.tap3}
-cho rda, SIN1, COS, ${mem.delayLine} + ${local.tap3} + 1
-wrax ${output.voice3}, 0.0
-@endif
-
-; Voice 4: COS, REG|COMPA
-@if pinConnected(voice4)
-cho rda, SIN1, COS|REG|COMPA, ${mem.delayLine} + ${local.tap4}
-cho rda, SIN1, COS|COMPC|COMPA, ${mem.delayLine} + ${local.tap4} + 1
-wrax ${output.voice4}, 0.0
-@endif
-
 @endif
 
 @else

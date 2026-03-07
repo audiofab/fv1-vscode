@@ -39,12 +39,11 @@ export class BlockTemplate {
                 currentSection = line.substring(8).trim() as IRSection;
                 continue;
             }
-            // Parse EQU declarations in header and store as variables
             if (currentSection === 'header') {
                 const parts = line.split(/[,\s\t]+/);
                 if (parts[0].toLowerCase() === 'equ') {
                     let name = parts[1];
-                    const value = parts[2];
+                    const value = parts.slice(2).join(' ');
                     if (name && value) {
                         // If name is a token, resolve it (e.g. ${local.X} -> blockId_X)
                         if (name.startsWith('${') && name.endsWith('}')) {
@@ -628,12 +627,26 @@ export class BlockTemplate {
 
                     // Substitute parameter variables first (e.g. "${delayLength} * 0.5")
                     const substitutedSizeExpr = this.performSubstitutions(evalStr, params, {}, {}, {}, {}, block, ctx);
-                    const evalResult = this.algebraicCompiler.evaluateConstantExpression(substitutedSizeExpr);
-                    if (evalResult !== null) {
-                        size = Math.round(evalResult);
+
+                    if (substitutedSizeExpr.trim() === '') {
+                        ctx.addError(`Memory size expression '${sizeStr}' evaluated to empty.`);
+                        size = 1;
                     } else {
-                        size = parseInt(substitutedSizeExpr, 10);
-                        if (isNaN(size)) size = 1;
+                        const evalResult = this.algebraicCompiler.evaluateConstantExpression(substitutedSizeExpr);
+                        if (evalResult !== null) {
+                            if (isNaN(evalResult) || evalResult < 0) {
+                                ctx.addError(`Memory size expression '${sizeStr}' evaluated to invalid number: ${evalResult}`);
+                                size = 1;
+                            } else {
+                                size = Math.round(evalResult);
+                            }
+                        } else {
+                            size = parseInt(substitutedSizeExpr, 10);
+                            if (isNaN(size) || size < 0) {
+                                ctx.addError(`Memory size expression '${sizeStr}' could not be parsed as a valid size.`);
+                                size = 1;
+                            }
+                        }
                     }
                 } else {
                     size = mem.size as unknown as number;
