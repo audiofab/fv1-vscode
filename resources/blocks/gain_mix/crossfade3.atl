@@ -2,7 +2,7 @@
 {
   "type": "math.crossfade3",
   "name": "Crossfade 3",
-  "category": "Math",
+  "category": "Gain/Mixing",
   "description": "True crossfade between two inputs with control and parameter fallback",
   "color": "#4287f5",
   "inputs": [
@@ -29,6 +29,7 @@
         skp neg, fade_neg
         
         ; Fade > 0.5 path
+        clr
         rdax ${input.fade}, 0.586
         sof 1.0, 0.414
         mulx ${input.input2}

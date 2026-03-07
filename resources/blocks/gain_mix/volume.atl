@@ -1,7 +1,7 @@
 ---
 {
   "type": "math.volume",
-  "category": "Math",
+  "category": "Gain/Mixing",
   "name": "Volume",
   "description": "",
   "inputs": [

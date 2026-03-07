@@ -2,7 +2,7 @@
 {
   "type": "math.crossfade2",
   "name": "Crossfade 2",
-  "category": "Math",
+  "category": "Gain/Mixing",
   "description": "Curbed crossfade between two audio inputs.",
   "color": "#f2f224",
   "inputs": [
@@ -51,17 +51,21 @@
 @if pinConnected(fade)
     ; Input 2 path
     @if pinConnected(input2)
+    clr
     rdax ${input.fade}, -1.0
     sof -2.0, 0.0
+    wrax ${reg.temp}, 1.0
     mulx ${input.input2}
     wrax ${reg.temp}, 0.0
     @endif
 
     ; Input 1 path
     @if pinConnected(input1)
+    clr
     rdax ${input.fade}, 1.0
     sof 1.0, -1.0
     sof -2.0, 0.0
+    wrax ${reg.temp}, 1.0
     mulx ${input.input1}
     @endif
 

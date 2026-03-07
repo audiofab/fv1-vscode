@@ -1,7 +1,7 @@
 ---
 {
   "type": "other.tonegen.fixed",
-  "category": "Utility",
+  "category": "Other",
   "name": "Tone Generator (Fixed)",
   "description": "Fixed frequency sine wave generator with amplitude control",
   "color": "#FF9800",

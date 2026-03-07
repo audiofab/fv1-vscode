@@ -2,7 +2,7 @@
 {
   "type": "math.crossfade",
   "name": "Crossfade",
-  "category": "Math",
+  "category": "Gain/Mixing",
   "description": "",
   "inputs": [
     {

@@ -2,7 +2,7 @@
 {
   "type": "other.stickynote",
   "name": "Sticky Note",
-  "category": "Utility",
+  "category": "Other",
   "description": "Add documentation comments to your diagram",
   "color": "#FFEB3B",
   "width": 120,

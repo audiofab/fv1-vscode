@@ -1,7 +1,7 @@
 ---
 {
   "type": "other.tonegen",
-  "category": "Utility",
+  "category": "Other",
   "name": "Tone Generator",
   "description": "Sine wave generator with rotation matrix oscillator (4x oversampled) based on Spin Semi sample code",
   "color": "#FF9800",
