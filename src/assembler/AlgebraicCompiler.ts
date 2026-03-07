@@ -232,6 +232,22 @@ export class AlgebraicCompiler {
      * Attempts to compile an algebraic line into an FV-1 assembly instruction.
      * Returns the compiled instruction string, or null if it's not a valid algebraic expression.
      */
+    public evaluateConstantExpression(code: string): number | null {
+        try {
+            const lexer = new AlgebraicLexer(code);
+            const tokens = lexer.tokenize();
+            const parser = new AlgebraicParser(tokens);
+            // Ignore assignments, just parse as an expression
+            const expr = parser['parseExpression']();
+            if (expr) {
+                return this.evaluateConstant(expr);
+            }
+        } catch (e) {
+            // Fallthrough
+        }
+        return null;
+    }
+
     public compileLine(line: string, isMemoryCheck: (id: string) => boolean, onError?: (msg: string) => void): string | null {
         // Only process lines that look vaguely algebraic to save time
         if (!line.includes('=')) return null;
@@ -333,17 +349,13 @@ export class AlgebraicCompiler {
                     }
                 }
 
-                // @acc = abs(@acc) or @acc = lpf(...)
+                // @acc = abs(@acc)
                 if (right.type === 'Call') {
                     if (right.name.toLowerCase() === 'abs' && right.args.length === 1) {
                         const arg = right.args[0];
                         if (arg.type === 'Identifier' && isAcc(arg.name)) {
                             return 'ABSA';
                         }
-                    } else {
-                        // Check if it's a filter operation
-                        const filterCode = this.compileFilter(right);
-                        if (filterCode) return filterCode;
                     }
                 }
 
@@ -417,12 +429,6 @@ export class AlgebraicCompiler {
                 let coeff = '0.0'; // Default, typically WRAX clears ACC if no coeff
                 let isAccSrc = false;
 
-                // Check for filter routing (dest = lpf(state, freq))
-                if (right.type === 'Call') {
-                    const filterCode = this.compileFilter(right, left.name);
-                    if (filterCode) return filterCode;
-                }
-
                 if (right.type === 'Identifier' && isAcc(right.name)) {
                     isAccSrc = true;
                     // dest = @acc implies WRAX dest, 0.0 (clears the accumulator after writing)
@@ -476,53 +482,6 @@ export class AlgebraicCompiler {
         return null;
     }
 
-    private compileFilter(call: Expr, targetDest?: string): string | null {
-        if (call.type !== 'Call') return null;
-
-        const fname = call.name.toLowerCase();
-        if (!['lpf', 'hpf', 'lpf_alt', 'lpf_modulated'].includes(fname)) return null;
-
-        if (call.args.length < 2) return null; // All filters need at least (state, freq)
-
-        const stateArg = call.args[0];
-        const freqArg = call.args[1];
-
-        if (stateArg.type !== 'Identifier') return null;
-        const stateReg = stateArg.name;
-
-        let freqVal = '';
-        if (freqArg.type === 'Identifier') freqVal = freqArg.name;
-        else if (freqArg.type === 'Number') freqVal = freqArg.value;
-        else return null;
-
-        // If targetDest is provided (e.g. dest = lpf()), we route to dest and clear acc (0.0).
-        // If targetDest is undefined (e.g. @acc = lpf()), we route to stateReg and keep acc (1.0).
-        const scale = call.args.length > 2 && call.args[2].type === 'Number' ? call.args[2].value : (targetDest ? '0.0' : '1.0');
-
-        let writeInstruction = '';
-        let targetReg = stateReg; // Default write to the filter's own state memory 
-
-        if (fname === 'lpf') writeInstruction = 'WRAX';
-        else if (fname === 'hpf') writeInstruction = 'WRHX';
-        else if (fname === 'lpf_alt') writeInstruction = 'WRLX';
-        else if (fname === 'lpf_modulated') {
-            if (call.args.length < 3 || call.args[2].type !== 'Identifier') return null; // Must have control_reg
-            const controlReg = call.args[2].name;
-            const wScale = targetDest ? '0.0' : '1.0';
-            return `RDFX ${stateReg}, ${freqVal}\nMULX ${controlReg}\nRDAX ${stateReg}, 1.0\nWRAX ${stateReg}, ${wScale}${targetDest ? `\nWRAX ${targetDest}, 0.0` : ''}`;
-        }
-
-        let result = `RDFX ${stateReg}, ${freqVal}\n${writeInstruction} ${stateReg}, ${scale}`;
-
-        if (targetDest && targetDest.toLowerCase() !== '@acc' && targetDest.toLowerCase() !== 'acc') {
-            // WRAX / WRHX / WRLX does not natively route the output to a *different* register directly,
-            // it modifies the filter state register. So the output remains in the accumulator.
-            // If the user did `dest = lpf(state)`, the result is in ACC. We must now write it to `dest`.
-            result += `\nWRAX ${targetDest}, 0.0`;
-        }
-
-        return result;
-    }
 
     private compileAccumulate(expr: Expr, negate: boolean, isMemoryCheck: (id: string) => boolean): string | null {
         let srcName = '';

@@ -1,0 +1,54 @@
+---
+{
+  "type": "math.gainboost",
+  "name": "Gain Boost",
+  "category": "Math",
+  "description": "Adjusts the gain of an audio signal in 6dB steps with correct phase logic.",
+  "color": "#4287f5",
+  "width": 100,
+  "labelTemplate": "${param.gain * 6} dB",
+  "inputs": [
+    { "id": "in", "name": "In", "type": "audio", "required": true }
+  ],
+  "outputs": [
+    { "id": "out", "name": "Out", "type": "audio" }
+  ],
+  "parameters": [
+    {
+      "id": "gain",
+      "name": "Boost (6dB steps)",
+      "type": "number",
+      "default": 1,
+      "min": 0,
+      "max": 4,
+      "step": 1,
+      "description": "Number of 6dB gain stages."
+    }
+  ]
+}
+---
+; Gain Boost (Restored Java logic)
+@section main
+
+rdax ${input.in}, 1.0
+
+; Each 'sof -2.0, 0' adds 6dB but flips phase
+@if param.gain >= 1
+sof -2.0, 0.0
+@endif
+@if param.gain >= 2
+sof -2.0, 0.0
+@endif
+@if param.gain >= 3
+sof -2.0, 0.0
+@endif
+@if param.gain >= 4
+sof -2.0, 0.0
+@endif
+
+; If an odd number of stages was used, flip phase back to original
+@if (param.gain % 2) == 1
+sof -1.0, 0.0
+@endif
+
+wrax ${output.out}, 0.0

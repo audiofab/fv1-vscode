@@ -484,7 +484,7 @@
     "watch:esbuild": "node esbuild.cjs --watch",
     "compile-tests": "tsc -p ./ --outDir out",
     "pretest": "npm run compile-tests",
-    "test": "node test/assembler-test.mjs && node test/block-compiler-test.mjs",
+    "test": "node test/assembler-test.mjs && node test/block-compiler-test.mjs && node test/test-atl-blocks.mjs",
     "test-sim": "node test/simulator-test.mjs",
     "convert-spincad": "node scripts/batch-convert-spincad.js && node scripts/test-custom-blocks.mjs",
     "vscode:prepublish": "npm run package",

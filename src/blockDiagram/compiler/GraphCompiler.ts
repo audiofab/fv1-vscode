@@ -164,11 +164,11 @@ export class GraphCompiler {
 
         // Section 1: Header comment
         codeLines.push(';================================================================================');
-        codeLines.push(`; ${graph.metadata.name}`);
-        if (graph.metadata.description) {
+        codeLines.push(`; ${graph.metadata?.name || 'Untitled Diagram'}`);
+        if (graph.metadata?.description) {
             codeLines.push(`; ${graph.metadata.description}`);
         }
-        if (graph.metadata.author) {
+        if (graph.metadata?.author) {
             codeLines.push(`; Author: ${graph.metadata.author}`);
         }
         codeLines.push(`; Generated at ${new Date().toLocaleString()} by the Audiofab Easy Spin (FV-1)`);

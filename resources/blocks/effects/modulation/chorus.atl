@@ -64,13 +64,13 @@
     },
     {
       "id": "width",
-      "name": "LFO Depth (ms)",
+      "name": "LFO Width (ms)",
       "type": "number",
       "default": 1,
       "min": 0,
-      "max": 20,
+      "max": 10,
       "conversion": "MS_TO_LFO_RANGE",
-      "description": "The depth of modulation in ms.",
+      "description": "The width of modulation in ms.",
       "step": 0.1
     },
     {

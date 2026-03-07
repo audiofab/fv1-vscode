@@ -108,28 +108,27 @@ function main() {
 
     fs.mkdirSync(refDir, { recursive: true });
 
-    // Find all .spndiagram files
-    const files = fs.readdirSync(diagramsDir);
-    const testCases = files
-        .filter(f => f.endsWith('.spndiagram'))
-        .map(f => path.basename(f, '.spndiagram'));
+    let passed = 0;
+    let failed = 0;
+    const testDiagrams = fs.readdirSync(diagramsDir).filter(f => f.endsWith('.spndiagram'));
 
-    console.log(`Found ${testCases.length} diagram test case(s)\n`);
+    console.log(`\n=== FV1 Block Graph Compiler Tests ===`);
+    console.log(`Found ${testDiagrams.length} diagram test case(s)\n`);
 
-    if (testCases.length === 0) {
+    if (testDiagrams.length === 0) {
         console.log("No test cases found.");
         return;
     }
 
-    let passed = 0;
-    let failed = 0;
-
-    for (const testName of testCases) {
+    for (const file of testDiagrams) {
+        const diagramName = path.basename(file, '.spndiagram');
+        console.log(`Testing Graph Compiler: ${diagramName}...`);
         try {
-            testDiagramCompilation(testName);
+            testDiagramCompilation(diagramName);
             passed++;
-        } catch (error) {
-            console.error(`  ✗ ${testName} FAILED:\n${error.message}`);
+        } catch (e) {
+            fs.appendFileSync('debug_error.log', `\n  ✗ ${diagramName} FAILED:\n${e.message}\n${e.stack}\n`);
+            console.error(`  ✗ ${diagramName} FAILED:\n${e.message}\n${e.stack}`);
             failed++;
         }
     }
@@ -137,7 +136,7 @@ function main() {
     console.log(`\n=== Graph Compiler Results ===`);
     console.log(`Passed: ${passed}`);
     console.log(`Failed: ${failed}`);
-    console.log(`Total:  ${testCases.length}\n`);
+    console.log(`Total:  ${testDiagrams.length}\n`);
 
     process.exit(failed > 0 ? 1 : 0);
 }

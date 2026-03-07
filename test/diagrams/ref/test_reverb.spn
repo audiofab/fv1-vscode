@@ -60,10 +60,8 @@ DONE:
 rdax	ADCL, 1
 wrax	adc_out, 0
 ldax	POT0
-;	No filtering
 wrax	pot0_out, 0.0
 ldax	POT1
-;	No filtering
 wrax	pot1_out, 0.0
 
 ; Main Program

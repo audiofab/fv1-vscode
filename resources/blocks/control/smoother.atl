@@ -1,0 +1,35 @@
+---
+{
+  "type": "control.smoother",
+  "category": "Control",
+  "name": "Smoother",
+  "description": "",
+  "inputs": [
+    {
+      "id": "input",
+      "name": "Control Input",
+      "type": "control"
+    }
+  ],
+  "outputs": [
+    {
+      "id": "output",
+      "name": "Control Output",
+      "type": "control"
+    }
+  ],
+  "parameters": [],
+  "color": "#f2f224",
+  "registers": []
+}
+---
+@section header
+@comment "Generated from spincad source file control_smoother.spincad"
+equ filt 0.00015 
+
+@section main
+@if pinConnected(input)
+rdax ${input.input}, 1.0
+rdfx ${output.output}, filt
+wrax ${output.output}, 0.0
+@endif

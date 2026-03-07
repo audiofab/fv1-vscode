@@ -243,6 +243,20 @@ export function parseJavaBlock(content, filename, menuInfo) {
             else currentVarMap[k] = { id: k, template: v };
         }
 
+        // Pre-pass: Find all setRegister calls to alias internal allocations directly to output pins BEFORE processing write instructions
+        for (let i = 0; i < lines.length; i++) {
+            const passTrimmed = lines[i].trim();
+            const setRegMatch = passTrimmed.match(/(?:this\.)?getPin\("([^"]+)"\)\.setRegister\(([a-zA-Z0-9_]+)\)/);
+            if (setRegMatch) {
+                const pinLabel = setRegMatch[1];
+                const varName = setRegMatch[2];
+                const pinOutput = definition.outputs.find(o => o.name === pinLabel);
+                if (pinOutput) {
+                    currentVarMap[varName] = { id: pinOutput.id, template: `\${output.${pinOutput.id}}` };
+                }
+            }
+        }
+
         let insideIf = false;
 
         for (let i = 0; i < lines.length; i++) {
@@ -335,8 +349,11 @@ export function parseJavaBlock(content, filename, menuInfo) {
             const regAssignMatch = trimmed.match(/(?:int\s+)?([a-zA-Z0-9_]+)\s*=\s*sfxb\.allocateReg\(\)/);
             if (regAssignMatch) {
                 const varName = regAssignMatch[1];
-                if (!managedRegs.includes(varName)) managedRegs.push(varName);
-                currentVarMap[varName] = { id: varName, template: `\${reg.${varName}}` };
+                // Only allocate if it wasn't pre-aliased as an output pin
+                if (!currentVarMap[varName] || !currentVarMap[varName].template.startsWith('${output.')) {
+                    if (!managedRegs.includes(varName)) managedRegs.push(varName);
+                    currentVarMap[varName] = { id: varName, template: `\${reg.${varName}}` };
+                }
             }
 
             const resolve = (val) => {

@@ -1,0 +1,51 @@
+---
+{
+  "type": "math.volume",
+  "category": "Math",
+  "name": "Volume",
+  "description": "",
+  "inputs": [
+    {
+      "id": "input",
+      "name": "Input",
+      "type": "audio"
+    },
+    {
+      "id": "volume",
+      "name": "Volume",
+      "type": "control"
+    }
+  ],
+  "outputs": [
+    {
+      "id": "output",
+      "name": "Output",
+      "type": "audio"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "gain",
+      "name": "Input Gain",
+      "type": "number",
+      "min": -24,
+      "max": 0,
+      "default": -6,
+      "conversion": "DBLEVEL"
+    }
+  ],
+  "color": "#2468f2"
+}
+---
+@section header
+@comment "Generated from spincad source file ${input.volume}.spincad"
+
+@section main
+;REGISTERS 
+@if pinConnected(${input.input})
+rdax    ${input.input}, ${gain}    ;read ${input.input} signal
+@if pinConnected(${input.volume})
+mulx ${input.volume}
+@endif
+wrax    ${output.output},0    ;${output.output} in ACC and lf1 
+@endif

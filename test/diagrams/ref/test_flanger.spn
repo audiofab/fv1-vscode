@@ -30,7 +30,6 @@ DONE_LFO:
 rdax	ADCL, 1
 wrax	adc_out, 0
 ldax	POT0
-;	No filtering
 sof	-1, 1	; Invert
 wrax	pot0_out, 0.0
 

@@ -38,6 +38,7 @@ rdax ${input.in}, 1.0
 - `description`: Tooltip text.
 - `color`: Hex color for the block header.
 - `width`: Preferred width in the editor (default is 180).
+- `labelTemplate`: An expression to dynamically generate the block's label on the canvas based on its parameters or connectedness (e.g., `${param.mix * 100}%`).
 
 ### Pins (`inputs` and `outputs`)
 Each pin is an object with:
@@ -91,6 +92,16 @@ Supported operations include:
   - The compiler parses pure mathematical statements like multiplication, addition, and grouping parentheses *before* serializing to FV-1 instructions. For example, expressions composed only of parameter literals, such as `@acc = @acc * (${param.max} - ${param.min}) + ${param.min}`, are algebraically folded into single floats at compile time safely handling Scale Offsets (`SOF`).
 
 *Note: Algebraic syntax must be cleanly formatted. If the compiler encounters a malformed math operation (e.g., `POT0 + * 2`), it will generate a compile-time syntax error displayed directly in the VSCode Problems pane.*
+
+### Compiler Optimizations
+
+The ATL compiler doesn't just blindly concatenate assembly; it also runs a multi-stage optimization pass to produce highly efficient FV-1 code:
+
+- **Algebraic Folding**: As mentioned above, static mathematical expressions are resolved into single floats during compilation.
+- **Dead Output Elimination**: If an output pin is left unconnected in the block diagram, the compiler automatically skips generating the assembly for calculating and writing that output (when safely possible), preserving DSP cycles. 
+- **Accumulator Forwarding**: Redundant write-then-read steps (e.g., `WRAX reg, 0.0` immediately followed by `RDAX reg, 1.0`) are collapsed into a single `WRAX reg, 1.0` instruction to conserve instruction slots.
+- **Move Pruning**: Trims redundant register moves (such as unnecessary `WRAX` -> `LDAX` sequences).
+- **Auto-Clearing**: Automatically injects `CLR` instructions when leaving input stages if the accumulator is left dirty, ensuring no bleed-over between unconnected audio blocks.
 
 ### Token Substitution
 Tokens are replaced at compile time with resolved register names, memory addresses, or parameter values.

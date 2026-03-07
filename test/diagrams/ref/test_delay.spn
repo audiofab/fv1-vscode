@@ -16,6 +16,7 @@ equ	simple_local_wet	REG4
 ; Memory Allocations
 mem	mem0_delayl	16384
 
+;	"Generated from spincad source file crossfade.spincad"
 
 ; Input Section
 ;--------------------------------------------------------------------------------
@@ -45,13 +46,10 @@ rdax	simple_local_dry, -0.999	; Use -0.999 to avoid potential overflow clipping 
 sof	1, 0.0
 rdax	simple_local_dry, 1.0
 wrax	simple_audio_output, 0.0
-;	Crossfade
-;	wet * fade + dry * (1 - fade)
-;	ACC = (wet - dry) * fade + dry
-rdax	simple_audio_output, 0.501187
-rdax	adc_out, -0.501187
-rdax	adc_out, 0.501187
-wrax	crossfade_output, 0.0
+;	Dynamic interpolation or fixed fallback crossfade
+;	Fallback to static parameter fade
+rdax	adc_out, ((1.0 - 0.5) * 0.501187)
+rdax	simple_audio_output, (0.5 * 0.501187)
 ; wrax	crossfade_output, 0.0
 wrax	crossfade_output,	1.0	; Optimization: accumulator forwarded
 

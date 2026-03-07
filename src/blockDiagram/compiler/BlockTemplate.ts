@@ -324,7 +324,8 @@ export class BlockTemplate {
         // Simple regex replace for right-hand side constants evaluated in conditionals 
         // Example: `@assert param.max > ${param.min}` -> `@assert param.max > 0.0`
         condition = condition.replace(/\$\{param\.([^}]+)\}/g, (match, paramName) => {
-            return (params[paramName] ?? this.definition.parameters.find(p => p.id === paramName)?.default)?.toString() || '0';
+            const definedParam = this.definition.parameters?.find(p => p.id === paramName);
+            return (params[paramName] ?? definedParam?.default)?.toString() || '0';
         });
 
         // Evaluate OR clauses
@@ -403,7 +404,8 @@ export class BlockTemplate {
                     varName.startsWith('input.') ? varName.substring(6) :
                         varName.startsWith('output.') ? varName.substring(7) : varName;
 
-                const foundParam = block.parameters[cleanVarName] ?? this.definition.parameters.find(p => p.id === cleanVarName)?.default;
+                const foundParamDef = this.definition.parameters?.find(p => p.id === cleanVarName);
+                const foundParam = block.parameters[cleanVarName] ?? foundParamDef?.default;
                 if (foundParam !== undefined) {
                     currentVal = foundParam;
                     numCurrent = parseFloat(currentVal?.toString() || '');
@@ -537,6 +539,9 @@ export class BlockTemplate {
                 const text = args.join(' ');
                 ir.push({ op: ';', args: [text], section: 'init' });
                 break;
+            default:
+                ctx.addError(`Unsupported directive or macro: @${macro}`);
+                break;
         }
     }
 
@@ -614,11 +619,24 @@ export class BlockTemplate {
         if (this.definition.memories) {
             const params = this.evaluateParameters(block, ctx);
             for (const mem of this.definition.memories) {
-                let size = 0;
-                if (typeof mem.size === 'string') {
-                    size = params[mem.size] || 1; // Default to 1 if not found
+                let size: number = 0;
+                if (typeof mem.size === 'string' || typeof mem.size === 'number') {
+                    const sizeStr = mem.size.toString();
+                    // If the size is a raw parameter name without interpolation (e.g. "preDelay" vs "${preDelay}"), wrap it natively.
+                    // This handles old-style ATL blocks that define memory size as just the string identifier.
+                    const evalStr = sizeStr.includes('${') ? sizeStr : /^[_a-zA-Z][_a-zA-Z0-9]*$/.test(sizeStr) ? `\${${sizeStr}}` : sizeStr;
+
+                    // Substitute parameter variables first (e.g. "${delayLength} * 0.5")
+                    const substitutedSizeExpr = this.performSubstitutions(evalStr, params, {}, {}, {}, {}, block, ctx);
+                    const evalResult = this.algebraicCompiler.evaluateConstantExpression(substitutedSizeExpr);
+                    if (evalResult !== null) {
+                        size = Math.round(evalResult);
+                    } else {
+                        size = parseInt(substitutedSizeExpr, 10);
+                        if (isNaN(size)) size = 1;
+                    }
                 } else {
-                    size = mem.size;
+                    size = mem.size as unknown as number;
                 }
                 const alloc = ctx.allocateMemory(mem.id, size);
                 resolved[mem.id] = alloc;
