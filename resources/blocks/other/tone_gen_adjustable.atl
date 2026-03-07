@@ -68,7 +68,7 @@ sof 0.01, -0.005
 @if pinConnected(coarse_freq)
 rdax ${input.coarse_freq}, 0.625
 @else
-rdax 0, (${coarseFreq} * 0.625)
+sof 1.0, (${param.coarseFreq} * 0.625)
 @endif
 sof 1.0, -0.66
 exp 1.0, 0.0
