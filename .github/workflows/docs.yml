@@ -38,7 +38,7 @@ jobs:
 
       - name: Build documentation with Sphinx
         run: sphinx-build -b html docs/source docs/build/html
-        
+
       - name: Disable Jekyll
         run: touch docs/build/html/.nojekyll
 
@@ -58,4 +58,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
