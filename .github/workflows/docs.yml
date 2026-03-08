@@ -43,7 +43,7 @@ jobs:
         run: touch docs/build/html/.nojekyll
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           path: 'docs/build/html'
 
