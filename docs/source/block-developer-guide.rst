@@ -195,6 +195,43 @@ Organize code into separate sections:
 - ``@section init``: Code that runs only once (e.g., ``WLDS``).
 - ``@section main``: The main per-sample processing (default).
 
+Custom Blocks
+-------------
+
+The extension allows you to develop and use your own custom blocks alongside the built-in library. This is the fastest way to extend the system with your own DSP algorithms.
+
+Copying Existing Blocks
+^^^^^^^^^^^^^^^^^^^^^^^
+
+The easiest way to start writing a new block is to use an existing one as a template:
+
+1. Open a block diagram (``.spndiagram``).
+2. Right-click any block on the canvas.
+3. Select **"Copy ATL Source"** from the context menu.
+4. The raw ATL (metadata and assembly) is now in your clipboard. You can paste this into a new ``.atl`` file and modify it.
+
+Custom Block Paths
+^^^^^^^^^^^^^^^^^^
+
+To make your own blocks appear in the editor's palette:
+
+1. Create a directory on your computer to store your ``.atl`` files.
+2. Open VS Code Settings (``Ctrl+,``).
+3. Search for ``fv1.customBlockPaths``.
+4. Add the **absolute path** to your custom blocks directory. You can add multiple paths if needed.
+
+.. note::
+   The extension searches these directories recursively for any file ending in ``.atl``.
+
+Refreshing the Registry
+^^^^^^^^^^^^^^^^^^^^^^^
+
+After you've added new ``.atl`` files or modified existing ones in your custom paths, you need to tell the extension to reload them:
+
+1. Open the Command Palette (``Ctrl+Shift+P``).
+2. Run the command **"FV-1: Refresh Custom Blocks"**.
+3. The block registry will be reloaded, and any open block diagrams will immediately update to show the new or changed blocks in the palette.
+
 Tips and Tricks
 ---------------
 
