@@ -27,8 +27,8 @@ html_theme_options = {
 # HTML output options
 html_static_path = ['_static']
 html_css_files = ['custom.css']
-html_logo = '../../doc/logo_600x493.png'
-html_favicon = '../../doc/logo_600x493.png'
+html_logo = '../../resources/logo_600x493.png'
+html_favicon = '../../resources/logo_600x493.png'
 html_title = 'Audiofab FV-1 Tutorial'
 html_show_copyright = True
 html_show_sphinx = False

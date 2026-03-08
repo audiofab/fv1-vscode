@@ -28,7 +28,7 @@ Block diagrams provide a visual way to create effects without writing assembly c
    - ``Ctrl+Shift+F5`` to program to the current slot
    - ``Ctrl+Alt+F5`` to export to Intel HEX format
 
-.. image:: ../../doc/visual_editor.png
+.. image:: _static/images/visual_editor.png
    :alt: Visual Block Diagram Editor
    :align: center
 

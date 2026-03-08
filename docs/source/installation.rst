@@ -16,7 +16,7 @@ Installation Steps
 3. Search for "Audiofab FV-1"
 4. Click the "Install" button
 
-.. image:: ../../doc/quick_actions.png
+.. image:: _static/images/quick_actions.png
    :alt: Quick Actions Sidebar
    :align: center
 

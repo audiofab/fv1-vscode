@@ -45,7 +45,7 @@ Create FV-1 programs visually without writing assembly code:
 🎯 **Direct Programming**
    Program your diagram directly to a pedal slot with one keystroke
 
-.. image:: ../../doc/visual_editor.png
+.. image:: _static/images/visual_editor.png
    :alt: Visual Block Diagram Editor
    :align: center
 
@@ -70,7 +70,7 @@ Test your programs without hardware:
 🎚️ **Interactive Controls**
    Real-time control of POT0, POT1, POT2 and Bypass during simulation
 
-.. image:: ../../doc/resource_usage.png
+.. image:: _static/images/resource_usage.png
    :alt: Resource Usage Tracking
    :align: center
 
@@ -113,7 +113,7 @@ Organize and deploy multiple programs to your Easy Spin pedal:
 💾 **Export to HEX**
    Save your bank as Intel HEX for archival or use with other programmers
 
-.. image:: ../../doc/bank_editor.png
+.. image:: _static/images/bank_editor.png
    :alt: Bank Editor
    :align: center
 
@@ -128,7 +128,7 @@ Convenient access to common tasks:
 ✨ Backup entire pedal to HEX
 ✨ Check active commands
 
-.. image:: ../../doc/quick_actions.png
+.. image:: _static/images/quick_actions.png
    :alt: Quick Actions Sidebar
    :align: center
 

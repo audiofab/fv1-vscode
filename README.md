@@ -12,7 +12,7 @@ Full support for traditional FV-1 assembly programming:
 - **Go to definition** (Ctrl+Click) for user-defined symbols
 - **Built-in assembler**
 
-![assembly](doc/assembly_editor.png)
+![assembly](docs/source/_static/images/assembly_editor.png)
 
 ### 🎨 Visual Block Diagram Editor
 Create FV-1 programs visually by connecting blocks together - no assembly code required! The block diagram editor provides:
@@ -23,7 +23,7 @@ Create FV-1 programs visually by connecting blocks together - no assembly code r
 - **Code optimizer** that tries to optimize the generated assembly to save program space
 - **Instantly program the current diagram** into any one of the 8 slots on your [Audiofab Easy Spin](https://audiofab.com/products/easy-spin) pedal
 
-![visual editor](doc//visual_editor.png)
+![visual editor](docs/source/_static/images//visual_editor.png)
 
 ### 🎧 Integrated Real-time Simulator
 Test your programs without hardware! The built-in simulator provides:
@@ -39,7 +39,7 @@ Monitor your program's resource consumption in real-time in the taskbar:
 - **Registers**: Track usage of 32 available registers
 - **Delay Memory**: Monitor usage out of 32768 words
 
-![resources used](doc/resource_usage.png)
+![resources used](docs/source/_static/images/resource_usage.png)
 
 ### 🏦 Program Bank Management
 Organize and deploy multiple programs to your Easy Spin pedal:
@@ -50,7 +50,7 @@ Organize and deploy multiple programs to your Easy Spin pedal:
 - **Automatic compilation/assembly** of all files when programming
 - **Export to Intel HEX** if you want to use this tool with your own pedal/programmer
 
-![bank editor](doc/bank_editor.png)
+![bank editor](docs/source/_static/images/bank_editor.png)
 
 ### ⚡ Quick Actions Sidebar
 Convenient sidebar in the Activity Bar with quick access to:
@@ -58,7 +58,7 @@ Convenient sidebar in the Activity Bar with quick access to:
 - Create new program bank
 - Backup pedal (saves entire EEPROM to an Intel HEX file)
 
-![quick actions](doc/quick_actions.png)
+![quick actions](docs/source/_static/images/quick_actions.png)
 
 ### 💾 Hardware Programming
 Direct integration with the [Audiofab USB Programmer](https://audiofab.com/store/easy-spin-programmer):
