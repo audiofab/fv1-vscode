@@ -120,13 +120,10 @@ Tokens are replaced at compile time with resolved register names, memory address
 - **Compound Checks**: `@if` naturally handles chained logical `&&` (AND) and `||` (OR) separators (e.g. `@if ${param.x} == 1 || ${param.y} != 0`).
 - **Compile-Time Assertions**: Use `@assert condition, "Error Message"` to forcibly abort compilation and bubble an error message into VSCode if a user configures a block incorrectly (e.g., `@assert ${param.max} > ${param.min}, "Max must be greater than Min!"`).
 
-#### Calculations
-Use these to pre-calculate constants for your assembly code:
-- `@multiplydouble result, a, b`
-- `@dividedouble result, a, b`
-- `@plusdouble result, a, b`
-- `@minusdouble result, a, b`
-- `@equals result, value`
+#### Calculations & Special Macros
+Use these to pre-calculate constants for your assembly code or invoke built-in hardware behaviors dynamically:
+- `@equals result, value`: Evaluate expression and assign to variable identifier.
+- `@multiplydouble result, a, b` / `@dividedouble` / `@plusdouble` / `@minusdouble`: Math evaluated statically against parameters.
 
 #### Code sections
 Organize code into separate sections:

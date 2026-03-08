@@ -125,7 +125,13 @@ Access these commands via the Command Palette (`Ctrl+Shift+P`):
 
 ### Supported Blocks
 
-The current list of supported blocks is small, but this is the first release! Now that the machinery is in place, we will be porting over as many blocks as possible from the most excellent [SpinCAD Designer](https://github.com/HolyCityAudio/SpinCAD-Designer).
+The extension features a modest library of effects and utilities ported directly from the most excellent [SpinCAD Designer](https://github.com/HolyCityAudio/SpinCAD-Designer):
+- **Inputs/Outputs**: Hardware ADC and DAC routing
+- **Control**: Smoothers, Power curve shaping, Tremolizers
+- **Gain/Mixing**: Custom Mixers, Multi-channel Crossfades, and Volume controls
+- **Filter**: 1-pole LPF/HPFs, 2-pole SVFs
+- **Effects**: Diverse categories including Delays (Simple, Triple Tap), Modulation (Chorus 4-Voice, Flanger), and Reverbs (Plate, Spring, Room, Minimal)
+- **Other**: Fixed and Adjustable Sine Tone Generators
 
 ### Editor Features
 
@@ -137,6 +143,10 @@ The current list of supported blocks is small, but this is the first release! No
 - **Zoom**: Mouse wheel to zoom in/out
 - **Undo**: If you delete something by accident, press Ctrl+Z to bring it back
 - **Connection validation**: Invalid connections are rejected with helpful error messages
+
+### Creating Custom Blocks
+
+Want to contribute or build your own effects? The extension uses **ATL** (Audiofab Template Language), allowing developers to define advanced FV-1 blocks declaratively. See the [Block Developer Guide](docs/BLOCK_DEVELOPER_GUIDE.md) for full documentation on syntax, macros, algebraic optimization, and UI parameter metadata mapping.
 
 ## Settings
 

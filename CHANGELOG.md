@@ -1,5 +1,13 @@
 # Change Log
 
+## [1.4.0]
+
+- Introduce a completely new assembler
+- Introduce a simulator with realtime audio, oscilloscope and spectrogram
+- Full source-level debugging of .spn assembly (in the simulator)
+- Improved block diagram templating language (ATL - Audiofab Template Language)
+- Support for larger limits on memory, number of registers and program words (simulation only)
+
 ## [1.3.3]
 
 - Improve assembler to support JMP instruction and some other edge cases
