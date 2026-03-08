@@ -331,8 +331,10 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         const result = await this.assemblyService.assembleFile(this.sourcePath);
 
         if (!result || result.problems.some(p => p.isfatal)) {
-            const errorMsg = result && result.problems.length > 0 ? result.problems.find(p => p.isfatal)?.message : "Unknown assembly error";
-            throw new Error(`Assembly failed: ${errorMsg}`);
+            const errorMsg = result && result.problems.length > 0 ? result.problems.find(p => p.isfatal)?.message : "Critical errors in program preventing simulation";
+            response.success = false;
+            response.message = `Assembly failed: ${errorMsg}`;
+            return;
         }
 
         this.simulator.loadProgram(new Uint32Array(result.machineCode));

@@ -15,6 +15,7 @@ import { FV1DefinitionProvider } from './providers/fv1DefinitionProvider.js';
 import { IntelHexService } from './services/IntelHexService.js';
 import { FV1DebugSession } from './simulator/FV1DebugSession.js';
 import { FV1AudioEngine } from './simulator/FV1AudioEngine.js';
+import { FV1DebugConfigurationProvider } from './providers/FV1DebugConfigurationProvider.js';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Audiofab FV-1 Extension is now active!');
@@ -51,7 +52,7 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
-        vscode.debug.registerDebugConfigurationProvider('fv1-debug', new FV1DebugConfigurationProvider())
+        vscode.debug.registerDebugConfigurationProvider('fv1-debug', new FV1DebugConfigurationProvider(assemblyService))
     );
 
     // 0. Register Debugging Support
@@ -120,28 +121,7 @@ export function activate(context: vscode.ExtensionContext) {
     statusBarService.update(vscode.window.activeTextEditor?.document);
 }
 
-class FV1DebugConfigurationProvider implements vscode.DebugConfigurationProvider {
-    resolveDebugConfiguration(_folder: vscode.WorkspaceFolder | undefined, config: vscode.DebugConfiguration, _token?: vscode.CancellationToken): vscode.ProviderResult<vscode.DebugConfiguration> {
-        if (!config.type && !config.request && !config.name) {
-            const editor = vscode.window.activeTextEditor;
-            if (editor && editor.document.languageId === 'fv1-assembly') {
-                config.type = 'fv1-debug';
-                config.name = 'Launch FV-1 Simulator';
-                config.request = 'launch';
-                config.program = '${file}';
-                config.stopOnEntry = true;
-            }
-        }
 
-        if (!config.program) {
-            return vscode.window.showInformationMessage("Cannot find a program to debug").then((_: string | undefined): vscode.DebugConfiguration | undefined => {
-                return undefined;
-            });
-        }
-
-        return config;
-    }
-}
 
 export function deactivate() { }
 
