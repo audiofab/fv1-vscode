@@ -1,248 +1,66 @@
 # Audiofab Easy Spin (FV-1) Programming Extension
 
-A comprehensive Visual Studio Code extension for developing audio effects code for the [FV-1 DSP from Spin Semiconductor](http://www.spinsemi.com/products.html). This extension provides both traditional assembly programming and a modern visual block diagram editor for the [Audiofab Easy Spin](https://audiofab.com/products/easy-spin) guitar pedal.
-
-## Features
-
-### 📝 Assembly Language Support
-Full support for traditional FV-1 assembly programming:
-- **Syntax highlighting** for `.spn` files and the FV-1 instruction set
-- **Real-time diagnostics** showing errors and warnings as you type
-- **Hover information** with instruction documentation and register/memory details
-- **Go to definition** (Ctrl+Click) for user-defined symbols
-- **Built-in assembler**
-
-![assembly](docs/source/_static/images/assembly_editor.png)
-
-### 🎨 Visual Block Diagram Editor
-Create FV-1 programs visually by connecting blocks together - no assembly code required! The block diagram editor provides:
-- **Drag-and-drop block palette** with categorized blocks
-- **Real-time compilation** with live error checking and resource usage tracking
-- **Integrated Simulator**: Launch simulation directly from your diagram with one click!
-- **View generated assembly** to see the code produced from your diagram
-- **Code optimizer** that tries to optimize the generated assembly to save program space
-- **Instantly program the current diagram** into any one of the 8 slots on your [Audiofab Easy Spin](https://audiofab.com/products/easy-spin) pedal
-
-![visual editor](docs/source/_static/images//visual_editor.png)
+[![Official Documentation](https://img.shields.io/badge/docs-official-blue.svg)](https://audiofab.github.io/fv1-vscode/)
+[![Marketplace](https://img.shields.io/visual-studio-marketplace/v/audiofab.fv1-vscode.svg)](https://marketplace.visualstudio.com/items?itemName=audiofab.fv1-vscode)
 
-### 🎧 Integrated Real-time Simulator
-Test your programs without hardware! The built-in simulator provides:
-- **Audio Monitor**: Hear your effect in real-time with built-in or custom stimulus files
-- **Multi-trace Oscilloscope**: Visualize any register or symbol, with logarithmic zoom (1ms to 1s)
-- **Delay Memory Map**: Visual representation of delay RAM usage and pointer movement
-- **Live Debugging**: Set breakpoints, step through instructions, and inspect variables
-- **Interactive Controls**: Real-time control of POT0, POT1, POT2 and Bypass
-
-### 📊 Resource Usage Tracking
-Monitor your program's resource consumption in real-time in the taskbar:
-- **Instructions**: Visual indicator showing usage out of 128 instructions
-- **Registers**: Track usage of 32 available registers
-- **Delay Memory**: Monitor usage out of 32768 words
-
-![resources used](docs/source/_static/images/resource_usage.png)
-
-### 🏦 Program Bank Management
-Organize and deploy multiple programs to your Easy Spin pedal:
-- **Visual bank editor** for managing all 8 program slots
-- **Drag-and-drop assignment** from File Explorer to bank slots or **create new files** right from the bank editor
-- **Mix and match** `.spn` assembly and `.spndiagram` block diagram files
-- **Program individual slots** or the entire bank at once
-- **Automatic compilation/assembly** of all files when programming
-- **Export to Intel HEX** if you want to use this tool with your own pedal/programmer
-
-![bank editor](docs/source/_static/images/bank_editor.png)
+A professional Visual Studio Code extension for developing, simulating, and deploying audio effects code for the **Spin Semiconductor FV-1 DSP**.
 
-### ⚡ Quick Actions Sidebar
-Convenient sidebar in the Activity Bar with quick access to:
-- Create new block diagram
-- Create new program bank
-- Backup pedal (saves entire EEPROM to an Intel HEX file)
+This extension provides a unified environment for both traditional assembly programming and modern visual block-based design, specifically tailored for the [Audiofab Easy Spin](https://audiofab.com/products/easy-spin) platform.
 
-![quick actions](docs/source/_static/images/quick_actions.png)
+---
 
-### 💾 Hardware Programming
-Direct integration with the [Audiofab USB Programmer](https://audiofab.com/store/easy-spin-programmer):
-- **Program to any slot** (1-8) on your Easy Spin pedal
-- **Automatic verification** of written data
-- **Backup entire pedal** to Intel HEX format
-- **Load HEX files** to EEPROM
-- **Export banks to HEX** for use with other tools or archival purposes
+## 📖 Official Documentation
 
-## Installation
-
-1. Install [Visual Studio Code](https://code.visualstudio.com)
-2. Open the Extensions view (`Ctrl+Shift+X`)
-3. Search for "Audiofab FV-1"
-4. Click Install
+For complete guides, command references, and tutorials, please visit our documentation site:
 
-For hardware programming, you'll need the [Audiofab USB Programmer](https://audiofab.com/store/easy-spin-programmer) connected to your Easy Spin pedal.
+### 👉 **[https://audiofab.github.io/fv1-vscode/](https://audiofab.github.io/fv1-vscode/)**
 
-## Getting Started
-
-### Creating Your First Block Diagram
+The online documentation includes:
+- **User Guide**: Installation and hardware setup.
+- **Visual Editor**: Comprehensive guide to building effects with blocks.
+- **Block Developer Guide**: Documentation for the ATL (Assembly Template Language).
+- **Command Reference**: Keyboard shortcuts and power-user tips.
 
-1. Open the Quick Actions sidebar (click the Audiofab icon in the Activity Bar)
-2. Click "New Block Diagram"
-3. Choose a location and filename
-4. Drag blocks from the palette onto the canvas
-5. Connect blocks by clicking output ports and dragging to input ports
-6. Program directly to a program slot on your [Audiofab Easy Spin](https://audiofab.com/products/easy-spin) (_Ctrl+Shift+P > FV-1: Assemble current file and load to EEPROM_), or create a program bank and add it there
-
-_NOTE: After programming ensure you rotate the **Program** select switch off of the current program and back to have the FV-1 reload the new program contents from EEPROM_
-
-### Creating Your First Program Bank
-
-1. Open the Quick Actions sidebar (click the Audiofab icon in the Activity Bar)
-2. Click "New Program Bank"
-3. Choose a location and filename
-4. Drag `.spn` or `.spndiagram` files from the File Explorer onto bank slots (hold _Shift_ to drop into a slot)
-5. Click "Program Bank" to load all programs to your pedal
+---
 
-_NOTE: After programming ensure you rotate the **Program** select switch off of the current program and back to have the FV-1 reload the new program contents from EEPROM_
+## 🚀 Key Objectives
 
-## Commands
+- **Visual Programming**: Design complex effects (reverbs, delays, pitch-shifters) by connecting functional blocks without writing a single line of assembly.
+- **Professional Assembly**: Full syntax highlighting, real-time diagnostics, and hover-docs for the native FV-1 instruction set.
+- **Hardware Integration**: One-click deployment to the [Audiofab USB Programmer](https://audiofab.com/store/easy-spin-programmer) and Easy Spin pedal.
+- **Performance Optimization**: Advanced compiler that prunes unused registers and folds static math to fit more into the 128-instruction hardware limit.
 
-Access these commands via the Command Palette (`Ctrl+Shift+P`):
+---
 
-### Assembly File Commands (`.spn`)
-- **FV-1: Assemble current file** - Compile and check for errors (not really required as this is always performed in the background anyway)
-- **FV-1: Assemble current file and load to EEPROM** - Compile and program to pedal (`Ctrl+Shift+F5`)
-- **FV-1: Assemble current file to an Intel HEX file** - Export to HEX format (`Ctrl+Alt+F5`)
+## 🎧 Integrated Simulator & Debugger
 
-### Block Diagram Commands (`.spndiagram`)
-- **FV-1: Assemble current file and load to EEPROM** - Compile diagram, assemble generated assembly and program to pedal (`Ctrl+Shift+F5`)
-- **FV-1: Assemble current file to an Intel HEX file** - Export compiled diagram to HEX
+Test your DSP logic in real-time without needing hardware connected. The built-in simulator represents a bit-accurate emulation of the FV-1 architecture.
 
-### Intel HEX Commands (`.hex`)
-- **FV-1: Load HEX to EEPROM** - Program HEX file to pedal (`Ctrl+Shift+F6`)
+### Features
+- **Real-time Audio**: Supply your own WAV files as stimulus and monitor the output live.
+- **Multi-trace Oscilloscope**: Inspect internal registers, hardware POTs, and accumulator flags simultaneously.
+- **Memory Visualization**: View a live map of the 32k-word delay RAM to see exactly how your delay lines are positioned and moving.
+- **Step-through Debugging**: Set breakpoints in your assembly or diagram and step instruction-by-instruction while inspecting the state of all 32 registers.
 
-### Utility Commands
-- **FV-1: Backup pedal** - Save entire EEPROM (all 8 slots) to HEX file
-- **FV-1: Create `.spnbank`** - Create a new bank of programs
-- **FV-1: Create new block diagram** - Create a new visual program
+> [!TIP]
+> **Placeholder: Studio-lit screenshot of the Simulator in action**
+> *(Suggested: Dark mode, showing the Oscilloscope with multiple sine/ramp traces and the Delay Memory map active)*
 
-## Block Diagram Editor
+---
 
-### Supported Blocks
+## 🛠️ Installation
 
-The extension features a modest library of effects and utilities ported directly from the most excellent [SpinCAD Designer](https://github.com/HolyCityAudio/SpinCAD-Designer):
-- **Inputs/Outputs**: Hardware ADC and DAC routing
-- **Control**: Smoothers, Power curve shaping, Tremolizers
-- **Gain/Mixing**: Custom Mixers, Multi-channel Crossfades, and Volume controls
-- **Filter**: 1-pole LPF/HPFs, 2-pole SVFs
-- **Effects**: Diverse categories including Delays (Simple, Triple Tap), Modulation (Chorus 4-Voice, Flanger), and Reverbs (Plate, Spring, Room, Minimal)
-- **Other**: Fixed and Adjustable Sine Tone Generators
+1. Install [Visual Studio Code](https://code.visualstudio.com/).
+2. Open the Extensions view (`Ctrl+Shift+X`).
+3. Search for **"Audiofab FV-1"**.
+4. Click **Install**.
 
-### Editor Features
+---
 
-- **Parameters panel**: Click on a block to modify its parameters
-- **Lasso selection**: Ctrl+click and drag on empty canvas to select multiple blocks
-- **Multi-select**: Hold Ctrl and click blocks to add to selection
-- **Delete**: Press Delete or Backspace to remove selected blocks/connections
-- **Pan**: Click and drag empty canvas to move view
-- **Zoom**: Mouse wheel to zoom in/out
-- **Undo**: If you delete something by accident, press Ctrl+Z to bring it back
-- **Connection validation**: Invalid connections are rejected with helpful error messages
+## Contributing & Support
 
-### Creating Custom Blocks
+- **Bug Reports**: Please use the [GitHub Issue Tracker](https://github.com/audiofab/fv1-vscode/issues).
+- **Inspiration**: This project is inspired by the "OG" [SpinCAD Designer](https://github.com/HolyCityAudio/SpinCAD-Designer).
+- **License**: MIT License. See [LICENSE](LICENSE) for details.
 
-Want to contribute or build your own effects? The extension uses **ATL** (Audiofab Template Language), allowing developers to define advanced FV-1 blocks declaratively. See the [Block Developer Guide](docs/BLOCK_DEVELOPER_GUIDE.md) for full documentation on syntax, macros, algebraic optimization, and UI parameter metadata mapping.
-
-## Settings
-
-Configure the extension in VS Code Settings (`File > Preferences > Settings` or `Ctrl+,`), then select _Extensions > Audiofab FV-1_.
-
-**General Settings**
-- `fv1.autoShowOutputWindow` - Automatically show Output panel on assembly (default: true)
-- `fv1.verbose` - Show detailed assembly output including machine code (default: false)
-
-**Hardware Settings**
-- `fv1.i2cAddress` - I2C address of EEPROM in hex (default: 80 / 0x50)
-- `fv1.writePageSize` - EEPROM page write size in bytes (default: 32)
-- `fv1.verifyWrites` - Verify EEPROM contents after writing (default: true)
-- `fv1.mcp2221VendorId` - USB Vendor ID for MCP2221 (default: "04D8")
-- `fv1.mcp2221ProductId` - USB Product ID for MCP2221 (default: "00DD")
-
-**Compatibility Settings**
-- `fv1.spinAsmMemBug` - Emulate SpinASM IDE memory allocation bug for compatibility (default: true)
-- `fv1.clampReals` - Emulate SpinASM IDE behaviour and clamp out of range real values (default: true)
-
-**Simulation Settings**
-- `fv1.simulation.stopOnEntry` - Whether the simulator should pause at the first instruction (default: true)
-- `fv1.simulation.oscilloscopeEnabled` - Enable the multi-trace oscilloscope in the monitor (default: true)
-- `fv1.simulation.oscilloscopeRefreshRate` - Number of samples between oscilloscope points (default: 1)
-
-## Troubleshooting
-
-**No MCP2221 device found**
-- Ensure the Audiofab USB Programmer is connected
-- Check that drivers are installed (should be automatic on most systems?)
-- Try a different USB port or cable
-
-**Error programming EEPROM**
-- Ensure the Audiofab USB Programmer is connected to the pedal and the pedal is powered on
-- If on battery power, ensure an jack is plugged into the input jack
-
-**Assembly errors**
-- Check the Output panel (`View > Output`, select "FV-1 Assembler")
-- Hover over problematic lines for detailed error information
-- For block diagrams, check connection validation messages
-
-**Program doesn't sound right**
-- Ensure you rotate the **Program** select switch off of the current program and back to have the FV-1 reload the new program contents from EEPROM
-- Verify resource usage isn't exceeding limits (red indicators in status bar)
-- There could be a bug in the assembler - file an issue!
-
-## Contributing
-
-Found a bug or have a feature request? Please use the [Issue Tracker](https://github.com/audiofab/fv1-vscode/issues).
-
-If you find a program that fails to assemble or a block diagram that doesn't compile correctly, please include the file contents in your issue report.
-
-## Documentation
-
-Complete user and developer documentation is available online and is automatically generated from reStructuredText source files.
-
-### Online Documentation
-
-Visit the **[Official Documentation](https://audiofab.github.io/fv1-vscode/)** for:
-
-- **User Guide**: Installation, getting started, features overview
-- **Command Reference**: Keyboard shortcuts and command palette commands
-- **Visual Editor Guide**: Comprehensive block diagram editor documentation
-- **Block Developer Guide**: Complete ATL (Assembly Template Language) specification
-- **FAQ**: Frequently asked questions and troubleshooting
-
-### Building Documentation Locally
-
-To build and view documentation on your local machine:
-
-1. Install Python 3.8+
-2. Run setup (one-time):
-   ```bash
-   python -m venv .venv
-   # On Windows: .\.venv\Scripts\activate
-   # On macOS/Linux: source .venv/bin/activate
-   pip install -r docs/requirements.txt
-   ```
-3. Build and serve:
-   ```bash
-   npm run docs:build    # Build HTML documentation
-   npm run docs:serve    # Serve at http://localhost:8000
-   ```
-
-See [DOCS_SETUP.md](DOCS_SETUP.md) for comprehensive documentation setup and contribution guidelines.
-
-## Resources
-
-- [Official Documentation](https://audiofab.github.io/fv1-vscode/)
-- [FV-1 Documentation](http://www.spinsemi.com/products.html)
-- [Audiofab Easy Spin](https://audiofab.com/products/easy-spin)
-- [SpinCAD Designer](https://github.com/HolyCityAudio/SpinCAD-Designer) - the "OG" and the inspiration for this extension!
-- [FV-1 Programs](https://mstratman.github.io/fv1-programs) - a nice collection of FV-1 effects
-- Special thanks to [@johntalton](https://github.com/johntalton) for his super-awesome mcp2221 and EEPROM libraries
-
-
-## License
-
-MIT License - See LICENSE file for details
+© 2026 Audiofab Inc.

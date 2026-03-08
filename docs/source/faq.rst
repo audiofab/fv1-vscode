@@ -18,11 +18,11 @@ A: Open the ``.spndiagram`` file and click the "View Assembly" button.
 
 **Q: How do I debug my effects?**
 
-A: Use the integrated simulator (``Ctrl+Shift+F9`` from a block diagram or assembly file). Set breakpoints, step through instructions, inspect registers, and visualize signals on the oscilloscope.
+A: Use the integrated simulator (``Ctrl+Shift+P`` and then select "FV-1: Run In Simulator" from the .spn assembly file). Set breakpoints, step through instructions, inspect registers, and visualize signals on the oscilloscope.
 
 **Q: Can I export my programs to use with other FV-1 programmers?**
 
-A: Yes! Use ``Ctrl+Alt+F5`` to export to Intel HEX format. This works with any FV-1 programmer that supports HEX files.
+A: Yes! Use ``Ctrl+Alt+P`` followed by "FV-1: Assemble current file to an Intel HEX file" to export to Intel HEX format. This works with any FV-1 programmer that supports HEX files.
 
 Assembly Programming Questions
 --------------------------------
@@ -34,6 +34,9 @@ A: Full FV-1 instruction set from Spin Semiconductor, including all ALU operatio
 **Q: How do I create custom blocks?**
 
 A: Use the **Assembly Template Language (ATL)**. This declarative format lets you define blocks with JSON metadata and assembly templates. See :doc:`block-developer-guide` for complete documentation.
+
+.. note::
+    In the settings for the extension, you can configure the location of your own custom block definitions!
 
 **Q: What Assembly Template Language (ATL) features are supported?**
 
@@ -47,10 +50,6 @@ A: ATL supports:
 
 See :doc:`block-developer-guide` for details.
 
-**Q: Can I use external assembly libraries?**
-
-A: Currently, all code must be in single files. Consider creating reusable blocks in ATL for common patterns.
-
 Block Diagram Questions
 ------------------------
 
@@ -63,6 +62,9 @@ A: Theoretically unlimited, but you're constrained by:
 - **32,768 words** of delay memory
 
 The extension tracks these in real-time and warns you when limits are approached.
+
+.. note::
+    You can increase the limits beyond the default values the hardware supports in the extension settings, but this will only execute within the simulator. The actual Easy Spin hardware will still enforce the original limits.
 
 **Q: Can I create custom blocks?**
 
@@ -126,6 +128,10 @@ A: The Audiofab extension specifically requires the Audiofab programmer. Other F
 Simulator Questions
 --------------------
 
+**Q: Why am I hearing no audio output?**
+
+A: The simulator needs an audio input stimulus - check that you have selected one. The simulator also will not produce audio when breakpoints are active or if the program is paused. Ensure you remove all breakpoints and that the simulator is running. If none of this helps, you may have a problem with your custom block. Try a simple pass-through block to confirm the simulator is working, then debug your custom block separately.
+
 **Q: Why is the simulator showing "No Audio Input"?**
 
 A: The simulator needs an audio input stimulus. You can:
@@ -177,10 +183,6 @@ A: Not directly in the UI, but you can:
 
 Getting Help
 ------------
-
-**Q: Where can I find example programs?**
-
-A: Check the `GitHub repository <https://github.com/audiofab/fv1-vscode>`_ for example files and bank templates.
 
 **Q: How do I report a bug?**
 

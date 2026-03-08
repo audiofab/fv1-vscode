@@ -6,6 +6,9 @@ Open the Command Palette with ``Ctrl+Shift+P`` (Windows/Linux) or ``Cmd+Shift+P`
 Assembly File Commands (.spn)
 -----------------------------
 
+**FV-1: Run In Simulator**
+   Compile your assembly and run it in the simulator. Full source-level debugging of the assembly is also available.
+
 **FV-1: Assemble current file**
    Compile and check for errors. Errors are displayed in the Problems panel.
    Note: This runs automatically in the background anyway.
@@ -23,6 +26,12 @@ Assembly File Commands (.spn)
 
 Block Diagram Commands (.spndiagram)
 -------------------------------------
+
+**FV-1: Refresh Custom Blocks**
+   Reload any discovered custom blocks and refresh the block diagram editor.
+
+**FV-1: Run In Simulator**
+   Compile the block diagram to assembly and run it in the simulator.
 
 **FV-1: Assemble current file and load to EEPROM**
    Compile your diagram to assembly, assemble it, and program to your pedal.
@@ -65,15 +74,14 @@ When editing a block diagram, use these keyboard shortcuts:
 
 **Navigation**
    - **Pan**: Click and drag on empty canvas
-   - **Zoom In**: Mouse wheel up or ``Ctrl+Plus``
-   - **Zoom Out**: Mouse wheel down or ``Ctrl+Minus``
-   - **Fit View**: ``Ctrl+0`` (zero)
+   - **Zoom In**: Mouse wheel up
+   - **Zoom Out**: Mouse wheel down
 
 **Selection and Editing**
    - **Select Block**: Click on a block
    - **Multi-Select**: ``Ctrl+Click`` on blocks to add to selection
    - **Lasso Select**: ``Ctrl+Click`` and drag on empty canvas to select multiple blocks
-   - **Delete**: ``Delete`` or ``Backspace`` to remove selected blocks and connections
+   - **Delete**: ``Delete`` to remove selected blocks and connections
 
 **Undo/Redo**
    - **Undo**: ``Ctrl+Z``
@@ -86,14 +94,10 @@ When editing a block diagram, use these keyboard shortcuts:
 **Connections**
    - Click an **output port** (right side of a block) and drag to an **input port** (left side) to create a connection
    - Invalid connections are automatically rejected with helpful error messages
-   - A **green check** indicates valid connections
-   - A **red X** indicates invalid connections
 
 
 Tips
 ----
 
-- Use ``Ctrl+Shift+F5`` for quick programming — it's the most common shortcut
 - Many commands are context-sensitive and only appear in the Command Palette when appropriate files are open
-- Hover over commands in the Command Palette to see their keyboard shortcuts
 - Check the status bar for real-time resource usage feedback while editing diagrams
