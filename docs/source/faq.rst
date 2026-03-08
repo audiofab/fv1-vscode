@@ -14,7 +14,7 @@ A: Absolutely! You can mix ``.spn`` assembly files and ``.spndiagram`` block fil
 
 **Q: Where can I find the generated assembly code from my block diagram?**
 
-A: Right-click your ``.spndiagram`` file in the File Explorer and select "View Generated Assembly". This shows you the FV-1 assembly code produced by the visual editor.
+A: Open the ``.spndiagram`` file and click the "View Assembly" button.
 
 **Q: How do I debug my effects?**
 
