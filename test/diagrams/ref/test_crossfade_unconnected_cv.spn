@@ -10,8 +10,8 @@
 equ	adc_out	REG0
 equ	crossfade2_output	REG1
 equ	crossfade3_output	REG2
-equ	crossfade2_local_temp	REG3
-equ	crossfade3_local_temp	REG4
+; OPTIMIZED OUT - equ	crossfade2_local_temp	REG3 (Unused register)
+; OPTIMIZED OUT - equ	crossfade3_local_temp	REG4 (Unused register)
 
 
 ; Input Section

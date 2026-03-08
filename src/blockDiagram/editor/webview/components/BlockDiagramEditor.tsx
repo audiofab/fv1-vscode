@@ -59,6 +59,8 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         instructionsUsed: 0,
         registersUsed: 0,
         memoryUsed: 0,
+        lfosUsed: 0,
+        usedLFOs: [] as string[],
         blocksProcessed: 0,
         progSize: 128,
         regCount: 32,
@@ -805,6 +807,12 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                     </span>
                     <span className={resourceStats.memoryUsed > resourceStats.delaySize ? 'over-limit' : ''} title="Delay Memory Usage">
                         Mem: {resourceStats.memoryUsed}/{resourceStats.delaySize}
+                    </span>
+                    <span
+                        className={resourceStats.lfosUsed > 4 ? 'over-limit' : ''}
+                        title={`LFO Usage${resourceStats.usedLFOs?.length ? ': ' + resourceStats.usedLFOs.join(', ') : ''}`}
+                    >
+                        〰 {resourceStats.lfosUsed}/4
                     </span>
                 </div>
                 <div className="footer-section">

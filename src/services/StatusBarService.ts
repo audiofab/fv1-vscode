@@ -7,6 +7,7 @@ export class StatusBarService implements vscode.Disposable {
     private instructionsStatusBar: vscode.StatusBarItem;
     private registersStatusBar: vscode.StatusBarItem;
     private memoryStatusBar: vscode.StatusBarItem;
+    private lfosStatusBar: vscode.StatusBarItem;
     private disposables: vscode.Disposable[] = [];
 
     constructor(
@@ -16,15 +17,18 @@ export class StatusBarService implements vscode.Disposable {
         this.instructionsStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 103);
         this.registersStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 102);
         this.memoryStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 101);
+        this.lfosStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 
         this.instructionsStatusBar.tooltip = 'FV-1 Instructions Used';
         this.registersStatusBar.tooltip = 'FV-1 Registers Used';
         this.memoryStatusBar.tooltip = 'FV-1 Delay Memory Used';
+        this.lfosStatusBar.tooltip = 'FV-1 LFOs Used';
 
         this.disposables.push(
             this.instructionsStatusBar,
             this.registersStatusBar,
             this.memoryStatusBar,
+            this.lfosStatusBar,
             vscode.window.onDidChangeActiveTextEditor(editor => this.update(editor?.document)),
             this.blockDiagramDocumentManager.onCompilationChange(uri => this.handleUriChange(uri)),
             this.fv1DocumentManager.addChangeListener(uri => this.handleUriChange(uri))
@@ -48,7 +52,7 @@ export class StatusBarService implements vscode.Disposable {
         }
 
         const fileName = document.fileName.toLowerCase();
-        let stats: { instructionsUsed: number; registersUsed: number; memoryUsed: number } | undefined;
+        let stats: { instructionsUsed: number; registersUsed: number; memoryUsed: number; lfosUsed?: number; usedLFOs?: string[] } | undefined;
 
         if (document.uri.scheme === 'fv1-assembly') {
             const originalPath = document.uri.path.replace(/\.spn$/, '');
@@ -66,7 +70,9 @@ export class StatusBarService implements vscode.Disposable {
                 stats = {
                     instructionsUsed: instructionCount,
                     registersUsed: result.usedRegistersCount,
-                    memoryUsed: result.memories.reduce((total, mem) => total + mem.size, 0)
+                    memoryUsed: result.memories.reduce((total, mem) => total + mem.size, 0),
+                    lfosUsed: result.usedLFOs ? result.usedLFOs.length : 0,
+                    usedLFOs: result.usedLFOs
                 };
             }
         }
@@ -89,19 +95,39 @@ export class StatusBarService implements vscode.Disposable {
             this.registersStatusBar.hide();
         }
 
-        this.updateItem(this.memoryStatusBar, stats.memoryUsed, maxMemory, '$(pulse)');
+        this.updateItem(this.memoryStatusBar, stats.memoryUsed, maxMemory, '$(pulse)', 'FV-1 Delay Memory Used');
+
+        if (stats.lfosUsed !== undefined && stats.lfosUsed > 0 || fileName.endsWith('.spndiagram')) {
+            const tooltipText = stats.usedLFOs && stats.usedLFOs.length > 0 ? `FV-1 LFOs Used: ${stats.usedLFOs.join(', ')}` : 'FV-1 LFOs Used';
+            this.updateItem(this.lfosStatusBar, stats.lfosUsed || 0, 4, '〰 LFO', tooltipText);
+        } else {
+            this.lfosStatusBar.hide();
+        }
     }
 
-    private updateItem(item: vscode.StatusBarItem, used: number, max: number, icon: string) {
-        item.text = `${icon} ${used}/${max}`;
+    private updateItem(item: vscode.StatusBarItem, used: number, max: number, icon: string, tooltipText?: string) {
         const percent = used / max;
         if (used > max) {
             item.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+            item.color = new vscode.ThemeColor('errorForeground');
+            item.text = `${icon} ${used}/${max} ⚠️`;
         } else if (percent >= 0.8) {
             item.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+            item.color = undefined;
+            item.text = `${icon} ${used}/${max}`;
         } else {
             item.backgroundColor = undefined;
+            item.color = undefined;
+            item.text = `${icon} ${used}/${max}`;
         }
+
+        if (tooltipText) {
+            item.tooltip = tooltipText;
+        } else {
+            // Reset tooltip if not provided, to ensure it doesn't persist from a previous update
+            item.tooltip = undefined;
+        }
+
         item.show();
     }
 
@@ -109,6 +135,7 @@ export class StatusBarService implements vscode.Disposable {
         this.instructionsStatusBar.hide();
         this.registersStatusBar.hide();
         this.memoryStatusBar.hide();
+        this.lfosStatusBar.hide();
     }
 
     public dispose() {

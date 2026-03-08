@@ -40,6 +40,7 @@ export interface FV1AssemblerResult {
   memories: FV1Memory[];
   addressToLineMap: Map<number, number>;
   usedRegistersCount: number;
+  usedLFOs: string[];
 }
 
 export class FV1Assembler {
@@ -50,6 +51,8 @@ export class FV1Assembler {
   private labels = new Map<string, { line: number, instructionLine: number }>();
   private addressToLineMap = new Map<number, number>();
   private usedRegisters = new Set<number>();
+  private usedLFOs = new Set<string>();
+  private configuredLFOs = new Set<string>();
   private userSymbols = new Set<string>();
   private symbolLines = new Map<string, number>();
 
@@ -85,6 +88,8 @@ export class FV1Assembler {
     this.labels.clear();
     this.addressToLineMap.clear();
     this.usedRegisters.clear();
+    this.usedLFOs.clear();
+    this.configuredLFOs.clear();
     this.userSymbols.clear();
     this.symbolLines.clear(); // Added this line
     this.initSymbols();       // Added this line
@@ -123,7 +128,8 @@ export class FV1Assembler {
           .map(([name, value]) => ({ name, value: value.toString(), line: this.symbolLines.get(name) })),
         memories: this.memories,
         addressToLineMap: this.addressToLineMap,
-        usedRegistersCount: this.usedRegisters.size
+        usedRegistersCount: this.usedRegisters.size,
+        usedLFOs: Array.from(this.usedLFOs)
       };
     } catch (e) {
       const line = (e instanceof ParserError) ? e.line : 1;
@@ -135,7 +141,8 @@ export class FV1Assembler {
         symbols: [],
         memories: [],
         addressToLineMap: new Map(),
-        usedRegistersCount: 0
+        usedRegistersCount: 0,
+        usedLFOs: []
       };
     }
   }
@@ -203,6 +210,21 @@ export class FV1Assembler {
 
         // --- Specialized Encoding Logic ---
 
+        // LFO Tracking for configurations
+        if (node.mnemonic === 'WLDS' || node.mnemonic === 'WLDR') {
+          const lfoReg = operands[0];
+          const lfoName = this.getLFOName(lfoReg);
+          if (lfoName) {
+            if (node.mnemonic === 'WLDS') {
+              if (this.configuredLFOs.has(lfoName)) {
+                this.problems.push({ message: `LFO ${lfoName} is configured more than once`, isfatal: true, line: node.line });
+              }
+              this.configuredLFOs.add(lfoName);
+            }
+            this.usedLFOs.add(lfoName);
+          }
+        }
+
         if (node.mnemonic === 'CHO') {
           const mode = operands[0];
           const n = operands[1];
@@ -252,6 +274,15 @@ export class FV1Assembler {
           }
         });
 
+        // Additional LFO tracking for register writes to RATE/RANGE
+        if (node.mnemonic === 'WRAX' || node.mnemonic === 'RDAX') {
+          const regNum = operands[0];
+          const lfoName = this.getLFONameFromRegister(regNum);
+          if (lfoName) {
+            this.usedLFOs.add(lfoName);
+          }
+        }
+
         code.push(Encoder.assembleInstruction(node.mnemonic, operands, schema));
         this.addressToLineMap.set(pc, node.line);
         pc++;
@@ -270,6 +301,28 @@ export class FV1Assembler {
         this.problems.push({ message: `Register REG${regNum} exceeds limit ${this.options.regCount}`, isfatal: true, line });
       }
       this.usedRegisters.add(regNum);
+    }
+  }
+
+  private getLFOName(lfoId: number): string | null {
+    switch (lfoId) {
+      case 0: return 'SIN0';
+      case 1: return 'SIN1';
+      case 2: return 'RMP0';
+      case 3: return 'RMP1';
+      default: return null;
+    }
+  }
+
+  private getLFONameFromRegister(addr: number): string | null {
+    // 0x00=SIN0_RATE, 0x01=SIN0_RANGE, 0x02=SIN1_RATE, 0x03=SIN1_RANGE
+    // 0x04=RMP0_RATE, 0x05=RMP0_RANGE, 0x06=RMP1_RATE, 0x07=RMP1_RANGE
+    switch (addr) {
+      case 0x00: case 0x01: return 'SIN0';
+      case 0x02: case 0x03: return 'SIN1';
+      case 0x04: case 0x05: return 'RMP0';
+      case 0x06: case 0x07: return 'RMP1';
+      default: return null;
     }
   }
 

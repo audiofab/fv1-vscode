@@ -440,28 +440,7 @@ export class BlockTemplate {
         const args = parts.slice(1);
 
         switch (macro) {
-            case 'samplingrate':
-                ctx.setVariable(args[0], '32768');
-                ir.push({ op: 'EQU', args: [args[0], '32768'], section: 'header' });
-                break;
-            case 'lfo':
-                // @lfo result, type, rate, range
-                const lfoResult = args[0];
-                const lfoType = args[1].toUpperCase();
-                const lfoRate = args[2];
-                const lfoRange = args[3];
 
-                // Add initialization to init section (uniquely named based on short ID)
-                const shortId = (ctx as any).getShortId(block.id);
-                const doneLabel = `lfo_done_${shortId}`;
-                ir.push({ op: 'SKP', args: ['RUN', doneLabel], section: 'init' });
-                ir.push({ op: 'WLDS', args: [lfoType, lfoRate, lfoRange], section: 'init' });
-                ir.push({ op: `${doneLabel}:`, args: [], section: 'init' });
-
-                // Read value in current section (usually main)
-                ir.push({ op: 'CHO', args: ['RDAL', lfoType], section });
-                ir.push({ op: 'WRAX', args: [lfoResult, '0.0'], section });
-                break;
             case 'equals': {
                 const eqName = args[0];
                 const eqNameIndex = line.indexOf(eqName);

@@ -36,7 +36,8 @@ export class AssemblyService {
                     `[SUCCESS] ✅ Block diagram compiled successfully - ` +
                     `Instructions: ${stats.instructionsUsed}/${maxInstructions}, ` +
                     `Registers: ${stats.registersUsed}/${maxRegisters}, ` +
-                    `Memory: ${stats.memoryUsed}/${maxMemory}`
+                    `Memory: ${stats.memoryUsed}/${maxMemory}, ` +
+                    `LFOs: ${stats.lfosUsed}/4 ${stats.usedLFOs && stats.usedLFOs.length > 0 ? '(' + stats.usedLFOs.join(', ') + ')' : ''}`
                 );
 
                 if (result.warnings && result.warnings.length > 0) {
@@ -124,9 +125,11 @@ export class AssemblyService {
         if (!hasErrors && result.machineCode && result.machineCode.length > 0) {
             if (verbose) this.outputService.log(FV1Assembler.formatMachineCode(result.machineCode));
             const regCount = result.usedRegistersCount;
+            const lfoCount = result.usedLFOs ? result.usedLFOs.length : 0;
+            const lfoNames = result.usedLFOs && result.usedLFOs.length > 0 ? ` (${result.usedLFOs.join(', ')})` : '';
             const config = vscode.workspace.getConfiguration('fv1');
             const maxRegisters = config.get<number>('hardware.regCount') ?? 32;
-            this.outputService.log(`[SUCCESS] ✅ Assembly completed successfully - ${fileName} (${result.machineCode.length} instructions, ${regCount}/${maxRegisters} registers used)`);
+            this.outputService.log(`[SUCCESS] ✅ Assembly completed successfully - ${fileName} (${result.machineCode.length} instructions, ${regCount}/${maxRegisters} registers used, ${lfoCount}/4 LFOs used${lfoNames})`);
         } else if (hasErrors) {
             this.outputService.log(`[ERROR] ❌ Assembly failed with errors - ${fileName}`);
         } else {

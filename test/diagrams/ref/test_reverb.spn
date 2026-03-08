@@ -17,10 +17,10 @@ equ	pot0_out	REG1
 equ	pot1_out	REG2
 equ	platereverb_outl	REG3
 equ	platereverb_outr	REG4
-equ	pot0_local_f1	REG5
-equ	pot0_local_f2	REG6
-equ	pot1_local_f1	REG7
-equ	pot1_local_f2	REG8
+; OPTIMIZED OUT - equ	pot0_local_f1	REG5 (Unused register)
+; OPTIMIZED OUT - equ	pot0_local_f2	REG6 (Unused register)
+; OPTIMIZED OUT - equ	pot1_local_f1	REG7 (Unused register)
+; OPTIMIZED OUT - equ	pot1_local_f2	REG8 (Unused register)
 equ	platereverb_local_krl	REG9
 equ	platereverb_local_decay	REG10
 equ	platereverb_local_decay_diffusion_2	REG11

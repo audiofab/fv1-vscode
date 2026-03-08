@@ -17,6 +17,8 @@ export interface CompilationStatistics {
     registersUsed: number;
     memoryUsed: number;
     blocksProcessed: number;
+    lfosUsed: number;
+    usedLFOs?: string[];
 }
 
 export interface CompilationResult {
@@ -61,7 +63,9 @@ export class GraphCompiler {
                     instructionsUsed: 0,
                     registersUsed: 0,
                     memoryUsed: 0,
-                    blocksProcessed: 0
+                    blocksProcessed: 0,
+                    lfosUsed: 0,
+                    usedLFOs: []
                 }
             };
         }
@@ -79,7 +83,9 @@ export class GraphCompiler {
                     instructionsUsed: 0,
                     registersUsed: 0,
                     memoryUsed: 0,
-                    blocksProcessed: 0
+                    blocksProcessed: 0,
+                    lfosUsed: 0,
+                    usedLFOs: []
                 }
             };
         }
@@ -142,7 +148,9 @@ export class GraphCompiler {
                         instructionsUsed: 0,
                         registersUsed: 0,
                         memoryUsed: 0,
-                        blocksProcessed: 0
+                        blocksProcessed: 0,
+                        lfosUsed: 0,
+                        usedLFOs: []
                     }
                 };
             }
@@ -236,6 +244,10 @@ export class GraphCompiler {
 
         // 7. Assemble the code to get accurate instruction count
         let instructions = 0;
+        let lfosUsed = 0;
+        let usedLFOs: string[] = [];
+        let registersUsed = context.getUsedRegisterCount();
+
         try {
             const assembler = new FV1Assembler({
                 fv1AsmMemBug: options.fv1AsmMemBug ?? true,
@@ -249,6 +261,11 @@ export class GraphCompiler {
             // Count actual instructions from machine code (exclude NOP padding)
             const NOP_ENCODING = 0x00000011;
             instructions = assemblyResult.machineCode.filter((code: number) => code !== NOP_ENCODING).length;
+
+            // Use accurate register constraints and LFO metrics from the assembler
+            registersUsed = assemblyResult.usedRegistersCount;
+            lfosUsed = assemblyResult.usedLFOs.length;
+            usedLFOs = assemblyResult.usedLFOs;
 
             // Check for assembly errors
             const assemblyErrors = assemblyResult.problems.filter((p: any) => p.isfatal);
@@ -287,9 +304,11 @@ export class GraphCompiler {
         // 8. Build statistics
         const statistics: CompilationStatistics = {
             instructionsUsed: instructions,
-            registersUsed: context.getUsedRegisterCount(),
+            registersUsed: registersUsed,
             memoryUsed: context.getUsedMemorySize(),
-            blocksProcessed: executionOrder.length
+            blocksProcessed: executionOrder.length,
+            lfosUsed: lfosUsed,
+            usedLFOs: usedLFOs
         };
 
         // Add optimization info to warnings
