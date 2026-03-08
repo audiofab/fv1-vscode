@@ -7,29 +7,24 @@ Editor Features
 ---------------
 
 **Parameters Panel**
-   Click on a block to view and modify its parameters in the right panel. Changes apply immediately with live compilation feedback.
+   Click on a block to view and modify its parameters in the right panel. Changes apply immediately with live compilation and instant feedback.
 
 **Lasso Selection**
    ``Ctrl+Click`` and drag on empty canvas to select multiple blocks at once. This is useful for moving groups of blocks together.
 
 **Multi-Select Operations**
-   Hold ``Ctrl`` and click multiple blocks to add them to your selection. Delete selected blocks and connections with ``Delete`` or ``Backspace``.
+   Hold ``Ctrl`` and click multiple blocks to add them to your selection. Delete selected blocks and connections with ``Delete``.
 
 **Pan and Zoom**
    - **Pan**: Click and drag on empty canvas (not on a block) to move your view
    - **Zoom**: Use mouse wheel to zoom in and out
-   - **Fit to View**: Press ``Ctrl+0`` to fit all blocks in the current view
 
 **Undo/Redo**
    - Press ``Ctrl+Z`` to undo your last action
    - Press ``Ctrl+Shift+Z`` or ``Ctrl+Y`` to redo
 
 **Connection Validation**
-   The editor prevents invalid connections and shows:
-   
-   - **Green Check** (✓): Valid connection
-   - **Red X** (✗): Invalid connection
-   - **Error Message**: Explains why the connection is invalid
+   The editor prevents invalid connections ande xplains why the connection is invalid
 
 Creating Blocks and Connections
 --------------------------------
@@ -62,10 +57,10 @@ Block Types
    Route processed audio to the hardware DAC.
 
 **Control Blocks**
-   Modify signals with smoothing, curves, and tremolo effects.
+   Modify signals with potentiometers, smoothing, curves, and tremolo effects.
 
 **Gain/Mixing Blocks**
-   Mix multiple signals together or adjust volume levels.
+   Mix multiple signals together, add gain or adjust volume levels.
 
 **Filter Blocks**
    Apply low-pass, high-pass, or shelf filters.
@@ -88,7 +83,7 @@ Each block type has specific parameters that you can adjust:
    Choose from a dropdown list of predefined options (e.g., filter types).
 
 **Boolean Parameters**
-   Toggle switches for on/off options (e.g., invert, enable modulation).
+   Toggle switches for on/off options (e.g., invert).
 
 Parameter values can often be connected to control inputs for real-time modulation. Check individual block documentation for details.
 
@@ -100,6 +95,7 @@ As you build your diagram, watch the status bar at the bottom of VS Code:
 - **Instructions**: Shows how many of 128 instruction slots are used
 - **Registers**: Shows how many of 32 registers are used
 - **Delay Memory**: Shows how many of 32,768 memory words are used
+- **LFOs**: Shows how many of the four available LFOs are used
 
 If you exceed any limit, you'll see a warning in the Problems panel.
 
@@ -133,41 +129,22 @@ Tips for Effective Diagrams
 **Optimize Layout**
    Arrange blocks left-to-right for signal flow: inputs on the left, outputs on the right.
 
-**Use Comments**
-   While the visual editor doesn't have comment blocks, well-organized layouts are self-documenting.
-
-**Save Frequently**
-   Use ``Ctrl+S`` to save your work regularly.
-
-Programming Your Diagram
--------------------------
-
-Once you've created your diagram:
-
-1. **Program to Pedal**: ``Ctrl+Shift+F5`` to program to the current slot
-2. **Export to HEX**: ``Ctrl+Alt+F5`` to save as Intel HEX
-3. **View Assembly**: Right-click the file → "View Generated Assembly" to see the FV-1 code
-
-.. note::
-   After programming your Easy Spin pedal, rotate the **Program** select switch off of the current program and back to load the new program from EEPROM.
-
 Example: Creating a Simple Reverb
 ---------------------------------
 
 Here's a typical workflow:
 
 1. Add an **Input** block (ADC)
-2. Add one or more **Reverb** effect blocks
-3. Add a **Mix** block to blend wet and dry signals
+2. Add one of the **Reverb** effect blocks
+3. Add a **Mixer** or **Crossfade** block to blend wet and dry signals
 4. Add an **Output** block (DAC)
 5. Connect: Input → Reverb → Mix → Output
 6. Adjust reverb parameters using the Properties panel
-7. Press ``Ctrl+Shift+F5`` to program to your pedal
+7. Press ``Ctrl+Shift+P`` and then select "FV-1: Run In Simulator" to simulate, or "FV-1: Assemble current file and load to EEPROM" to load to a slot in your pedal
 
 Next Steps
 ----------
 
-- See :doc:`commands` for keyboard shortcuts reference
-- Learn about individual block types in the block palette
-- Check :doc:`block-developer-guide` if you want to create custom blocks
-- Read :doc:`getting-started` for more tutorials
+- See :doc:`commands` for available commands and keyboard shortcuts
+- See :doc:`/simulator` for information on how to use the debugger and simulator
+- Check :doc:`block-developer-guide` if you want to create your own custom blocks

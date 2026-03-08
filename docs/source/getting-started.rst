@@ -10,27 +10,32 @@ Block diagrams provide a visual way to create effects without writing assembly c
    
    - Click the Audiofab icon in the VS Code Activity Bar on the left
 
-2. Click **"Create New Block Diagram"**
+.. image:: _static/images/quick_actions.png
+   :alt: Quick Actions Sidebar
+   :align: center
+
+2. Click **"New Block Diagram"**
 
 3. Choose a location and filename for your diagram
 
 4. Drag blocks from the palette onto the canvas
+
+.. image:: _static/images/block_diagram_example1.png
+   :alt: Visual Block Diagram Editor
+   :align: center
 
 5. Connect blocks by:
    
    - Clicking an output port on one block
    - Dragging to an input port on another block
 
+
 6. Modify block parameters by clicking a block and changing values in the Properties panel
 
 7. Program to your pedal or export to HEX:
    
-   - ``Ctrl+Shift+F5`` to program to the current slot
-   - ``Ctrl+Alt+F5`` to export to Intel HEX format
-
-.. image:: _static/images/visual_editor.png
-   :alt: Visual Block Diagram Editor
-   :align: center
+   - Press ``Ctrl+Shift+P`` and select "FV-1: Assemble current file and load to EEPROM" to program to your Easy Spin pedal
+   - Press ``Ctrl+Shift+P`` and select "FV-1: Assemble current file to an Intel HEX file" to save an Intel HEX file
 
 .. note::
    After programming, ensure you rotate the **Program** select switch off of the current program and back to have the FV-1 reload the new program contents from EEPROM.
@@ -38,11 +43,11 @@ Block diagrams provide a visual way to create effects without writing assembly c
 Creating Your First Program Bank
 ---------------------------------
 
-Organize multiple programs (assembly or block diagrams) into a bank of 8 slots:
+You can organize multiple programs (assembly or block diagrams) into a bank of 8 slots:
 
 1. Open the **Quick Actions** sidebar
 
-2. Click **"Create New Program Bank"**
+2. Click **"New Program Bank"**
 
 3. Choose a location and filename
 
@@ -59,9 +64,7 @@ If you prefer traditional FV-1 assembly language:
 
 2. The extension provides syntax highlighting and real-time diagnostics
 
-3. Use ``Ctrl+Shift+F5`` to assemble and program to your pedal
-
-4. See the :ref:`assembly-syntax` guide for language reference
+3. Use ``Ctrl+Shift+P`` and select "FV-1: Assemble current file and load to EEPROM" to program to your Easy Spin pedal
 
 Using the Simulator
 -------------------
@@ -70,12 +73,13 @@ Test your effects without hardware:
 
 1. Open a block diagram or assembly file
 
-2. Click the **"Launch Simulator"** button (or press ``Ctrl+Shift+F9`` with the file open)
+2. Click the **"Simulate"** button in the block diagram editor or press ``Ctrl+Shift+P`` and select "FV-1: Run In Simulator"
 
-3. The simulator opens with:
+3. The simulator provide the following features:
    
    - **Audio Monitor**: Hear your effect in real-time
    - **Oscilloscope**: Visualize any register or signal
+   - **Spectrogram**: Visualize the frequency spectrum of the FV-1 outputs
    - **Delay Memory Map**: See delay buffer usage
    - **Controls**: Adjust POT0, POT1, POT2 in real-time
    - **Breakpoints**: Debug by stepping through instructions
@@ -84,16 +88,16 @@ Tips for Success
 ----------------
 
 - **Start simple**: Begin with a single effect block and gradually add complexity
-- **Monitor resources**: Watch the status bar for instruction, register, and memory usage
+- **Monitor resources**: Watch the status bar for instruction, register, delay memory and LFO usage
 - **Use the simulator**: Always test in simulation before programming hardware
 - **Check the error list**: VS Code's Problems panel shows compilation errors
-- **Explore examples**: Look at the block library to see how complex effects are built
-- **Save often**: Use ``Ctrl+S`` to save your work regularly
 
 Next Steps
 ----------
 
 - Read about available :doc:`features`
-- Check :doc:`commands` for keyboard shortcuts
+- Check the :doc:`commands`
+- Learn how to use the :doc:`visual-editor`
+- Explore the features available in the :doc:`simulator`
 - Explore the :doc:`block-developer-guide` if you want to create custom blocks
 - See the :doc:`faq` for common questions

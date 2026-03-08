@@ -16,10 +16,6 @@ Installation Steps
 3. Search for "Audiofab FV-1"
 4. Click the "Install" button
 
-.. image:: _static/images/quick_actions.png
-   :alt: Quick Actions Sidebar
-   :align: center
-
 The extension will be installed and activated automatically.
 
 Hardware Setup (Optional)

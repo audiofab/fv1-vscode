@@ -1,5 +1,5 @@
-Commands Reference
-===================
+Commands and Navigation
+=======================
 
 Open the Command Palette with ``Ctrl+Shift+P`` (Windows/Linux) or ``Cmd+Shift+P`` (macOS) to access these commands:
 
@@ -11,7 +11,9 @@ Assembly File Commands (.spn)
 
 **FV-1: Assemble current file**
    Compile and check for errors. Errors are displayed in the Problems panel.
-   Note: This runs automatically in the background anyway.
+
+   .. note::
+      This runs automatically in the background anyway.
 
 **FV-1: Assemble current file and load to EEPROM**
    Compile your assembly and program it to your Easy Spin pedal.

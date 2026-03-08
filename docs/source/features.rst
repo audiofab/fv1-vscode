@@ -4,6 +4,10 @@ Features
 Assembly Language Support
 --------------------------
 
+.. image:: _static/images/assembly_editor.png
+   :alt: Assembly Language Support
+   :align: center
+
 Full support for traditional FV-1 assembly programming:
 
 📝 **Syntax Highlighting**
@@ -25,6 +29,10 @@ Full support for traditional FV-1 assembly programming:
 Visual Block Diagram Editor
 ----------------------------
 
+.. image:: _static/images/block_diagram_example1.png
+   :alt: Visual Block Diagram Editor
+   :align: center
+
 Create FV-1 programs visually without writing assembly code:
 
 🎨 **Drag-and-Drop Palette**
@@ -45,13 +53,22 @@ Create FV-1 programs visually without writing assembly code:
 🎯 **Direct Programming**
    Program your diagram directly to a pedal slot with one keystroke
 
-.. image:: _static/images/visual_editor.png
-   :alt: Visual Block Diagram Editor
+
+Integrated Real-time Simulator and Debugger
+-------------------------------------------
+
+Debug assembly files:
+
+.. image:: _static/images/debug1.png
+   :alt: Debugger
    :align: center
 
+ 
+Or simulate with realtime audio:
 
-Integrated Real-time Simulator
--------------------------------
+.. image:: _static/images/simulator.png
+   :alt: Simulator
+   :align: center
 
 Test your programs without hardware:
 
@@ -70,13 +87,12 @@ Test your programs without hardware:
 🎚️ **Interactive Controls**
    Real-time control of POT0, POT1, POT2 and Bypass during simulation
 
+Resource Usage Tracking
+-----------------------
+
 .. image:: _static/images/resource_usage.png
    :alt: Resource Usage Tracking
    :align: center
-
-
-Resource Usage Tracking
------------------------
 
 Monitor your program's resource consumption in real-time:
 
@@ -92,6 +108,10 @@ Monitor your program's resource consumption in real-time:
 
 Program Bank Management
 -----------------------
+
+.. image:: _static/images/bank_editor.png
+   :alt: Bank Editor
+   :align: center
 
 Organize and deploy multiple programs to your Easy Spin pedal:
 
@@ -113,10 +133,6 @@ Organize and deploy multiple programs to your Easy Spin pedal:
 💾 **Export to HEX**
    Save your bank as Intel HEX for archival or use with other programmers
 
-.. image:: _static/images/bank_editor.png
-   :alt: Bank Editor
-   :align: center
-
 
 Quick Actions Sidebar
 ---------------------
@@ -126,7 +142,6 @@ Convenient access to common tasks:
 ✨ Create new block diagram
 ✨ Create new program bank
 ✨ Backup entire pedal to HEX
-✨ Check active commands
 
 .. image:: _static/images/quick_actions.png
    :alt: Quick Actions Sidebar
@@ -139,9 +154,13 @@ Hardware Programming
 Direct integration with the Audiofab USB Programmer:
 
 🔌 **Program to any slot** (1-8) on your Easy Spin pedal
+
 ✓ **Automatic verification** of written data
+
 💾 **Backup entire pedal** to Intel HEX format
+
 📂 **Load HEX files** to EEPROM
+
 💾 **Export banks to HEX** for use with other tools or archival
 
 Supported Blocks
