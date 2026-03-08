@@ -487,6 +487,9 @@
     "test": "node test/assembler-test.mjs && node test/block-compiler-test.mjs && node test/test-atl-blocks.mjs",
     "test-sim": "node test/simulator-test.mjs",
     "convert-spincad": "node scripts/batch-convert-spincad.js && node scripts/test-custom-blocks.mjs",
+    "docs:build": "sphinx-build -b html docs/source docs/build/html",
+    "docs:clean": "node -e \"const fs = require('fs'); const path = require('path'); const dir = 'docs/build'; try { fs.rmSync(dir, { recursive: true, force: true }); } catch(e) {}\"",
+    "docs:serve": "npx http-server docs/build/html -p 8000 -c-1 -o",
     "vscode:prepublish": "npm run package",
     "package": "npm run check-types && node esbuild.cjs --production"
   },

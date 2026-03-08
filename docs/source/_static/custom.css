@@ -1,0 +1,43 @@
+/* Custom styles for FV-1 documentation */
+
+:root {
+    --color-primary: #FF6B6B;
+    --color-secondary: #2c3e50;
+}
+
+/* Enhance code blocks */
+.highlight {
+    background-color: #f8f9fa;
+    border-left: 3px solid var(--color-primary);
+    padding-left: 0.5rem;
+}
+
+/* Custom admonitions */
+.admonition {
+    border-radius: 4px;
+}
+
+.admonition.note {
+    border-left-color: var(--color-primary);
+}
+
+/* Improve image styling */
+img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+/* Better link styling */
+a {
+    color: var(--color-primary);
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Sidebar improvements */
+.sphinxsidebarwrapper {
+    background-color: #f8f9fa;
+}

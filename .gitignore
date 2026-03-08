@@ -5,3 +5,11 @@ node_modules
 *.vsix
 tsconfig.tsbuildinfo
 resources/blocks/spincad
+
+# Documentation build artifacts
+docs/build/
+.venv/
+venv/
+*.egg-info/
+__pycache__/
+.pytest_cache/

@@ -199,8 +199,43 @@ Found a bug or have a feature request? Please use the [Issue Tracker](https://gi
 
 If you find a program that fails to assemble or a block diagram that doesn't compile correctly, please include the file contents in your issue report.
 
+## Documentation
+
+Complete user and developer documentation is available online and is automatically generated from reStructuredText source files.
+
+### Online Documentation
+
+Visit the **[Official Documentation](https://audiofab.github.io/fv1-vscode/)** for:
+
+- **User Guide**: Installation, getting started, features overview
+- **Command Reference**: Keyboard shortcuts and command palette commands
+- **Visual Editor Guide**: Comprehensive block diagram editor documentation
+- **Block Developer Guide**: Complete ATL (Assembly Template Language) specification
+- **FAQ**: Frequently asked questions and troubleshooting
+
+### Building Documentation Locally
+
+To build and view documentation on your local machine:
+
+1. Install Python 3.8+
+2. Run setup (one-time):
+   ```bash
+   python -m venv .venv
+   # On Windows: .\.venv\Scripts\activate
+   # On macOS/Linux: source .venv/bin/activate
+   pip install -r docs/requirements.txt
+   ```
+3. Build and serve:
+   ```bash
+   npm run docs:build    # Build HTML documentation
+   npm run docs:serve    # Serve at http://localhost:8000
+   ```
+
+See [DOCS_SETUP.md](DOCS_SETUP.md) for comprehensive documentation setup and contribution guidelines.
+
 ## Resources
 
+- [Official Documentation](https://audiofab.github.io/fv1-vscode/)
 - [FV-1 Documentation](http://www.spinsemi.com/products.html)
 - [Audiofab Easy Spin](https://audiofab.com/products/easy-spin)
 - [SpinCAD Designer](https://github.com/HolyCityAudio/SpinCAD-Designer) - the "OG" and the inspiration for this extension!
