@@ -1,5 +1,11 @@
 # Change Log
 
+## [1.4.1]
+
+- Improved error handling
+- More assembler optimizations
+- User documentation!
+
 ## [1.4.0]
 
 - Introduce a completely new assembler
