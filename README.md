@@ -1,7 +1,7 @@
 # Audiofab Easy Spin (FV-1) Programming Extension
 
 [![Official Documentation](https://img.shields.io/badge/docs-official-blue.svg)](https://audiofab.github.io/fv1-vscode/)
-[![Marketplace](https://img.shields.io/visual-studio-marketplace/v/audiofab.fv1-vscode.svg)](https://marketplace.visualstudio.com/items?itemName=audiofab.fv1-vscode)
+[![Marketplace](https://img.shields.io/visual-studio-marketplace/v/ms-audiofab.fv1-vscode.svg)](https://marketplace.visualstudio.com/items?itemName=ms-audiofab.fv1-vscode)
 
 A professional Visual Studio Code extension for developing, simulating, and deploying audio effects code for the **Spin Semiconductor FV-1 DSP**.
 
