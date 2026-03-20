@@ -482,13 +482,14 @@ export class GraphCompiler {
             }
 
             // Check for self-loops
-            if (connection.from.blockId === connection.to.blockId) {
-                errors.push(
-                    `Self-loop detected: Block ${sourceBlock.type} (${connection.from.blockId}) ` +
-                    `cannot have its output connected to its own input`
-                );
-                continue;
-            }
+            // (Removed strict validation to allow feedback connections just like SpinCAD)
+            // if (connection.from.blockId === connection.to.blockId) {
+            //     errors.push(
+            //         `Self-loop detected: Block ${sourceBlock.type} (${connection.from.blockId}) ` +
+            //         `cannot have its output connected to its own input`
+            //     );
+            //     continue;
+            // }
 
             // Check ports exist
             const sourceDef = this.registry.getBlock(sourceBlock.type);

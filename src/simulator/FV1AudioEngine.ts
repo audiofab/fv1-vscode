@@ -284,10 +284,10 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     <div id="specBox" class="viz-box">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
                             <div class="viz-label">Spectrogram (L/R)</div>
-                            <button id="toggleSpecBtn" style="padding: 1px 6px; font-size: 8px;">ON</button>
+                            <button id="toggleSpecBtn" style="padding: 1px 6px; font-size: 8px;">OFF</button>
                         </div>
-                        <canvas id="spectrogram" width="400" height="120" class="scope-canvas"></canvas>
-                        <div id="specAxis" style="display: flex; justify-content: space-between; font-size: 7px; opacity: 0.5; margin-top: 1px; font-family: monospace;">
+                        <canvas id="spectrogram" width="400" height="120" class="scope-canvas" style="display: none;"></canvas>
+                        <div id="specAxis" style="display: none; justify-content: space-between; font-size: 7px; opacity: 0.5; margin-top: 1px; font-family: monospace;">
                             <span>20 Hz</span>
                             <span>16 kHz</span>
                         </div>
@@ -377,7 +377,7 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     let isBuffering = true;
 
                     // Spectrogram state
-                    let specActive = true;
+                    let specActive = false;
                     let splitterNode = null;
                     let analyserL = null;
                     let analyserR = null;

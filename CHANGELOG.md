@@ -1,5 +1,11 @@
 # Change Log
 
+## [1.4.2]
+
+- Add ramp LFO and fix sincos LFO and tremolozer
+- Allow self connections (for feedback)
+- Hide spectrogram by default in simulator
+
 ## [1.4.1]
 
 - Improved error handling
