@@ -285,14 +285,8 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
         if (!fromPort || !toPort) {
             return { valid: false, error: 'Port not found' };
         }
-
-        // Rule 1: Prevent self-loops
-        if (from.blockId === to.blockId) {
-            return {
-                valid: false,
-                error: `Cannot connect a block to itself (${fromMetadata.name})`
-            };
-        }
+        // Rule 1: Self-loops are natively supported by the GraphCompiler 
+        // and FV-1 DSP, so no restrictive checking is needed here.
 
         // Rule 2: Check port type compatibility
         if (fromPort.type !== toPort.type) {

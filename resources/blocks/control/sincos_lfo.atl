@@ -5,7 +5,7 @@
   "category": "Control",
   "description": "Sine and cosine LFO generator with adjustable rate and width.",
   "color": "#f2b824",
-  "width": 180,
+  "labelTemplate": "${param.lfoSel == 'SIN0' ? 'SIN0' : 'SIN1'}",
   "inputs": [
     {
       "id": "speed",
@@ -37,8 +37,8 @@
       "type": "select",
       "default": "SIN0",
       "options": [
-        { "value": "SIN0", "label": "LFO 0" },
-        { "value": "SIN1", "label": "LFO 1" }
+        { "value": "SIN0", "label": "SIN0" },
+        { "value": "SIN1", "label": "SIN1" }
       ],
       "description": "Which LFO oscillator to use (0 or 1)."
     },
@@ -77,39 +77,39 @@
   ]
 }
 ---
+@if param.lfoSel == 'SIN0'
+@equals lfoNum SIN0
+@equals lfoRateReg SIN0_RATE
+@equals lfoRangeReg SIN0_RANGE
+@equals lfoCos COS0
+@else
+@equals lfoNum SIN1
+@equals lfoRateReg SIN1_RATE
+@equals lfoRangeReg SIN1_RANGE
+@equals lfoCos COS1
+@endif
+
 ; Sin/Cos LFO generator
 @section init
-@if param.lfoSel == 'SIN0'
-wlds SIN0, ${param.speed}, ${param.width} * 32767
-@else
-wlds SIN1, ${param.speed}, ${param.width} * 32767
-@endif
+wlds ${lfoNum}, ${param.speed}, ${param.width} * 32767
 
 @section main
 
 ; Speed modulation (0 to 20 Hz -> 0 to 160 int)
 @if pinConnected(speed)
 rdax ${input.speed}, 160.0 / 512.0
-@if param.lfoSel == 'SIN0'
-wrax SIN0_RATE, 0.0
-@else
-wrax SIN1_RATE, 0.0
-@endif
+wrax ${lfoRateReg}, 0.0
 @endif
 
 ; Width modulation (0 to 1.0 fullswing)
 @if pinConnected(width)
 rdax ${input.width}, 1.0
-@if param.lfoSel == 'SIN0'
-wrax SIN0_RANGE, 0.0
-@else
-wrax SIN1_RANGE, 0.0
-@endif
+wrax ${lfoRangeReg}, 0.0
 @endif
 
 ; Sine output
 @if pinConnected(sine)
-cho rdal, ${param.lfoSel}
+cho rdal, ${lfoNum}
 @if param.outputRange == 'unipolar'
 sof 0.5, 0.5
 @endif
@@ -118,11 +118,7 @@ wrax ${output.sine}, 0.0
 
 ; Cosine output
 @if pinConnected(cosine)
-@if param.lfoSel == 'SIN0'
-cho rdal, COS0
-@else
-cho rdal, COS1
-@endif
+cho rdal, ${lfoCos}
 @if param.outputRange == 'unipolar'
 sof 0.5, 0.5
 @endif

@@ -28,9 +28,10 @@
       "id": "depth",
       "name": "Depth",
       "type": "number",
-      "min": 0.5,
-      "max": 0.999,
-      "default": 1
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.5,
+      "step": 0.01
     }
   ],
   "color": "#f2f224"
