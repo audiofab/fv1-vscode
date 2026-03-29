@@ -5,7 +5,7 @@
   "category": "Control",
   "description": "Ramp LFO generator with adjustable rate, amplitude, slope, and dual outputs (Ramp / Triangle).",
   "color": "#f2b824",
-  "labelTemplate": "${param.lfoSel == 'RMP0' ? 'RMP0' : 'RMP1'}",
+  "labelTemplate": "${param.lfoSel == 0 ? 'RMP0' : 'RMP1'}",
   "inputs": [
     {
       "id": "speed",
@@ -35,10 +35,10 @@
       "id": "lfoSel",
       "name": "LFO Selection",
       "type": "select",
-      "default": "RMP0",
+      "default": 0,
       "options": [
-        { "value": "RMP0", "label": "RMP0" },
-        { "value": "RMP1", "label": "RMP1" }
+        { "value": 0, "label": "RMP0" },
+        { "value": 1, "label": "RMP1" }
       ],
       "description": "Which LFO oscillator to use (0 or 1)."
     },
@@ -68,7 +68,7 @@
   ]
 }
 ---
-@if param.lfoSel == 'RMP0'
+@if ${param.lfoSel} == 0
 @equals lfoNum RMP0
 @equals lfoRateReg RMP0_RATE
 @else

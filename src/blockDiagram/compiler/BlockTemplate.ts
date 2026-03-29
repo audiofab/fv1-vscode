@@ -25,7 +25,6 @@ export class BlockTemplate {
         const inputs = this.resolveInputs(block, ctx);
         const outputs = this.resolveOutputs(block, ctx);
         const internalRegs = this.resolveInternalRegisters(block, ctx);
-        const memory = this.resolveMemoryObjects(block, ctx);
 
         const templateLines = this.definition.template.split('\n');
         // Pre-process lines to remove empty lines and trim
@@ -56,9 +55,25 @@ export class BlockTemplate {
                         }
                         ctx.setVariable(name, value);
                     }
+                } else if (line.startsWith('@')) {
+                    // Handle core macros that might define variables needed for memory sizing.
+                    // Only process calculation/variable macros in the pre-pass.
+                    const macro = line.substring(1).split(/[,\s]+/)[0].toLowerCase();
+                    const calculationMacros = [
+                        'equals', 'multiplydouble', 'multiplyint', 'dividedouble',
+                        'plusdouble', 'minusdouble', 'equalsbool'
+                    ];
+                    if (calculationMacros.includes(macro)) {
+                        // Pass a dummy IR array to avoid duplicate instructions during the pre-pass.
+                        this.expandMacro(line, currentSection, [], ctx, block);
+                    }
                 }
             }
         }
+
+        // Memory must be resolved AFTER the header pre-pass to allow constants/EQU/equals
+        // defined in the header to be used for memory sizes.
+        const memory = this.resolveMemoryObjects(block, ctx);
 
         // Reset for main pass
         currentSection = 'main';
@@ -253,7 +268,7 @@ export class BlockTemplate {
      */
     resolveLabel(parameters: Record<string, any>, ctx?: CodeGenContext, blockId?: string): string | null {
         const template = (this.definition as any).labelTemplate;
-        if (!template) return null;
+        if (template === undefined) return null;
 
         const params = this.evaluateParametersFromMap(parameters, ctx, true);
 
@@ -390,44 +405,31 @@ export class BlockTemplate {
                 varName = varName.substring(2, varName.length - 1);
             }
             const op = eqMatch[2];
-            const value = eqMatch[3].trim().replace(/['"]/g, '');
-            let currentVal: any = varName;
+            const rhsRaw = eqMatch[3].trim().replace(/['"]/g, '');
 
-            // Check if varName is a direct number first before looking up parameters
-            let numCurrent = parseFloat(varName);
+            // resolveValue checks: block params → local ctx vars → direct ctx vars → numeric literal
+            // This correctly handles macro-computed variables (e.g. from @minusDouble, @divideDouble)
+            // that the old inline block.parameters-only lookup missed.
+            const lhsResolved = this.resolveValue(varName, block, ctx);
+            const rhsResolved = this.resolveValue(rhsRaw, block, ctx);
+            const numLhs = typeof lhsResolved === 'number' ? lhsResolved : parseFloat(String(lhsResolved));
+            const numRhs = typeof rhsResolved === 'number' ? rhsResolved : parseFloat(String(rhsResolved));
 
-            // If it's literally a pure number text like "0.2" (and not a param string like "0xFC" or "invert")
-            if (isNaN(numCurrent) || isNaN(Number(varName))) {
-                // Must be a parameter/variable lookup
-                const cleanVarName = varName.startsWith('param.') ? varName.substring(6) :
-                    varName.startsWith('input.') ? varName.substring(6) :
-                        varName.startsWith('output.') ? varName.substring(7) : varName;
-
-                const foundParamDef = this.definition.parameters?.find(p => p.id === cleanVarName);
-                const foundParam = block.parameters[cleanVarName] ?? foundParamDef?.default;
-                if (foundParam !== undefined) {
-                    currentVal = foundParam;
-                    numCurrent = parseFloat(currentVal?.toString() || '');
-                }
+            // Numeric comparison when both sides parse as numbers
+            if (!isNaN(numLhs) && !isNaN(numRhs)) {
+                if (op === '==') return numLhs === numRhs;
+                if (op === '!=') return numLhs !== numRhs;
+                if (op === '>=') return numLhs >= numRhs;
+                if (op === '<=') return numLhs <= numRhs;
+                if (op === '>') return numLhs > numRhs;
+                if (op === '<') return numLhs < numRhs;
             }
 
-            const numValue = parseFloat(value);
-
-            // Attempt strict numeric comparison if both sides are valid numbers
-            if (!isNaN(numCurrent) && !isNaN(numValue)) {
-                if (op === '==') return numCurrent === numValue;
-                if (op === '!=') return numCurrent !== numValue;
-                if (op === '>=') return numCurrent >= numValue;
-                if (op === '<=') return numCurrent <= numValue;
-                if (op === '>') return numCurrent > numValue;
-                if (op === '<') return numCurrent < numValue;
-            }
-
-            // Fallback to strict string comparison
-            const strCurrent = currentVal?.toString() || '';
-            const isMatch = strCurrent === value;
-            if (op === '==') return isMatch;
-            if (op === '!=') return !isMatch;
+            // Fallback: strict string comparison (for enum/select params)
+            const strLhs = String(lhsResolved);
+            const strRhs = String(rhsResolved);
+            if (op === '==') return strLhs === strRhs;
+            if (op === '!=') return strLhs !== strRhs;
             return false;
         }
 
@@ -497,6 +499,153 @@ export class BlockTemplate {
                 // @equalsBool var, val
                 ctx.setVariable(args[0], args[1]);
                 break;
+            case 'cv': {
+                // @cv portId
+                // Reads a control input, using the port's associated parameter as the range/default.
+                // - Unconnected: SOF 0.0, equName  → ACC = paramValue (constant)
+                // - Connected:   CLR; SOF 0.0, equName; MULX reg  → ACC ∈ [0..paramValue]
+                //   (CLR is omitted if the previous instruction already set ACC = 0)
+                // - Connected + zero-bypassed: 5-instruction bypass adapted for range scaling.
+                //   RDAX reads pot scaled by paramValue directly (no separate MULX needed).
+                //   When pot < threshold: loads zeroValScaled (pot's zeroValue * paramValue).
+                const portId = args[0];
+                if (!portId) {
+                    ctx.addError(`@cv requires a port ID argument`);
+                    break;
+                }
+
+                // Get the associated parameter from the input definition
+                const inputDef = this.definition.inputs.find(i => i.id === portId);
+                const paramId = inputDef?.parameter;
+                if (!paramId) {
+                    ctx.addError(`@cv: input port '${portId}' has no 'parameter' field defined in the block JSON`);
+                    break;
+                }
+
+                // Evaluate parameters (with conversions applied)
+                const cvParams = this.evaluateParameters(block, ctx);
+                const paramValue = cvParams[paramId];
+                if (paramValue === undefined || paramValue === null) {
+                    ctx.addError(`@cv: parameter '${paramId}' not found on block`);
+                    break;
+                }
+
+                // EQU name for the range constant
+                const shortId = ctx.getShortId(block.id);
+                const equName = `cv_${shortId}_${portId}`;
+
+                // Push EQU to IR header section only (idempotent), NOT to equDeclarations.
+                // Using registerHeaderEqu avoids duplicating the EQU in the init/Constants block.
+                if (!ctx.hasHeaderEqu(equName)) {
+                    ctx.pushIR({ op: 'EQU', args: [equName, paramValue.toString()], section: 'header' });
+                    ctx.registerHeaderEqu(equName);
+                }
+
+                const reg = ctx.getInputRegister(block.id, portId);
+                const isZeroBypassed = ctx.isInputZeroBypassed(block.id, portId);
+
+                if (reg) {
+                    if (isZeroBypassed) {
+                        // 5-instruction bypass block, adapted for range scaling.
+                        // Key insight: RDAX reg, equName reads pot and scales by paramValue in one instruction,
+                        // so the bypass fallback must also be pre-scaled: zeroVal * paramValue.
+                        const zeroVal = ctx.getInputZeroValue(block.id, portId);
+                        const zeroValScaled = zeroVal * parseFloat(paramValue.toString());
+                        ir.push({ op: 'RDAX', args: [reg, equName], section, comment: `CV: ${paramId} * pot` });
+                        ir.push({ op: 'SOF', args: ['1.0', '-0.02'], section, comment: 'Subtract bypass threshold' });
+                        ir.push({ op: 'SKP', args: ['GEZ', '1'], section, comment: 'Skip if pot >= threshold' });
+                        ir.push({ op: 'SOF', args: ['0.0', `${(zeroValScaled - (-0.02)).toFixed(6)}`], section, comment: `Zero fallback: ${zeroVal} * ${paramId}` });
+                        ir.push({ op: 'SOF', args: ['1.0', '0.02'], section, comment: 'Re-add threshold' });
+                    } else {
+                        // Standard connected: CLR (if needed), load range, scale by pot.
+                        // Check if ACC is already 0 from the previous instruction so we can skip the CLR.
+                        const prevNode = [...ir].reverse().find(n => n.op !== ';');
+                        const prevClearsAcc = prevNode && (
+                            prevNode.op === 'CLR' ||
+                            (prevNode.op === 'WRAX' && (prevNode.args[1] === '0.0' || prevNode.args[1] === '0' || parseFloat(prevNode.args[1]) === 0)) ||
+                            (prevNode.op === 'WRA'  && (prevNode.args[1] === '0.0' || prevNode.args[1] === '0' || parseFloat(prevNode.args[1]) === 0)) ||
+                            (prevNode.op === 'WRHX' && (prevNode.args[1] === '0.0' || prevNode.args[1] === '0' || parseFloat(prevNode.args[1]) === 0))
+                        );
+                        if (!prevClearsAcc) {
+                            ir.push({ op: 'CLR', args: [], section });
+                        }
+                        ir.push({ op: 'SOF', args: ['0.0', equName], section, comment: `CV range: ${paramId}` });
+                        ir.push({ op: 'MULX', args: [reg], section });
+                    }
+                } else {
+                    // Unconnected: use parameter value as a constant
+                    ir.push({ op: 'SOF', args: ['0.0', equName], section, comment: `CV default: ${paramId}` });
+                }
+                break;
+            }
+            case 'mulcv': {
+                // @mulcv portId
+                // Scale the current ACC by the CV value without clearing first.
+                // Assumes ACC already contains a signal to be modulated.
+                // - Unconnected: SOF paramValue, 0.0  → ACC = ACC * paramValue  (1 instruction)
+                // - Connected:   SOF paramValue, 0.0; MULX reg  → ACC = ACC * paramValue * pot  (2 instructions)
+                // - Connected + zero-bypassed: same bypass pattern as @cv but applied to existing ACC
+                const mulcvPortId = args[0];
+                if (!mulcvPortId) {
+                    ctx.addError(`@mulcv requires a port ID argument`);
+                    break;
+                }
+
+                const mulcvInputDef = this.definition.inputs.find(i => i.id === mulcvPortId);
+                const mulcvParamId = mulcvInputDef?.parameter;
+                if (!mulcvParamId) {
+                    ctx.addError(`@mulcv: input port '${mulcvPortId}' has no 'parameter' field defined in the block JSON`);
+                    break;
+                }
+
+                const mulcvParams = this.evaluateParameters(block, ctx);
+                const mulcvParamValue = mulcvParams[mulcvParamId];
+                if (mulcvParamValue === undefined || mulcvParamValue === null) {
+                    ctx.addError(`@mulcv: parameter '${mulcvParamId}' not found on block`);
+                    break;
+                }
+
+                const mulcvShortId = ctx.getShortId(block.id);
+                const mulcvEquName = `cv_${mulcvShortId}_${mulcvPortId}`;
+
+                // Shared EQU registration with @cv (idempotent)
+                if (!ctx.hasHeaderEqu(mulcvEquName)) {
+                    ctx.pushIR({ op: 'EQU', args: [mulcvEquName, mulcvParamValue.toString()], section: 'header' });
+                    ctx.registerHeaderEqu(mulcvEquName);
+                }
+
+                const mulcvReg = ctx.getInputRegister(block.id, mulcvPortId);
+                const mulcvZeroBypassed = ctx.isInputZeroBypassed(block.id, mulcvPortId);
+
+                if (mulcvReg) {
+                    if (mulcvZeroBypassed) {
+                        // Zero-bypass: we can't branch ACC to two paths without a temp register,
+                        // but the bypass threshold approach still works — we write AC to a scratch,
+                        // do the bypass check on the pot, then MULX both components.
+                        // Actually: just apply the same RDAX-based bypass but we need ACC beforehand.
+                        // Solution: save ACC to a local scratch, do bypass, MULX scratch.
+                        const scratch = ctx.getScratchRegister();
+                        const mulcvZeroVal = ctx.getInputZeroValue(block.id, mulcvPortId);
+                        const mulcvZeroValScaled = mulcvZeroVal * parseFloat(mulcvParamValue.toString());
+                        ir.push({ op: 'WRAX', args: [scratch, '0.0'], section, comment: 'Save ACC for @mulcv bypass' });
+                        ir.push({ op: 'RDAX', args: [mulcvReg, mulcvEquName], section, comment: `@mulcv: ${mulcvParamId} * pot` });
+                        ir.push({ op: 'SOF', args: ['1.0', '-0.02'], section, comment: 'Subtract bypass threshold' });
+                        ir.push({ op: 'SKP', args: ['GEZ', '1'], section, comment: 'Skip if pot >= threshold' });
+                        ir.push({ op: 'SOF', args: ['0.0', `${(mulcvZeroValScaled - (-0.02)).toFixed(6)}`], section, comment: `Zero fallback: ${mulcvZeroVal} * ${mulcvParamId}` });
+                        ir.push({ op: 'SOF', args: ['1.0', '0.02'], section, comment: 'Re-add threshold' });
+                        ir.push({ op: 'MULX', args: [scratch], section, comment: 'Scale saved signal by CV' });
+                    } else {
+                        // Connected: scale ACC by paramValue, then scale by pot
+                        ir.push({ op: 'SOF', args: [mulcvEquName, '0.0'], section, comment: `@mulcv: scale by ${mulcvParamId}` });
+                        ir.push({ op: 'MULX', args: [mulcvReg], section, comment: 'Scale by pot' });
+                    }
+                } else {
+                    // Unconnected: scale ACC by the parameter constant
+                    ir.push({ op: 'SOF', args: [mulcvEquName, '0.0'], section, comment: `@mulcv default: ${mulcvParamId}` });
+                }
+                break;
+            }
+
             case 'readchorustap':
                 // @readChorusTap lfoSel flags center length offset
                 const lfoIdx = args[0] === '0' ? 'SIN0' : 'SIN1';
@@ -549,6 +698,8 @@ export class BlockTemplate {
                 return (1.0 - Math.exp(-2.0 * Math.PI * val / Fs)).toFixed(6);
             case 'SVFFREQ':
                 return (2.0 * Math.sin(Math.PI * val / Fs)).toFixed(6);
+            case 'SVFDAMP_RANGE':
+                return (1.0 / val - 2.0).toFixed(6);
             case 'SINLFOFREQ':
             case 'HZ_TO_LFO_RATE':
                 return Math.round((1 << 18) * Math.PI * val / Fs);
@@ -559,6 +710,10 @@ export class BlockTemplate {
                 return Math.round((val * Fs / 1000));
             case 'MS_TO_LFO_RANGE':
                 return Math.round((val * Fs / 1000) * 32767 / 16385);
+            case 'SEMITONES_TO_RATE':
+                return ((Math.pow(2, val / 12) - 1.0) * 16384).toFixed(6);
+            case 'HZ_TO_HILBERT_SHIFT':
+                return (2 * Math.PI * val / Fs).toFixed(6);
             default:
                 return typeof val === 'number' ? val.toFixed(6) : val;
         }

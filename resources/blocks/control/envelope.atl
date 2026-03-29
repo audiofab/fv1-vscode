@@ -1,0 +1,127 @@
+---
+{
+  "type": "control.envelope",
+  "category": "Control",
+  "name": "Envelope Follower",
+  "description": "Multi-mode envelope follower based on the SpinCAD 'Envelope' block algorithm. Outputs both a Single Slope (average) and a Dual Slope (peak with decay) follower.",
+  "labelTemplate": "",
+  "color": "#f2b824",
+  "inputs": [
+    {
+      "id": "audio",
+      "name": "Audio Input",
+      "type": "audio",
+      "required": true
+    },
+    {
+      "id": "sens",
+      "name": "Sensitivity",
+      "type": "control",
+      "required": false,
+      "parameter": "gain"
+    }
+  ],
+  "outputs": [
+    {
+      "id": "single",
+      "name": "Single Slope",
+      "type": "control"
+    },
+    {
+      "id": "dual",
+      "name": "Dual Slope",
+      "type": "control"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "gain",
+      "name": "Gain",
+      "type": "number",
+      "default": 12.0,
+      "min": -6.0,
+      "max": 48.0,
+      "step": 0.5,
+      "conversion": "DBLEVEL",
+      "description": "Pre-gain in dB applied to the audio signal before detection."
+    },
+    {
+      "id": "attack",
+      "name": "Attack Rate",
+      "type": "number",
+      "default": 0.78,
+      "min": 0.1,
+      "max": 20.0,
+      "step": 0.01,
+      "conversion": "LOGFREQ",
+      "description": "Corner frequency for the Single Slope (average) follower. 0.78 Hz ≈ 0.00015 coefficient."
+    },
+    {
+      "id": "decay",
+      "name": "Decay Rate",
+      "type": "number",
+      "default": 0.52,
+      "min": 0.1,
+      "max": 10.0,
+      "step": 0.01,
+      "conversion": "LOGFREQ",
+      "description": "Release frequency for the Dual Slope (peak) follower. 0.52 Hz ≈ 0.0001 coefficient."
+    }
+  ],
+  "registers": [
+    "AVG",
+    "LAVG",
+    "TEMP",
+    "gainReg"
+  ]
+}
+---
+; Envelope Follower
+; Based on EnvelopeControlCADBlock.java
+
+@section main
+@if pinConnected(audio)
+
+; --- Pre-Detection Gain / Sensitivity ---
+@if pinConnected(sens)
+@cv sens
+wrax ${reg.gainReg}, 0.0        ; Load linearized gain + pot into register
+@else
+sof 0.0, ${param.gain}
+wrax ${reg.gainReg}, 0.0        ; Use parameter gain as fallback
+@endif
+
+rdax ${input.audio}, 1.0        ; Read input audio signal
+mulx ${reg.gainReg}             ; ACC = audio * linearizedGain
+absa                            ; Full-wave rectify
+
+; --- Single Slope (Average Follower) ---
+; Computes a running average of the magnitude using a first-order low-pass filter.
+rdfx ${reg.AVG}, ${param.attack}
+wrax ${reg.AVG}, 0.0            ; Clear ACC to process Dual Slope next
+
+; --- Dual Slope (Peak Follower) ---
+; Follows the peak of the average signal with an exponential decay.
+; 1. Compute decayed peak: TEMP = LAVG * (1 - decay)
+rdax ${reg.LAVG}, 1.0
+sof -${param.decay}, 0.0        ; Apply coefficient as multiplier (-decay)
+rdax ${reg.LAVG}, 1.0           ; ACC = LAVG - decay*LAVG
+wrax ${reg.TEMP}, 0.0           ; Store decayed peak, clear ACC
+
+; 2. Update LAVG: LAVG = max(AVG, decayed_peak)
+rdax ${reg.AVG}, 1.0
+maxx ${reg.TEMP}, 1.0
+wrax ${reg.LAVG}, 0.0           ; Update LAVG with the maximum of current and decayed
+
+; --- Output Routing ---
+@if pinConnected(single)
+rdax ${reg.AVG}, 1.0
+wrax ${output.single}, 0.0
+@endif
+
+@if pinConnected(dual)
+rdax ${reg.LAVG}, 1.0
+wrax ${output.dual}, 0.0
+@endif
+
+@endif

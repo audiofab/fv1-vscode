@@ -102,12 +102,21 @@ If you exceed any limit, you'll see a warning in the Problems panel.
 Code Optimization
 ------------------
 
-The extension automatically optimizes generated code:
+The extension automatically optimizes generated code at multiple levels of aggressiveness:
 
-- **Dead Code Elimination**: Unused outputs don't generate code
-- **Accumulator Forwarding**: Redundant register operations are collapsed
-- **Move Pruning**: Unnecessary register moves are trimmed
-- **Auto-Clearing**: Proper register cleanup between processing stages
+**Level 0 (None)**: All blocks remain isolated with no cross-block optimizations
+
+**Level 1 (Standard)**: 
+   - Dead Code Elimination: Unused outputs don't generate code
+   - Accumulator Forwarding: Redundant register operations are collapsed
+   - Register Pruning: Unnecessary register moves are trimmed
+
+**Level 2 (Aggressive)**:
+   - Includes all Level 1 optimizations
+   - Dead Store Elimination: Removes ``wrax`` instructions whose registers are never read
+   - Section Flattening: Collapses Input/Main/Output sections into optimized topological order
+
+Configure the optimization level with the ``fv1.optimizationLevel`` setting (0, 1, or 2). Higher levels produce smaller code but may be harder to debug.
 
 This means your diagrams typically generate highly efficient code that uses fewer instruction slots than manual assembly.
 

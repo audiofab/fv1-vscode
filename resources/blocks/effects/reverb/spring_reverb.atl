@@ -8,9 +8,9 @@
   "color": "#7100FC",
   "inputs": [
     { "id": "in", "name": "Input", "type": "audio" },
-    { "id": "toneCV", "name": "Tone", "type": "control" },
-    { "id": "reverbTimeCV", "name": "Reverb Time", "type": "control" },
-    { "id": "mixCV", "name": "Mix", "type": "control" }
+    { "id": "toneCV", "name": "Tone", "type": "control", "required": false },
+    { "id": "reverbTimeCV", "name": "Reverb Time", "type": "control", "required": false },
+    { "id": "mixCV", "name": "Mix", "type": "control", "required": false, "parameter": "mix" }
   ],
   "outputs": [
     { "id": "out", "name": "Output", "type": "audio" }
@@ -353,11 +353,7 @@ wrax ${reg.spring}, 0.0
 ; Mix dry and wet signals
 rdax ${reg.mono}, -1.0
 rdax ${reg.spring}, 1.0
-@if pinConnected(mixCV)
-mulx ${input.mixCV} ; Apply mix from CV input
-@else
-sof ${mix}, 0.0 ; Apply mix from parameter
-@endif
+@mulcv mixCV
 rdax ${reg.mono}, 1.0
 wrax ${output.out}, 0.0
 

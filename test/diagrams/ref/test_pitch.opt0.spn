@@ -1,0 +1,156 @@
+;================================================================================
+; test_pitch_modern
+; Tests all modernized pitch blocks (Octave, Pitch Shift, Pitch Offset) in a single diagram.
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Block Declarations
+;--------------------------------------------------------------------------------
+equ	cv_b3_pitch_ctrl	8164.263148
+equ	cv_b4_shift_ctrl	0.5
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Register Aliases
+equ	adc_out	REG0
+equ	octave_up_down_octave_up	REG1
+equ	pitch_shift_out	REG2
+equ	pitch_offset_out	REG3
+equ	octave_up_down_octave_down	REG4
+equ	pitch_offset_local_sigs	REG5
+equ	pitch_offset_local_sigc	REG6
+equ	pitch_offset_local_lpf	REG7
+equ	pitch_offset_local_hpf	REG8
+equ	pitch_offset_local_sigfil	REG9
+equ	pitch_offset_local_sinosc	REG10
+equ	pitch_offset_local_cososc	REG11
+equ	pitch_offset_local_temp	REG12
+equ	pitch_offset_local_shift_amount	REG13
+equ	pitch_offset_local_potfil	REG14
+
+; Memory Allocations
+mem	mem0_delayl	4096
+mem	mem1_temp	1
+mem	mem2_buffer	4096
+mem	mem3_temp	1
+mem	mem4_ap1	2
+mem	mem5_ap2	2
+mem	mem6_ap3	2
+mem	mem7_ap4	2
+mem	mem8_ap5	2
+mem	mem9_ap6	2
+
+;	Octave Up (s = 2; rate = (2-1)*16384 = 16384)
+;	Octave Down (s = 0.5; rate = (0.5-1)*16384 = -8192)
+skp	run, done_init
+wldr	0, -8192, 4096
+wldr	1, 16384, 4096
+DONE_INIT:
+;	Initialize Ramp LFO
+skp	run, done_init
+wldr	0, 8164.263148, 4096
+DONE_INIT:
+;	Initialize oscillator (cosine = 1.0)
+skp	run, done_init
+or	$7fffff
+wrax	pitch_offset_local_cososc, 0.0
+DONE_INIT:
+
+; Input Section
+;--------------------------------------------------------------------------------
+rdax	ADCL, 1
+wrax	adc_out, 0
+
+; Main Program
+;--------------------------------------------------------------------------------
+rdax	adc_out, 1.0
+wra	mem0_delayl, 0.0
+;	Perform Octave Up (RMP1)
+cho	rda, RMP1, REG | COMPC, mem0_delayl
+cho	rda, RMP1, 0, mem0_delayl + 1
+wra	mem1_temp, 0.0
+cho	rda, RMP1, RPTR2 | COMPC, mem0_delayl
+cho	rda, RMP1, RPTR2, mem0_delayl + 1
+cho	sof, RMP1, NA | COMPC, 0.0
+cho	rda, RMP1, NA, mem1_temp
+wrax	octave_up_down_octave_up, 0.0
+;	Write input to delay buffer
+rdax	octave_up_down_octave_up, 1.0
+wra	mem2_buffer, 0.0
+;	Update pitch shift rate via CV
+sof	0.0, cv_b3_pitch_ctrl	; CV default: semitones
+wrax	RMP0_RATE, 0.0
+;	Perform pitch shift (dual-tap for crossfading)
+cho	rda, RMP0, REG | COMPC, mem2_buffer
+cho	rda, RMP0, 0, mem2_buffer + 1
+wra	mem3_temp, 0.0
+cho	rda, RMP0, RPTR2 | COMPC, mem2_buffer
+cho	rda, RMP0, RPTR2, mem2_buffer + 1
+cho	sof, RMP0, NA | COMPC, 0.0
+cho	rda, RMP0, NA, mem3_temp
+wrax	pitch_shift_out, 0.0
+;	1. Process CV and smoothing
+sof	0.0, cv_b4_shift_ctrl	; CV default: shiftValue
+;	ACC = Shift position (0..1, defaults to 0.5)
+rdfx	pitch_offset_local_potfil, 0.001
+wrlx	pitch_offset_local_potfil, -1.0
+;	Map [0..1] to [Range/2 .. -Range/2]
+;	Bipolar: (0.5 - shiftValue) * Range
+sof	-1.0, 0.5
+sof	0.115049, 0.0	; Substitutes converted HZ_TO_HILBERT_SHIFT value
+wrax	pitch_offset_local_shift_amount, 0.0
+;	2. Audio input filtering (300Hz HPF, 3kHz LPF)
+rdax	pitch_shift_out, 1.0
+rdfx	pitch_offset_local_hpf, 0.04
+wrhx	pitch_offset_local_hpf, -1.0
+rdfx	pitch_offset_local_lpf, 0.4
+wrlx	pitch_offset_local_lpf, -1.0
+wrax	pitch_offset_local_sigfil, 0.0039	; Attenuate to avoid clipping in Hilbert chain
+;	3. All-pass phase shifter bank (Sine path)
+rda	mem4_ap1 + 1, 0.995	; 44Hz
+wrap	mem4_ap1, -0.995
+rda	mem5_ap2 + 1, 0.937	; 488Hz
+wrap	mem5_ap2, -0.937
+rda	mem6_ap3 + 1, 0.61	; 3531Hz
+wrap	mem6_ap3, -0.61
+wrax	pitch_offset_local_sigs, 0.0
+;	4. All-pass phase shifter bank (Cosine path)
+rdax	pitch_offset_local_sigfil, 0.0039	; Match Sine path attenuation
+rda	mem7_ap4 + 1, 0.978	; 178Hz
+wrap	mem7_ap4, -0.978
+rda	mem8_ap5 + 1, 0.84	; 1289Hz
+wrap	mem8_ap5, -0.84
+rda	mem9_ap6 + 1, 0.0
+wrap	mem9_ap6, 0.0
+wrax	pitch_offset_local_sigc, 0.0
+;	5. Update Oscillator (Quadrature oscillator)
+rdax	pitch_offset_local_cososc, 1.0
+mulx	pitch_offset_local_shift_amount
+rdax	pitch_offset_local_sinosc, 1.0
+wrax	pitch_offset_local_sinosc, -1.0
+mulx	pitch_offset_local_shift_amount
+rdax	pitch_offset_local_cososc, 1.0
+wrax	pitch_offset_local_cososc, 0.0
+;	6. Modulation and Summing (Hilbert - SpinCAD pattern)
+;	Sum = -2 * (in_c * cos + in_s * sin) -> Frequency DOWN if rate > 0
+rdax	pitch_offset_local_sigc, -2.0
+mulx	pitch_offset_local_cososc
+wrax	pitch_offset_local_temp, 0.0
+rdax	pitch_offset_local_sigs, -2.0
+mulx	pitch_offset_local_sinosc
+rdax	pitch_offset_local_temp, 1.0
+;	Scale back up to recovery signal level
+sof	-2.0, 0.0
+sof	-2.0, 0.0
+sof	-2.0, 0.0
+sof	-2.0, 0.0
+sof	-2.0, 0.0
+sof	-2.0, 0.0
+sof	-2.0, 0.0
+wrax	pitch_offset_out, 0.0
+
+; Output Section
+;--------------------------------------------------------------------------------
+;	DAC Output
+rdax	pitch_offset_out, 1.0
+wrax	DACL, 0

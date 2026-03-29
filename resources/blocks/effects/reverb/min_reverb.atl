@@ -24,7 +24,8 @@
       "id": "mix_ctrl",
       "name": "Mix",
       "type": "control",
-      "required": false
+      "required": false,
+      "parameter": "mix"
     }
   ],
   "outputs": [
@@ -155,11 +156,7 @@ wra ${mem.del2}, 1.99
 ; Reverb output (wet) is in ACC, but it is at 0.25 scale.
 ; To have a balanced mix, we mix wet against 0.25 * dry.
 rdax ${reg.dry}, -0.25
-@if pinConnected(mix_ctrl)
-mulx ${input.mix_ctrl}
-@else
-sof ${mix}, 0.0
-@endif
+@mulcv mix_ctrl
 rdax ${reg.dry}, 0.25
 
 wrax ${output.output}, 0.0

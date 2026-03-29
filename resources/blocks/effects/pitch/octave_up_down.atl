@@ -1,0 +1,80 @@
+---
+{
+  "type": "effects.pitch.octave_up_down",
+  "name": "Octave Up & Down",
+  "category": "Effects",
+  "subcategory": "Pitch",
+  "description": "Fixed pitch shifter with both Octave Up and Octave Down outputs.",
+  "color": "#fcba03",
+  "inputs": [
+    {
+      "id": "in",
+      "name": "Input",
+      "type": "audio",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "id": "octave_down",
+      "name": "Octave Down",
+      "type": "audio"
+    },
+    {
+      "id": "octave_up",
+      "name": "Octave Up",
+      "type": "audio"
+    }
+  ],
+  "memories": [
+    {
+      "id": "delayl",
+      "size": "bufferSize"
+    },
+    {
+      "id": "temp",
+      "size": 1
+    }
+  ],
+  "registers": [],
+  "parameters": []
+}
+---
+@section header
+@equals bufferSize 4096
+
+@section init
+; Octave Up (s = 2; rate = (2-1)*16384 = 16384)
+; Octave Down (s = 0.5; rate = (0.5-1)*16384 = -8192)
+skp run, done_init
+wldr 0, -8192, ${bufferSize}
+wldr 1, 16384, ${bufferSize}
+done_init:
+
+@section main
+rdax ${input.in}, 1.0
+wra ${mem.delayl}, 0.0
+
+@if pinConnected(octave_down)
+; Perform Octave Down (RMP0)
+cho rda, RMP0, REG | COMPC, ${mem.delayl}
+cho rda, RMP0, 0, ${mem.delayl} + 1
+wra ${mem.temp}, 0.0
+cho rda, RMP0, RPTR2 | COMPC, ${mem.delayl}
+cho rda, RMP0, RPTR2, ${mem.delayl} + 1
+cho sof, RMP0, NA | COMPC, 0.0
+cho rda, RMP0, NA, ${mem.temp}
+wrax ${output.octave_down}, 0.0
+@endif
+
+@if pinConnected(octave_up)
+; Perform Octave Up (RMP1)
+cho rda, RMP1, REG | COMPC, ${mem.delayl}
+cho rda, RMP1, 0, ${mem.delayl} + 1
+wra ${mem.temp}, 0.0
+cho rda, RMP1, RPTR2 | COMPC, ${mem.delayl}
+cho rda, RMP1, RPTR2, ${mem.delayl} + 1
+cho sof, RMP1, NA | COMPC, 0.0
+cho rda, RMP1, NA, ${mem.temp}
+wrax ${output.octave_up}, 0.0
+@endif

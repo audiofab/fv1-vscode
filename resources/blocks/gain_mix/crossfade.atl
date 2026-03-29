@@ -24,7 +24,7 @@
   "outputs": [
     {
       "id": "output",
-      "name": "Audio Output",
+      "name": "Output",
       "type": "audio"
     }
   ],

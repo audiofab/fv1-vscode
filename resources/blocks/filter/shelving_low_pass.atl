@@ -1,6 +1,6 @@
 ---
 {
-  "type": "fx.filter.shelving_lpf",
+  "type": "filter.shelving_lpf",
   "name": "Shelving LPF",
   "category": "Filter",
   "description": "Low-pass filter with adjustable shelf depth",

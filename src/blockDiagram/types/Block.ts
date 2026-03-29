@@ -12,6 +12,7 @@ export interface BlockPort {
     name: string;
     type: 'audio' | 'control';
     required?: boolean;
+    parameter?: string;  // For control inputs: the parameter ID that backs this CV (used by @cv macro)
 }
 
 export interface BlockParameter {
@@ -74,12 +75,22 @@ export interface CodeGenContext {
     // Get the register assigned to a block's input port
     getInputRegister(blockId: string, portId: string): string;
 
+    // Check if an input port is connected to a zero-bypass pot
+    isInputZeroBypassed(blockId: string, portId: string): boolean;
+
+    // Get the zeroValue from a connected zero-bypass pot (the fallback value when pot is at zero)
+    getInputZeroValue(blockId: string, portId: string): number;
+
+    // Register an EQU in the IR header section only (not in equDeclarations/init)
+    registerHeaderEqu(name: string): void;
+
+    // Check if an EQU name has been registered in the IR header section
+    hasHeaderEqu(name: string): boolean;
+
     // Allocate a new register for a block's output
     allocateRegister(blockId: string, portId: string): string;
 
-    // Get a scratch/temporary register for intermediate calculations
-    // Scratch registers are allocated from high registers (REG31) down
-    // They are automatically available again after the current block's code generation
+    // Get a temporary scratch register (allocated REG31 downward, reset after each block)
     getScratchRegister(): string;
 
     // Reset scratch register allocation (called after each block's code generation)

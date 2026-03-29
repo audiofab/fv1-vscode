@@ -3,6 +3,12 @@
  * Post-processing optimizations for generated FV-1 assembly code
  */
 
+export enum OptimizationLevel {
+    None = 0,
+    Standard = 1,
+    Aggressive = 2
+}
+
 export interface OptimizationResult {
     code: string[];
     optimizationsApplied: number;
@@ -13,8 +19,12 @@ export class CodeOptimizer {
     /**
      * Apply all optimizations to generated code
      */
-    optimize(code: string[]): OptimizationResult {
-        let optimizedCode = code;
+    optimize(code: string[], level: OptimizationLevel = OptimizationLevel.Aggressive): OptimizationResult {
+        if (level === OptimizationLevel.None) {
+            return { code, optimizationsApplied: 0, details: ['Optimization level 0 (None) selected.'] };
+        }
+
+        let optimizedCode = [...code];
         let totalOptimizations = 0;
         const details: string[] = [];
 
@@ -27,6 +37,7 @@ export class CodeOptimizer {
         }
 
         // Optimization 2: Accumulator forwarding (removes wrax k_0 + rdax k_1 pairs)
+        // This is the primary move-pruning pass (Standard Level 1)
         const beforeForwarding = optimizedCode.length;
         optimizedCode = this.optimizeAccumulatorForwarding(optimizedCode);
         const forwardingCount = beforeForwarding - optimizedCode.length;
@@ -35,7 +46,18 @@ export class CodeOptimizer {
             details.push(`Optimized ${forwardingCount} accumulator forwarding pattern(s)`);
         }
 
-        // Optimization 3: Prune unused registers
+        // Optimization 3: Dead Store Elimination (Aggressive Level 2)
+        if (level >= OptimizationLevel.Aggressive) {
+            const beforeDSE = optimizedCode.length;
+            optimizedCode = this.optimizeDeadStoreElimination(optimizedCode);
+            const dseCount = beforeDSE - optimizedCode.length;
+            if (dseCount > 0) {
+                totalOptimizations += dseCount;
+                details.push(`Eliminated ${dseCount} dead store instruction(s) (Level 2)`);
+            }
+        }
+
+        // Optimization 4: Prune unused registers
         const unusedRegResult = this.optimizeUnusedRegisters(optimizedCode);
         optimizedCode = unusedRegResult.code;
         if (unusedRegResult.applied) {
@@ -175,6 +197,7 @@ export class CodeOptimizer {
                     const nextLine = code[nextInstructionIndex].trim();
 
                     // Check if next instruction is RDAX of the same register with k_1
+                    // Only optimize if they match exactly
                     const rdaxMatch = nextLine.match(/^rdax\s+(\w+),\s*(k_1|1|1\.0)(?:\s*;.*)?$/i);
 
                     if (rdaxMatch && rdaxMatch[1] === wraxRegister) {
@@ -212,7 +235,121 @@ export class CodeOptimizer {
     }
 
     /**
-     * Optimization 3: Prune unused registers
+     * Optimization 3: Dead Store Elimination (Level 2)
+     * 
+     * Identifies wrax instructions whose written register is NEVER read again.
+     * This frequently occurs after 'accumulator forwarding' eliminates the rdax.
+     * 
+     * Handles:
+     *   wrax <REG>, 1.0  ; with bridge comment
+     *   ...
+     *   wrax <TARGET>, 0.0
+     * 
+     * If <REG> is dead, it becomes:
+     *   ; wrax <REG>, 1.0 (Elided)
+     *   ...
+     *   wrax <TARGET>, 0.0
+     */
+    private optimizeDeadStoreElimination(code: string[]): string[] {
+        // Step 1: Analyze register usage
+        const writeIndices = new Map<string, number[]>();
+        const readIndices = new Map<string, number[]>();
+
+        for (let i = 0; i < code.length; i++) {
+            const line = code[i].trim();
+            if (!line || line.startsWith(';')) continue;
+
+            const codePart = line.split(';')[0].trim();
+            const tokens = codePart.split(/\s+/);
+            const op = tokens[0].toLowerCase();
+
+            // Instructions that read from a register
+            const readsReg = ['rdax', 'maxx', 'mulx', 'rda', 'cho'].includes(op);
+            // Instructions that write to a register
+            const writesReg = ['wrax', 'wra', 'wral', 'wrar'].includes(op);
+
+            if (readsReg || writesReg) {
+                // Handle different instruction formats
+                let reg = '';
+                if (op === 'cho') {
+                    // cho rda, RMPx, FLAGS, ADDR
+                    if (tokens.length >= 5) reg = tokens[4].replace(',', '');
+                } else {
+                    reg = tokens[1] ? tokens[1].replace(',', '') : '';
+                }
+
+                if (reg) {
+                    if (readsReg) {
+                        if (!readIndices.has(reg)) readIndices.set(reg, []);
+                        readIndices.get(reg)!.push(i);
+                    }
+                    if (writesReg) {
+                        if (!writeIndices.has(reg)) writeIndices.set(reg, []);
+                        writeIndices.get(reg)!.push(i);
+                    }
+                }
+            }
+        }
+
+        // Step 2: Eliminate dead stores
+        const optimized: string[] = [...code];
+        const hardwareRegisters = [
+            'SIN0_RATE', 'SIN0_RANGE', 'SIN1_RATE', 'SIN1_RANGE',
+            'RMP0_RATE', 'RMP0_RANGE', 'RMP1_RATE', 'RMP1_RANGE',
+            'POT0', 'POT1', 'POT2', 'ADCL', 'ADCR',
+            'DACL', 'DACR', 'ADDR_PTR',
+            'SIN0', 'SIN1', 'RMP0', 'RMP1', 'COS0', 'COS1'
+        ];
+        
+        for (const [reg, indices] of writeIndices.entries()) {
+            // Never prune hardware registers
+            if (hardwareRegisters.includes(reg.toUpperCase())) continue;
+
+            const reads = readIndices.get(reg) || [];
+            
+            for (const writeIdx of indices) {
+                const line = optimized[writeIdx].trim();
+                if (line.startsWith(';')) continue; // Already optimized out or comment
+
+                // A store is dead if there are no reads at all OR no reads after this store before the next store/end
+                const hasReadAfter = reads.some(readIdx => readIdx > writeIdx);
+                
+                if (!hasReadAfter) {
+                    // This store is candidates for elimination if it has an ACC-preserving multiplier (1.0)
+                    // OR if it's followed by another wrax/clr that makes the ACC-clearing effect redundant.
+                    
+                    const wraxMatch = line.match(/^wrax\s+(\w+),\s*(k_1|1|1\.0)(?:\s*;.*)?$/i);
+                    if (wraxMatch) {
+                        // wrax REG, 1.0 only exists to preserve ACC. If REG is dead, it's useless.
+                        optimized[writeIdx] = `; OPTIMIZED (DSE) - ${line.trim()} (Register ${reg} is never read)`;
+                    } else {
+                        // If it clears ACC (wrax REG, 0), it might still be needed for the CLR side effect.
+                        // However, if the NEXT instruction is a WRAX/CLR/ABS etc. that overwrites ACC, we can still prune.
+                        let nextOpIndex = writeIdx + 1;
+                        while (nextOpIndex < optimized.length) {
+                            const nextLine = optimized[nextOpIndex].trim();
+                            if (nextLine && !nextLine.startsWith(';')) break;
+                            nextOpIndex++;
+                        }
+                        
+                        if (nextOpIndex < optimized.length) {
+                            const nextLine = optimized[nextOpIndex].trim().toLowerCase();
+                            // If next instruction sets ACC entirely ignoring previous value
+                            if (nextLine.startsWith('rdax') || nextLine.startsWith('clr') || nextLine.startsWith('or')) {
+                                optimized[writeIdx] = `; OPTIMIZED (DSE) - ${line.trim()} (Pruned clearing write to dead register)`;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Filter out the commented lines to actually reduce instruction count
+        return optimized.filter(line => !line.trim().startsWith('; OPTIMIZED (DSE)'));
+    }
+
+    /**
+     * Optimization 4: Prune unused registers
      * 
      * Finds `equ <alias> REG<num>` and checks if `<alias>` or `REG<num>` 
      * is ever used in the code. If not, it comments out the declaration.
@@ -246,7 +383,7 @@ export class CodeOptimizer {
                 if (i === equMatch.lineIndex) continue;
 
                 const line = optimized[i].trim();
-                // Ignore empty lines and pure comments (though an equ could be commented out, we don't care if it's used inside a comment)
+                // Ignore empty lines and pure comments
                 if (!line || line.startsWith(';')) continue;
 
                 // Remove comment portion for search

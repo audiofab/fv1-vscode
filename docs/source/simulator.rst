@@ -18,7 +18,9 @@ Key Features
 Real-time Audio Monitor
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Hear your effect in real-time. Use the **FV-1 Audio Monitor**  panel to select your input source. You can supply your own WAV files as stimulus or use live input. The processed output is monitored live, allowing for immediate auditory feedback on your DSP logic.
+Hear your effect in real-time. Use the **FV-1 Audio Monitor**  panel to select your input source. You can choose from built-in test audio files optimized for different testing scenarios.
+
+Alternatively, you can supply your own WAV files as stimulus. The processed output is monitored live, allowing for immediate auditory feedback on your DSP logic.
 
 Multi-trace Oscilloscope & Visualizations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

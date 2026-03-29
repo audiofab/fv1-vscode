@@ -1,0 +1,50 @@
+{
+  "metadata": {
+    "name": "Direct Wire Test",
+    "description": "Tests the simplest possible diagram: ADC straight to DAC."
+  },
+  "blocks": [
+    {
+      "id": "b1",
+      "type": "input.adc",
+      "parameters": {
+        "adcNumber": 1
+      },
+      "position": { "x": 100, "y": 100 }
+    },
+    {
+      "id": "b2",
+      "type": "input.adc",
+      "parameters": {
+        "adcNumber": 2
+      },
+      "position": { "x": 100, "y": 200 }
+    },
+    {
+      "id": "b3",
+      "type": "output.dac",
+      "parameters": {
+        "dacNumber": 1
+      },
+      "position": { "x": 400, "y": 100 }
+    },
+    {
+      "id": "b4",
+      "type": "output.dac",
+      "parameters": {
+        "dacNumber": 2
+      },
+      "position": { "x": 400, "y": 200 }
+    }
+  ],
+  "connections": [
+    {
+      "from": { "blockId": "b1", "portId": "out" },
+      "to": { "blockId": "b3", "portId": "in" }
+    },
+    {
+      "from": { "blockId": "b2", "portId": "out" },
+      "to": { "blockId": "b4", "portId": "in" }
+    }
+  ]
+}

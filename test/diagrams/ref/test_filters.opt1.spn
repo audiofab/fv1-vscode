@@ -1,0 +1,84 @@
+;================================================================================
+; test_filters_all
+; Tests all filter types (1P LP/HP, Shelving LP/HP, 2P SVF).
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Block Declarations
+;--------------------------------------------------------------------------------
+equ	cv_b2_f_cv	0.381150
+equ	cv_b2_q_cv	-0.585573
+;	Damping offset for Q=0.5
+equ	d_min 2.0
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Register Aliases
+equ	adc_out	REG0
+equ	lpf_1p_lpf1	REG1
+equ	hpf_1p_output	REG2
+equ	svf_2p_lp	REG3
+; OPTIMIZED OUT - equ	lpf_1p_local_output	REG4 (Unused register)
+equ	hpf_1p_local_lpf1	REG5
+; OPTIMIZED OUT - equ	svf_2p_bp	REG6 (Unused register)
+; OPTIMIZED OUT - equ	svf_2p_hp	REG7 (Unused register)
+; OPTIMIZED OUT - equ	svf_2p_notch	REG8 (Unused register)
+equ	svf_2p_local_lp_state	REG9
+equ	svf_2p_local_bp_state	REG10
+equ	svf_2p_local_f_coeff	REG11
+equ	svf_2p_local_d_coeff	REG12
+equ	svf_2p_local_temp	REG13
+
+;	"Generated from spincad source file LPF_RDFX.spincad"
+;	"Generated from spincad source file HPF_RDFX.spincad"
+
+; Input Section
+;--------------------------------------------------------------------------------
+rdax	ADCL, 1
+; wrax	adc_out, 0
+wrax	adc_out,	1.0	; Optimization: accumulator forwarded
+
+; Main Program
+;--------------------------------------------------------------------------------
+;	variable - Name - low - high - multiplier - precision - option
+; rdax	adc_out, 1.0	; rdax not needed with accumulator forwarding optimization
+rdfx	lpf_1p_lpf1, 0.174485
+; wrax	lpf_1p_lpf1, 0
+wrax	lpf_1p_lpf1,	1.0	; Optimization: accumulator forwarded
+;	variable - Name - low - high - multiplier - precision - option
+; rdax	lpf_1p_lpf1, 1.0	; rdax not needed with accumulator forwarding optimization
+rdfx	hpf_1p_local_lpf1, 0.091421
+wrax	hpf_1p_local_lpf1, -1.0
+;	do a lowpass filter then subtract that from the lpf_1p_lpf1.
+;	voila high pass filter!
+rdax	lpf_1p_lpf1, 1.0
+wrax	hpf_1p_output, 0
+;	--- 2-Pole SVF (Chamberlin) ---
+;	1. Calculate Frequency coefficient (f)
+sof	0.0, cv_b2_f_cv	; CV default: frequency
+wrax	svf_2p_local_f_coeff, 0.0
+;	2. Calculate Damping coefficient (d)
+sof	0.0, cv_b2_q_cv	; CV default: q
+sof	1.0, d_min
+wrax	svf_2p_local_d_coeff, 0.0
+;	3. Filter Loop (Mathematically robust update)
+rdax	svf_2p_local_bp_state, 1.0
+mulx	svf_2p_local_f_coeff
+rdax	svf_2p_local_lp_state, 1.0
+wrax	svf_2p_lp, 1.0
+wrax	svf_2p_local_lp_state, 0.0	; lp_state updated, ACC = 0
+rdax	hpf_1p_output, 1.0
+rdax	svf_2p_local_lp_state, -1.0
+wrax	svf_2p_local_temp, 0.0	; temp = input - lp
+rdax	svf_2p_local_bp_state, -1.0
+mulx	svf_2p_local_d_coeff	; ACC = -d * bp
+rdax	svf_2p_local_temp, 1.0	; ACC = input - lp - d * bp
+mulx	svf_2p_local_f_coeff
+rdax	svf_2p_local_bp_state, 1.0
+wrax	svf_2p_local_bp_state, 0.0	; bp_state updated, ACC = 0
+
+; Output Section
+;--------------------------------------------------------------------------------
+;	DAC Output
+rdax	svf_2p_lp, 1.0
+wrax	DACL, 0

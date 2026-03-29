@@ -1,0 +1,197 @@
+---
+{
+  "type": "effects.pitch.pitch_offset_dual",
+  "name": "Dual Pitch Offset (Hilbert)",
+  "category": "Effects",
+  "subcategory": "Pitch",
+  "description": "Two independent bipolar frequency offsets mixed to a mono output.",
+  "color": "#fcba03",
+  "inputs": [
+    {
+      "id": "in",
+      "name": "Audio Input",
+      "type": "audio",
+      "required": true
+    },
+    {
+      "id": "shift1_ctrl",
+      "name": "Shift 1 CV",
+      "type": "control",
+      "required": false,
+      "parameter": "shiftValue1"
+    },
+    {
+      "id": "shift2_ctrl",
+      "name": "Shift 2 CV",
+      "type": "control",
+      "required": false,
+      "parameter": "shiftValue2"
+    }
+  ],
+  "outputs": [
+    {
+      "id": "out",
+      "name": "Output",
+      "type": "audio"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "shiftRange",
+      "name": "Shift Range (Hz)",
+      "type": "number",
+      "default": 600,
+      "min": 1,
+      "max": 2000,
+      "conversion": "HZ_TO_HILBERT_SHIFT",
+      "description": "Total frequency range for both controls."
+    },
+    {
+      "id": "shiftValue1",
+      "name": "Shift 1",
+      "type": "number",
+      "default": 0.5,
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.01,
+      "description": "Bipolar control for shift 1."
+    },
+    {
+      "id": "shiftValue2",
+      "name": "Shift 2",
+      "type": "number",
+      "default": 0.5,
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.01,
+      "description": "Bipolar control for shift 2."
+    }
+  ],
+  "registers": [
+    "sigs",
+    "sigc",
+    "lpf",
+    "hpf",
+    "sigfil",
+    "sinosc1",
+    "cososc1",
+    "sinosc2",
+    "cososc2",
+    "temp1",
+    "temp2",
+    "shift1_amt",
+    "shift2_amt",
+    "potfil1",
+    "potfil2"
+  ],
+  "memories": [
+    { "id": "ap1", "size": 2 },
+    { "id": "ap2", "size": 2 },
+    { "id": "ap3", "size": 2 },
+    { "id": "ap4", "size": 2 },
+    { "id": "ap5", "size": 2 },
+    { "id": "ap6", "size": 2 }
+  ]
+}
+---
+@section header
+
+@section init
+; Initialize oscillators (cosine = 1.0)
+skp run, done_init
+or $7fffff
+wrax ${reg.cososc1}, 1.0
+wrax ${reg.cososc2}, 0.0
+done_init:
+
+@section main
+; 1. Process CVs and smoothing
+@cv shift1_ctrl
+rdfx ${reg.potfil1}, 0.001
+wrlx ${reg.potfil1}, -1.0
+; Bipolar mapping: ACC = (0.5 - shift1) * range
+sof -1.0, 0.5
+sof ${shiftRange}, 0.0
+wrax ${reg.shift1_amt}, 0.0
+
+@cv shift2_ctrl
+rdfx ${reg.potfil2}, 0.001
+wrlx ${reg.potfil2}, -1.0
+; Bipolar mapping: ACC = (0.5 - shift2) * range
+sof -1.0, 0.5
+sof ${shiftRange}, 0.0
+wrax ${reg.shift2_amt}, 0.0
+
+; 2. Audio input filtering
+rdax ${input.in}, 1.0
+rdfx ${reg.hpf}, 0.04
+wrhx ${reg.hpf}, -1.0
+rdfx ${reg.lpf}, 0.4
+wrlx ${reg.lpf}, -1.0
+wrax ${reg.sigfil}, 0.0039
+
+; 3. Hilbert phase shifter (Shared)
+; Sine path
+rda ${mem.ap1} + 1, 0.995 ; 44Hz
+wrap ${mem.ap1}, -0.995
+rda ${mem.ap2} + 1, 0.937 ; 488Hz
+wrap ${mem.ap2}, -0.937
+rda ${mem.ap3} + 1, 0.61 ; 3531Hz
+wrap ${mem.ap3}, -0.61
+wrax ${reg.sigs}, 0.0
+
+; Cosine path
+rdax ${reg.sigfil}, 0.0039
+rda ${mem.ap4} + 1, 0.978 ; 178Hz
+wrap ${mem.ap4}, -0.978
+rda ${mem.ap5} + 1, 0.84 ; 1289Hz
+wrap ${mem.ap5}, -0.84
+rda ${mem.ap6} + 1, 0.0
+wrap ${mem.ap6}, 0.0
+wrax ${reg.sigc}, 0.0
+
+; 4. Oscillator 1 update
+rdax ${reg.cososc1}, 1.0
+mulx ${reg.shift1_amt}
+rdax ${reg.sinosc1}, 1.0
+wrax ${reg.sinosc1}, -1.0
+mulx ${reg.shift1_amt}
+rdax ${reg.cososc1}, 1.0
+wrax ${reg.cososc1}, 0.0
+
+; 5. Pitch shift 1 calculation
+rdax ${reg.sigc}, -2.0
+mulx ${reg.cososc1}
+wrax ${reg.temp1}, 0.0
+rdax ${reg.sigs}, -2.0
+mulx ${reg.sinosc1}
+rdax ${reg.temp1}, 1.0
+wrax ${reg.temp1}, 0.0
+
+; 6. Oscillator 2 update
+rdax ${reg.cososc2}, 1.0
+mulx ${reg.shift2_amt}
+rdax ${reg.sinosc2}, 1.0
+wrax ${reg.sinosc2}, -1.0
+mulx ${reg.shift2_amt}
+rdax ${reg.cososc2}, 1.0
+wrax ${reg.cososc2}, 0.0
+
+; 7. Pitch shift 2 calculation
+rdax ${reg.sigc}, -2.0
+mulx ${reg.cososc2}
+wrax ${reg.temp2}, 0.0
+rdax ${reg.sigs}, -2.0
+mulx ${reg.sinosc2}
+rdax ${reg.temp2}, 1.0
+
+; 8. Sum results and scale up
+rdax ${reg.temp1}, 0.5 ; Mix
+sof -2.0, 0.0
+sof -2.0, 0.0
+sof -2.0, 0.0
+sof -2.0, 0.0
+sof -2.0, 0.0
+sof -2.0, 0.0
+sof -2.0, 0.0
+wrax ${output.out}, 0.0

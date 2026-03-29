@@ -1,0 +1,75 @@
+;================================================================================
+; test_mixing_all
+; Tests all mixer and crossfade blocks (Mixer 2, 3, 4, Crossfade 1, 2, 3).
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Register Aliases
+equ	adc_out	REG0
+equ	mixer2_output	REG1
+equ	mixer3_output	REG2
+equ	mixer4_output	REG3
+; OPTIMIZED OUT - equ	crossfade_output	REG4 (Unused register)
+
+;	"Generated from spincad source file Mixer_4_to_1.spincad"
+;	"Generated from spincad source file crossfade.spincad"
+
+; Flattened Execution (TOPOLOGICAL ORDER)
+;--------------------------------------------------------------------------------
+;===============================================================================
+; ADC Input (adc)
+; Outputs: Audio: adc_out
+; Parameters: ADC Number=0
+;-------------------------------------------------------------------------------
+;===============================================================================
+; 2:1 Mixer (mix2)
+; Inputs: Input 1: adc_out, Input 2: adc_out, Level 1: (not connected), Level 2: (not connected)
+; Outputs: Output: mixer2_output
+; Parameters: Input Gain 1=-6, Input Gain 2=-6
+;-------------------------------------------------------------------------------
+;===============================================================================
+; 3:1 Mixer (mix3)
+; Inputs: Input 1: mixer2_output, Input 2: (not connected), Input 3: (not connected), Level 1: (not connected), Level 2: (not connected), Level 3: (not connected)
+; Outputs: Output: mixer3_output
+; Parameters: Input Gain 1=-6, Input Gain 2=-6, Input Gain 3=-6
+;-------------------------------------------------------------------------------
+;===============================================================================
+; 4:1 Mixer (mix4)
+; Inputs: Input 1: mixer3_output, Input 2: (not connected), Input 3: (not connected), Input 4: (not connected), Level 1: (not connected), Level 2: (not connected), Level 3: (not connected), Level 4: (not connected)
+; Outputs: Output: mixer4_output
+; Parameters: Input Gain 1=-6, Input Gain 2=-6, Input Gain 3=-6, Input Gain 4=-6
+;-------------------------------------------------------------------------------
+;===============================================================================
+; Crossfade (xfade)
+; Inputs: Input 1: mixer4_output, Input 2: mixer4_output, Fade: (not connected)
+; Outputs: Output: crossfade_output
+; Parameters: Fade=0.5
+;-------------------------------------------------------------------------------
+;===============================================================================
+; DAC Output (dac)
+; Inputs: Audio: crossfade_output
+; Parameters: DAC Number=0
+;-------------------------------------------------------------------------------
+rdax	ADCL, 1
+wrax	adc_out, 0
+rdax	adc_out, 0.501187
+wrax	mixer2_output, 0.0
+rdax	adc_out, 0.501187
+rdax	mixer2_output, 1.0
+wrax	mixer2_output, 0.0
+rdax	mixer2_output, 0.501187
+wrax	mixer3_output, 0.0
+;	REGISTERS
+;	we dont read input 1 unless it's connected
+rdax	mixer3_output, 0.501187	; read input signal
+;	if level 1 is connected we multiply by level 1
+wrax	mixer4_output, 0.0
+;	Dynamic interpolation or fixed fallback crossfade
+;	Fallback to static parameter fade
+rdax	mixer4_output, ((1.0 - 0.5) * 0.501187)
+rdax	mixer4_output, (0.5 * 0.501187)
+; wrax	crossfade_output, 0.0
+; rdax	crossfade_output, 1.0	; rdax not needed with accumulator forwarding optimization
+wrax	DACL, 0

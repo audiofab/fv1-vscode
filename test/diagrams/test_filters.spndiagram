@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "test_filters_all",
+    "description": "Tests all filter types (1P LP/HP, Shelving LP/HP, 2P SVF)."
+  },
+  "blocks": [
+    {
+      "id": "adc", "type": "input.adc", "parameters": { "adcNumber": 0 }
+    },
+    {
+      "id": "lp1", "type": "filter.lpf_1p", "parameters": { "freq": 1000 }
+    },
+    {
+      "id": "hp1", "type": "filter.hpf_1p", "parameters": { "freq": 500 }
+    },
+    {
+      "id": "svf", "type": "filter.svf_2p", "parameters": { "frequency": 2000, "q": 0.707 }
+    },
+    {
+      "id": "dac", "type": "output.dac", "parameters": { "dacNumber": 0 }
+    }
+  ],
+  "connections": [
+    { "source": "adc", "sourcePort": "out", "target": "lp1", "targetPort": "input" },
+    { "source": "lp1", "sourcePort": "lpf1", "target": "hp1", "targetPort": "input" },
+    { "source": "hp1", "sourcePort": "output", "target": "svf", "targetPort": "in" },
+    { "source": "svf", "sourcePort": "lp", "target": "dac", "targetPort": "in" }
+  ]
+}

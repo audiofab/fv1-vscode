@@ -11,7 +11,7 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
     private isReady: boolean = false;
     private sampleRate: number = 32768;
     private lastMetadata: any = {};
-    private currentStimulus: any = { type: 'stimulusChange', value: 'built-in' }; // Default to chords
+    private currentStimulus: any = { type: 'stimulusChange', value: 'not-midnight' }; // Default to not-midnight
     private potValues: number[] = [0.5, 0.5, 0.5];
     private bypassActive: boolean = false;
 
@@ -53,7 +53,8 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                 this._view?.webview.postMessage({
                     type: 'config',
                     potValues: this.potValues,
-                    bypassActive: this.bypassActive
+                    bypassActive: this.bypassActive,
+                    currentStimulus: this.currentStimulus
                 });
 
                 if (this._view && Object.keys(this.lastMetadata).length > 0) {
@@ -115,11 +116,22 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
      */
     public playBuffer(l: Float32Array, r: Float32Array, _adcL: number = 0, _adcR: number = 0, metadata: any = null) {
         if (metadata) {
-            // Merge metadata carefully: only update keys that are actually provided (not undefined)
-            // This prevents simulation loop updates (which only send new data) from clearing 
-            // persistent state like memories or symbols.
+            // Config messages must go out as {type:'config'} to match the webview's
+            // `else if (message.type === 'config')` handler. Routing them through
+            // playBuffer would embed them in {type:'play'} and they'd be silently dropped.
+            if (metadata.type === 'config') {
+                if (this.isReady && this._view) {
+                    this._view.webview.postMessage({ type: 'config', ...metadata });
+                }
+                return;
+            }
+
+            // Merge into lastMetadata, but NEVER persist 'type'.
+            // If 'type' (e.g. 'registerSelection') leaked into lastMetadata it would
+            // stay there forever, causing every subsequent block to hit the
+            // registerSelection early-return and clear the scope history each frame.
             for (const key in metadata) {
-                if (metadata[key] !== undefined) {
+                if (key !== 'type' && metadata[key] !== undefined) {
                     this.lastMetadata[key] = metadata[key];
                 }
             }
@@ -127,11 +139,17 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
 
         if (!this.isReady || !this._view) return;
 
+        // Include the current message's type (e.g. 'registerSelection') in THIS
+        // message only — it is not carried forward via lastMetadata.
+        const msgMetadata = (metadata?.type)
+            ? { ...this.lastMetadata, type: metadata.type }
+            : this.lastMetadata;
+
         this._view.webview.postMessage({
             type: 'play',
             l,
             r,
-            metadata: this.lastMetadata
+            metadata: msgMetadata
         });
     }
 
@@ -260,8 +278,15 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         <div class="stimulus-box">
                             <select id="stimulusSelect">
                             <option value="none">Silence (No Input)</option>
-                            <option value="tone">Built-in: White Noise</option>
-                            <option value="built-in" selected>Built-in: Minor Chords</option>
+                            <option value="white-noise">White Noise</option>
+                            <option value="breakdown">Breakdown</option>
+                            <option value="breathy">Breathy</option>
+                            <option value="minor-chords">Minor Chords</option>
+                            <option value="new-minor">New Minor</option>
+                            <option value="not-midnight">Not Midnight</option>
+                            <option value="picky">Picky</option>
+                            <option value="rock-out">Rock Out</option>
+                            <option value="you-three">You Three</option>
                             <option value="custom">Select Custom File...</option>
                         </select>
                         </div>
@@ -643,15 +668,16 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
 
                                 if (m.registerTraces) {
                                     const traces = m.registerTraces;
-                                    const numPoints = traces[0].length;
-                                    
-                                    for (let i = 0; i < numPoints; i++) {
-                                        selectedRegisters.forEach(reg => {
-                                            if (registerHistory[reg]) {
-                                                registerHistory[reg][registerPtr] = traces[reg][i];
-                                            }
-                                        });
-                                        registerPtr = (registerPtr + 1) % SCOPE_HISTORY_LEN;
+                                    const numPoints = m.numTracePoints || 0;
+                                    if (numPoints > 0) {
+                                        for (let i = 0; i < numPoints; i++) {
+                                            selectedRegisters.forEach(reg => {
+                                                if (registerHistory[reg] && traces[reg]) {
+                                                    registerHistory[reg][registerPtr] = traces[reg][i];
+                                                }
+                                            });
+                                            registerPtr = (registerPtr + 1) % SCOPE_HISTORY_LEN;
+                                        }
                                     }
                                     drawTraces();
                                 }
@@ -714,6 +740,9 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             if (message.bypassActive !== undefined) {
                                 bypassActive = message.bypassActive;
                                 bypassBtn.className = bypassActive ? 'active' : '';
+                            }
+                            if (message.currentStimulus !== undefined) {
+                                stimulusSelect.value = message.currentStimulus.value;
                             }
                         }
                     });
@@ -922,19 +951,27 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         memCtx.fillStyle = '#111';
                         memCtx.fillRect(0, 0, w, h);
 
+                        // getX: maps a delay-pointer address (wraps at size) to canvas X.
+                        // Right-to-left: address 0 = right edge, address (size-1) = left edge.
                         const getX = (p) => ((size - 1 - (p % size)) / size) * w;
+
+                        // getXAbs: same mapping but for absolute memory-block addresses which
+                        // must NOT wrap. When start+size == delaySize the modulo would
+                        // incorrectly wrap to 0 and render the block off-screen to the right.
+                        const getXAbs = (p) => ((size - p) / size) * w;
 
                         if (memories) {
                             memCtx.fillStyle = 'rgba(79, 172, 254, 0.4)';
                             memCtx.strokeStyle = '#4facfe';
                             memCtx.lineWidth = 0.5;
                             memories.forEach(m => {
-                                const x = getX(m.start + m.size);
+                                const x = getXAbs(m.start + m.size); // left edge of block (right-to-left)
                                 const width = (m.size / size) * w;
                                 memCtx.fillRect(x, 2, width, h - 4);
                                 memCtx.strokeRect(x, 2, width, h - 4);
                             });
                         }
+
 
                         const writeX = getX(ptr);
                         memCtx.strokeStyle = 'rgba(255, 255, 255, 0.9)';

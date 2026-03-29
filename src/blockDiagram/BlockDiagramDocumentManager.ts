@@ -71,7 +71,8 @@ export class BlockDiagramDocumentManager {
                 progSize: config.get<number>('hardware.progSize') ?? 128,
                 delaySize: config.get<number>('hardware.delaySize') ?? 32768,
                 fv1AsmMemBug: config.get<boolean>('spinAsmMemBug') ?? true,
-                clampReals: config.get<boolean>('clampReals') ?? true
+                clampReals: config.get<boolean>('clampReals') ?? true,
+                optimizationLevel: config.get<number>('optimizationLevel') ?? 2
             };
             return this.compiler.compile(graph, hardwareOptions);
         } catch (error) {

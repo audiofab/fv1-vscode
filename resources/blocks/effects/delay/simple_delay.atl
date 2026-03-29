@@ -18,13 +18,15 @@
       "id": "delay_time",
       "name": "Delay Time",
       "type": "control",
-      "required": false
+      "required": false,
+      "parameter": "delayLength"
     },
     {
       "id": "mix_ctrl",
       "name": "Mix",
       "type": "control",
-      "required": false
+      "required": false,
+      "parameter": "mix"
     }
   ],
   "outputs": [
@@ -76,29 +78,19 @@ wrax ${reg.dry}, 1.0
 wra ${mem.delayl}, 0.0
 
 ; Calculate Delay Pointer (ADDR_PTR is an absolute address in delay RAM)
-@if pinConnected(delay_time)
-rdax ${input.delay_time}, 1.0
+@cv delay_time
 ; Control sweeps from [base] to [base + size]
-sof ${mem.delayl.size}/${Fs}, ${mem.delayl}/${Fs}
-@else
-; Optimization - clr not required as ACC should be zero from earlier code
-; clr
-sof 0.0, (${mem.delayl} + ${delayLength})/${Fs}
-@endif
+sof ${delayLength}/${Fs}, (${mem.delayl} + 1)/${Fs}
 wrax ADDR_PTR, 0.0
 
 ; Read wet signal
 rmpa 1.0
-; Store to wet register (keep value in ACC)
-wrax ${reg.wet}, 1.0
 
 ; Mixing logic: dry + mix * (wet - dry)
-rdax ${reg.dry}, -0.999 ; Use -0.999 to avoid potential overflow clipping at -1.0
-;; ACC now equals (wet - dry)
-@if pinConnected(mix_ctrl)
-mulx ${input.mix_ctrl}
-@else
-sof ${mix}, 0.0
-@endif
+rdax ${reg.dry}, -0.999 ; ACC now equals (wet - dry)
+wrax ${reg.wet}, 0.0    ; Store wet-dry in reg.wet temporarily
+
+@cv mix_ctrl
+mulx ${reg.wet}
 rdax ${reg.dry}, 1.0
 wrax ${output.audio_output}, 0.0

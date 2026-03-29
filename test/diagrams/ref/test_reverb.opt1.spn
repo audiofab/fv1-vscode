@@ -9,6 +9,12 @@
 ; POT0: Plate Reverb (Damping)
 ; POT1: Plate Reverb (Decay Time)
 
+; Block Declarations
+;--------------------------------------------------------------------------------
+equ	cv_b4_decayTimeCV	0.5
+equ	cv_b4_dampingCV	0.5
+equ	cv_b4_mixCV	0.5
+
 ; Initialization
 ;--------------------------------------------------------------------------------
 ; Register Aliases
@@ -21,18 +27,17 @@ equ	platereverb_outr	REG4
 ; OPTIMIZED OUT - equ	pot0_local_f2	REG6 (Unused register)
 ; OPTIMIZED OUT - equ	pot1_local_f1	REG7 (Unused register)
 ; OPTIMIZED OUT - equ	pot1_local_f2	REG8 (Unused register)
-equ	platereverb_local_krl	REG9
-equ	platereverb_local_decay	REG10
-equ	platereverb_local_decay_diffusion_2	REG11
-equ	platereverb_local_damping_reg	REG12
-equ	platereverb_local_one_minus_dmpg	REG13
-equ	platereverb_local_lp_inp	REG14
-equ	platereverb_local_lp30_31	REG15
-equ	platereverb_local_lp54_55	REG16
-equ	platereverb_local_mono	REG17
-equ	platereverb_local_diffuse_in	REG18
-equ	platereverb_local_temp	REG19
-equ	platereverb_local_temp2	REG20
+equ	platereverb_local_decay	REG9
+equ	platereverb_local_decay_diffusion_2	REG10
+equ	platereverb_local_damping_reg	REG11
+equ	platereverb_local_one_minus_dmpg	REG12
+equ	platereverb_local_lp_inp	REG13
+equ	platereverb_local_lp30_31	REG14
+equ	platereverb_local_lp54_55	REG15
+equ	platereverb_local_mono	REG16
+equ	platereverb_local_diffuse_in	REG17
+equ	platereverb_local_temp	REG18
+equ	platereverb_local_temp2	REG19
 
 ; Memory Allocations
 mem	mem0_predelay	655
@@ -66,11 +71,10 @@ wrax	pot1_out, 0.0
 
 ; Main Program
 ;--------------------------------------------------------------------------------
-;	Calculate reverb level
-sof	0.0, 0.25
-wrax	platereverb_local_krl, 0.0
 ;	Calculate decay time
-rdax	pot1_out, 1.0
+clr
+sof	0.0, cv_b4_decayTimeCV	; CV range: decayTime
+mulx	pot1_out
 sof	0.8, 0.0
 wrax	platereverb_local_decay, 1.0
 ;	Calculate decay_diffusion_2
@@ -84,7 +88,8 @@ clr
 sof	1.0, 0.25
 wrax	platereverb_local_decay_diffusion_2, 0.0
 ;	Damping
-rdax	pot0_out, 1.0
+sof	0.0, cv_b4_dampingCV	; CV range: damping
+mulx	pot0_out
 sof	-1.0, 0.99
 wrax	platereverb_local_damping_reg, -1.0
 sof	1.0, 0.9990234375
@@ -177,7 +182,7 @@ rda	mem11_ap55_59+2107, -0.6
 rda	mem12_del59_63+2198, 0.6
 rda	mem7_ap31_33+205, -0.6
 rdax	platereverb_local_mono, -1.0
-mulx	platereverb_local_krl
+sof	cv_b4_mixCV, 0.0	; @mulcv default: mix
 rdax	platereverb_local_mono, 1.0
 wrax	platereverb_outl, 0.0
 ;	Right Output Taps
@@ -189,7 +194,7 @@ rda	mem7_ap31_33+1352, -0.6
 rda	mem8_del33_39+2943, 0.6
 rda	mem11_ap55_59+369, -0.6
 rdax	platereverb_local_mono, -1.0
-mulx	platereverb_local_krl
+sof	cv_b4_mixCV, 0.0	; @mulcv default: mix
 rdax	platereverb_local_mono, 1.0
 wrax	platereverb_outr, 0.0
 

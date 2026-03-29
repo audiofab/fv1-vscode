@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "test_mixing_all",
+    "description": "Tests all mixer and crossfade blocks (Mixer 2, 3, 4, Crossfade 1, 2, 3)."
+  },
+  "blocks": [
+    {
+      "id": "adc", "type": "input.adc", "parameters": { "adcNumber": 0 }
+    },
+    {
+      "id": "mix2", "type": "math.mixer2", "parameters": { "gain1": -6, "gain2": -6 }
+    },
+    {
+      "id": "mix3", "type": "math.mixer3", "parameters": { "gain1": -6, "gain2": -6, "gain3": -6 }
+    },
+    {
+      "id": "mix4", "type": "math.mixer4", "parameters": { "gain1": -6, "gain2": -6, "gain3": -6, "gain4": -6 }
+    },
+    {
+      "id": "xfade", "type": "math.crossfade", "parameters": { "fade": 0.5 }
+    },
+    {
+      "id": "dac", "type": "output.dac", "parameters": { "dacNumber": 0 }
+    }
+  ],
+  "connections": [
+    { "source": "adc", "sourcePort": "out", "target": "mix2", "targetPort": "input1" },
+    { "source": "adc", "sourcePort": "out", "target": "mix2", "targetPort": "input2" },
+    { "source": "mix2", "sourcePort": "output", "target": "mix3", "targetPort": "input1" },
+    { "source": "mix3", "sourcePort": "output", "target": "mix4", "targetPort": "input1" },
+    { "source": "mix4", "sourcePort": "output", "target": "xfade", "targetPort": "input1" },
+    { "source": "mix4", "sourcePort": "output", "target": "xfade", "targetPort": "input2" },
+    { "source": "xfade", "sourcePort": "output", "target": "dac", "targetPort": "in" }
+  ]
+}

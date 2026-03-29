@@ -26,26 +26,34 @@ export interface BlockTemplateDefinition {
         name: string;
         type: 'audio' | 'control';
         required?: boolean;
+        parameter?: string;  // For control inputs: the parameter ID that backs this CV (used by @cv macro)
     }>;
     outputs: Array<{
         id: string;
         name: string;
         type: 'audio' | 'control';
     }>;
-    parameters: Array<{
-        id: string;
-        name: string;
-        type: 'number' | 'select' | 'boolean' | 'string';
-        default: any;
-        min?: number;
-        max?: number;
-        step?: number;
-        options?: Array<{ label: string; value: any }>;
-        description?: string;
-        conversion?: 'LOGFREQ' | 'SINLFOFREQ' | 'DBLEVEL' | 'LENGTHTOTIME' | 'CUSTOM';
-        eval?: string; // TypeScript expression for custom conversion
-    }>;
+    parameters: BlockParameterDefinition[];
     registers?: string[]; // Internal state registers (not exposed as ports)
     memories?: Array<{ id: string; size: number | string }>; // Internal delay memory
+    labelTemplate?: string; // Optional template for the block label in the UI
     template: string; // The ATL template string
+}
+
+export interface BlockParameterDefinition {
+    id: string;
+    name: string;
+    type: 'number' | 'select' | 'boolean' | 'string';
+    default: any;
+    min?: number;
+    max?: number;
+    step?: number;
+    options?: Array<{ label: string; value: any }>;
+    description?: string;
+    conversion?: 'LOGFREQ' | 'SINLFOFREQ' | 'DBLEVEL' | 'LENGTHTOTIME' | 'CUSTOM';
+    displayUnit?: string;
+    displayMin?: number;
+    displayMax?: number;
+    displayDecimals?: number;
+    eval?: string; // TypeScript expression for custom conversion
 }

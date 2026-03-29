@@ -16,17 +16,20 @@
     {
       "id": "dampingCV",
       "name": "Damping",
-      "type": "control"
+      "type": "control",
+      "parameter": "damping"
     },
     {
       "id": "decayTimeCV",
       "name": "Decay Time",
-      "type": "control"
+      "type": "control",
+      "parameter": "decayTime"
     },
     {
       "id": "mixCV",
       "name": "Mix",
-      "type": "control"
+      "type": "control",
+      "parameter": "mix"
     }
   ],
   "outputs": [
@@ -160,7 +163,6 @@
     }
   ],
   "registers": [
-    "krl",
     "decay",
     "decay_diffusion_2",
     "damping_reg",
@@ -198,22 +200,8 @@ wlds SIN1, 23, 8
 done:
 
 @section main
-; Calculate reverb level
-@if pinConnected(mixCV)
-rdax ${input.mixCV}, 1.0
-mulx ${input.mixCV}
-@else
-@multiplydouble mixSq ${mix}, ${mix}
-sof 0.0, ${mixSq}
-@endif
-wrax ${reg.krl}, 0.0
-
 ; Calculate decay time
-@if pinConnected(decayTimeCV)
-rdax ${input.decayTimeCV}, 1.0
-@else
-sof 0.0, ${decayTime}
-@endif
+@cv decayTimeCV
 sof ${decayLimit}, 0.0
 wrax ${reg.decay}, 1.0
 
@@ -229,11 +217,7 @@ sof 1.0, ${c0_25}
 wrax ${reg.decay_diffusion_2}, 0.0
 
 ; Damping
-@if pinConnected(dampingCV)
-rdax ${input.dampingCV}, 1.0
-@else
-sof 0.0, ${damping}
-@endif
+@cv dampingCV
 sof -1.0, ${c0_99}
 wrax ${reg.damping_reg}, -1.0
 sof 1.0, ${c0_999}
@@ -356,7 +340,7 @@ rda ${mem.ap31_33}+205, ${tapNeg0_6}
 @endif
 
 rdax ${reg.mono}, -1.0
-mulx ${reg.krl}
+@mulcv mixCV
 rdax ${reg.mono}, 1.0
 wrax ${output.outL}, 0.0
 
@@ -376,7 +360,7 @@ rda ${mem.ap55_59}+369, ${tapNeg0_6}
 @endif
 
 rdax ${reg.mono}, -1.0
-mulx ${reg.krl}
+@mulcv mixCV
 rdax ${reg.mono}, 1.0
 wrax ${output.outR}, 0.0
 

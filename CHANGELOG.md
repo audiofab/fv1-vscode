@@ -1,5 +1,15 @@
 # Change Log
 
+## [1.4.3]
+
+- **New Blocks**: Envelope follower, Phaser effect, and four new Pitch shifting effects (pitch shifter, fixed offset, dual offset, octave up/down)
+- **Enhanced Filters**: Added 1-pole high-pass and low-pass filters, plus 2-pole State Variable Filter (SVF)
+- **New Mixers**: 2-channel and 3-channel mixers with independent level control
+- **Aggressive Code Optimization**: Level 2 optimization now includes dead store elimination and section flattening for maximum code density
+- **Improved Simulator**: Expanded audio stimulus library with eight test tracks for comprehensive testing scenarios and improved oscilloscope refresh rate controls
+- **Parameter Control**: Blocks now support `parameter` property for enhanced control input flexibility with `@cv` macro support
+- **Visual Labels**: New `labelTemplate` support for dynamic parameter display in block diagrams
+
 ## [1.4.2]
 
 - Add ramp LFO and fix sincos LFO and tremolozer

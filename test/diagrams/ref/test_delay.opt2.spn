@@ -1,0 +1,77 @@
+;================================================================================
+; delay_crossfade_test
+; Tests mathematical routing loops, dual signal merging, and constant parameter folding.
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Block Declarations
+;--------------------------------------------------------------------------------
+equ	cv_b2_delay_time	16384
+equ	cv_b2_mix_ctrl	1
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Register Aliases
+equ	adc_out	REG0
+equ	simple_audio_output	REG1
+; OPTIMIZED OUT - equ	crossfade_output	REG2 (Unused register)
+equ	simple_local_dry	REG3
+equ	simple_local_wet	REG4
+
+; Memory Allocations
+mem	mem0_delayl	16384
+
+;	"Generated from spincad source file crossfade.spincad"
+
+; Flattened Execution (TOPOLOGICAL ORDER)
+;--------------------------------------------------------------------------------
+;===============================================================================
+; ADC Input (input-1)
+; Outputs: Audio: adc_out
+; Parameters: ADC Number=0, Gain=1
+;-------------------------------------------------------------------------------
+;===============================================================================
+; Simple Delay (delay-1)
+; Inputs: Audio Input: adc_out, Delay Time: (not connected), Mix: (not connected)
+; Outputs: Audio Output: simple_audio_output
+; Parameters: Mix=1
+;-------------------------------------------------------------------------------
+;===============================================================================
+; Crossfade (crossfade-1)
+; Inputs: Input 1: adc_out, Input 2: simple_audio_output, Fade: (not connected)
+; Outputs: Output: crossfade_output
+;-------------------------------------------------------------------------------
+;===============================================================================
+; DAC Output (output-1)
+; Inputs: Audio: crossfade_output
+; Parameters: DAC Number=0
+;-------------------------------------------------------------------------------
+rdax	ADCL, 1
+; wrax	adc_out, 0
+wrax	adc_out,	1.0	; Optimization: accumulator forwarded
+;	Simple Delay with Mix
+;	Store dry signal and write to delay
+; rdax	adc_out, 1.0	; rdax not needed with accumulator forwarding optimization
+wrax	simple_local_dry, 1.0
+wra	mem0_delayl, 0.0
+;	Calculate Delay Pointer (ADDR_PTR is an absolute address in delay RAM)
+sof	0.0, cv_b2_delay_time	; CV default: delayLength
+;	Control sweeps from [base] to [base + size]
+sof	16384/32768, (mem0_delayl + 1)/32768
+wrax	ADDR_PTR, 0.0
+;	Read wet signal
+rmpa	1.0
+;	Mixing logic: dry + mix * (wet - dry)
+rdax	simple_local_dry, -0.999	; ACC now equals (wet - dry)
+wrax	simple_local_wet, 0.0	; Store wet-dry in reg.wet temporarily
+sof	0.0, cv_b2_mix_ctrl	; CV default: mix
+mulx	simple_local_wet
+rdax	simple_local_dry, 1.0
+wrax	simple_audio_output, 0.0
+;	Dynamic interpolation or fixed fallback crossfade
+;	Fallback to static parameter fade
+rdax	adc_out, ((1.0 - 0.5) * 0.501187)
+rdax	simple_audio_output, (0.5 * 0.501187)
+; wrax	crossfade_output, 0.0
+; rdax	crossfade_output, 1.0	; rdax not needed with accumulator forwarding optimization
+wrax	DACL, 0
