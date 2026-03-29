@@ -4,28 +4,28 @@
   "name": "Crossfade 2",
   "category": "Gain/Mixing",
   "description": "Curbed crossfade between two audio inputs.",
-  "color": "#f2f224",
+  "color": "#2468f2",
   "inputs": [
     {
       "id": "input1",
-      "name": "Audio In 1",
+      "name": "Input 1",
       "type": "audio"
     },
     {
       "id": "input2",
-      "name": "Audio In 2",
+      "name": "Input 2",
       "type": "audio"
     },
     {
       "id": "fade",
-      "name": "Control Input",
+      "name": "Fade",
       "type": "control"
     }
   ],
   "outputs": [
     {
       "id": "output",
-      "name": "Audio Output",
+      "name": "Output",
       "type": "audio"
     }
   ],

@@ -1,0 +1,67 @@
+;================================================================================
+; flanger_pot_test
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Potentiometer Assignments
+;--------------------------------------------------------------------------------
+; POT0: Flanger (LFO Rate)
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Register Aliases
+equ	adc_out	REG0
+equ	pot0_out	REG1
+; OPTIMIZED OUT - equ	flanger_output	REG2 (Unused register)
+; OPTIMIZED OUT - equ	pot0_local_f1	REG3 (Unused register)
+; OPTIMIZED OUT - equ	pot0_local_f2	REG4 (Unused register)
+; OPTIMIZED OUT - equ	flanger_tap	REG5 (Unused register)
+
+; Memory Allocations
+mem	mem0_delayl	1024
+
+;	Flanger LFO init
+skp	run, done_lfo
+wlds	SIN0, 126, 655
+DONE_LFO:
+
+; Flattened Execution (TOPOLOGICAL ORDER)
+;--------------------------------------------------------------------------------
+;===============================================================================
+; ADC Input (input-1)
+; Outputs: Audio: adc_out
+; Parameters: ADC Number=0, Gain=1
+;-------------------------------------------------------------------------------
+;===============================================================================
+; Potentiometer (pot-1)
+; Outputs: Control: pot0_out
+; Parameters: Pot Number=0, Invert=true
+;-------------------------------------------------------------------------------
+;===============================================================================
+; Flanger (flanger-1)
+; Inputs: Input: adc_out, Feedback In: (not connected), LFO Rate: pot0_out, LFO Width: (not connected), Feedback Gain: (not connected)
+; Outputs: Output: flanger_output
+; Parameters: Base Delay (ms)=5, LFO Rate (Hz)=5, LFO Depth (ms)=10, LFO Select=0
+;-------------------------------------------------------------------------------
+;===============================================================================
+; DAC Output (output-1)
+; Inputs: Audio: flanger_output
+; Parameters: DAC Number=0
+;-------------------------------------------------------------------------------
+rdax	ADCL, 1
+wrax	adc_out, 0
+ldax	POT0
+sof	-1, 1	; Invert
+wrax	pot0_out, 0.0
+;	Flanger
+rdax	pot0_out, 251 / 511.0
+sof	1.0, 1 / 511.0
+wrax	SIN0_RATE, 0.0
+rdax	adc_out, 1.000000
+wra	mem0_delayl, 0.0
+;	tapCenter
+cho	rda, SIN0, SIN | REG | COMPC, mem0_delayl + 164
+cho	rda, SIN0, SIN, mem0_delayl + 164 + 1
+; wrax	flanger_output, 0.0
+; rdax	flanger_output, 1.0	; rdax not needed with accumulator forwarding optimization
+wrax	DACL, 0

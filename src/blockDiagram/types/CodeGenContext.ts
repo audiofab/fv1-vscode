@@ -45,10 +45,15 @@ export class CodeGenerationContext implements CodeGenContext {
     private inputCode: string[] = [];   // ADC reads, POT reads
     private mainCode: string[] = [];    // Main processing logic
     private outputCode: string[] = [];  // DAC writes
+    private flattenedCode: string[] = []; // Aggressive optimization flattened buffer
     private irNodes: any[] = []; // Semantic IR nodes
+    private flattenMode: boolean = false;
 
     // Error tracking
     private compilationErrors: string[] = [];
+
+    // Set of EQU names pushed to IR header section (decoupled from equDeclarations)
+    private headerEquSet: Set<string> = new Set();
 
     // FV-1 hardware limits
     private readonly MAX_REGISTERS = 32;  // REG0-REG31
@@ -101,6 +106,20 @@ being processed
     }
 
     /**
+     * Set flatten mode for aggressive optimization
+     */
+    setFlattenMode(enabled: boolean): void {
+        this.flattenMode = enabled;
+    }
+
+    /**
+     * Check if flatten mode is enabled
+     */
+    isFlattenMode(): boolean {
+        return this.flattenMode;
+    }
+
+    /**
      * Push code to the initialization section
      * For EQU/MEM declarations and SKP logic
      */
@@ -113,7 +132,11 @@ being processed
      * For ADC reads and POT reads
      */
     pushInputCode(...lines: string[]): void {
-        this.inputCode.push(...lines);
+        if (this.flattenMode) {
+            this.flattenedCode.push(...lines);
+        } else {
+            this.inputCode.push(...lines);
+        }
     }
 
     /**
@@ -121,7 +144,11 @@ being processed
      * For main processing logic
      */
     pushMainCode(...lines: string[]): void {
-        this.mainCode.push(...lines);
+        if (this.flattenMode) {
+            this.flattenedCode.push(...lines);
+        } else {
+            this.mainCode.push(...lines);
+        }
     }
 
     /**
@@ -129,7 +156,11 @@ being processed
      * For DAC writes
      */
     pushOutputCode(...lines: string[]): void {
-        this.outputCode.push(...lines);
+        if (this.flattenMode) {
+            this.flattenedCode.push(...lines);
+        } else {
+            this.outputCode.push(...lines);
+        }
     }
 
     /**
@@ -189,7 +220,7 @@ being processed
         return {
             init,
             input: [...this.inputCode],
-            main: [...this.mainCode],
+            main: this.flattenMode ? [...this.flattenedCode] : [...this.mainCode],
             output: [...this.outputCode]
         };
     }
@@ -240,6 +271,53 @@ being processed
 
         // Return the alias (symbolic name) instead of raw register name
         return allocation.alias;
+    }
+
+    /**
+     * Check if an input port is connected to a zero-bypass pot
+     */
+    isInputZeroBypassed(blockIdOrType: string, portId: string): boolean {
+        const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
+        
+        // Find the connection feeding this input
+        const connection = this.graph.connections.find(
+            conn => conn.to.blockId === blockId && conn.to.portId === portId
+        );
+
+        if (!connection) {
+            return false;
+        }
+
+        // Check the source block
+        const sourceBlock = this.graph.blocks.find(b => b.id === connection.from.blockId);
+        if (sourceBlock && sourceBlock.type === 'input.pot') {
+            return sourceBlock.parameters['ignoreIfZero'] === true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Get the zeroValue from a connected zero-bypass pot
+     * Returns 0 if not connected to a zero-bypass pot
+     */
+    getInputZeroValue(blockIdOrType: string, portId: string): number {
+        const blockId = blockIdOrType.includes('.') ? this.currentBlockId! : blockIdOrType;
+
+        const connection = this.graph.connections.find(
+            conn => conn.to.blockId === blockId && conn.to.portId === portId
+        );
+
+        if (!connection) {
+            return 0;
+        }
+
+        const sourceBlock = this.graph.blocks.find(b => b.id === connection.from.blockId);
+        if (sourceBlock && sourceBlock.type === 'input.pot' && sourceBlock.parameters['ignoreIfZero'] === true) {
+            return sourceBlock.parameters['zeroValue'] ?? 0;
+        }
+
+        return 0;
     }
 
     /**
@@ -408,6 +486,21 @@ being processed
      */
     hasEqu(name: string): boolean {
         return this.equDeclarations.some(equ => equ.name === name);
+    }
+
+    /**
+     * Register an EQU that lives only in the IR header section (not in equDeclarations).
+     * Prevents the EQU from being duplicated in the init/Constants section.
+     */
+    registerHeaderEqu(name: string): void {
+        this.headerEquSet.add(name);
+    }
+
+    /**
+     * Returns true if an EQU has been registered for the IR header section.
+     */
+    hasHeaderEqu(name: string): boolean {
+        return this.headerEquSet.has(name);
     }
 
     /**
@@ -601,6 +694,7 @@ being processed
         this.inputCode = [];
         this.mainCode = [];
         this.outputCode = [];
+        this.flattenedCode = [];
         this.nextRegister = 0;
         this.nextScratchRegister = 31;
         this.nextMemoryAddress = 0;

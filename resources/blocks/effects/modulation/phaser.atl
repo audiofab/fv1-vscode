@@ -1,0 +1,300 @@
+---
+{
+  "type": "effects.modulation.phaser",
+  "category": "Effects",
+  "subcategory": "Modulation",
+  "name": "Phaser",
+  "description": "Multi-stage phaser with internal SIN1 LFO or external CV control. Produces the classic sweeping notch effect by cascading first-order all-pass filters.",
+  "color": "#00ffff",
+  "labelTemplate": "${param.lfoSel == 0 ? 'SIN0' : 'SIN1'}",
+  "inputs": [
+    {
+      "id": "audio_input",
+      "name": "Audio Input",
+      "type": "audio",
+      "required": true
+    },
+    {
+      "id": "lfo_speed",
+      "name": "LFO Speed",
+      "type": "control",
+      "required": false,
+      "parameter": "rate"
+    },
+    {
+      "id": "lfo_width",
+      "name": "LFO Width",
+      "type": "control",
+      "required": false,
+      "parameter": "depth"
+    },
+    {
+      "id": "phase_cv",
+      "name": "Phase CV",
+      "type": "control",
+      "required": false,
+      "parameter": "depth"
+    }
+  ],
+  "outputs": [
+    {
+      "id": "mix_out",
+      "name": "Mix Out",
+      "type": "audio"
+    },
+    {
+      "id": "wet_out",
+      "name": "Wet Out",
+      "type": "audio"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "lfoSel",
+      "name": "LFO Selection",
+      "type": "select",
+      "default": 0,
+      "options": [
+        { "value": 0, "label": "SIN0" },
+        { "value": 1, "label": "SIN1" }
+      ],
+      "description": "Which SIN oscillator to use (0 or 1)."
+    },
+    {
+      "id": "rate",
+      "name": "LFO Rate",
+      "type": "number",
+      "default": 1.0,
+      "min": 0.05,
+      "max": 10.0,
+      "step": 0.01,
+      "conversion": "HZ_TO_LFO_RATE",
+      "description": "Speed of the internal SIN1 modulation LFO."
+    },
+    {
+      "id": "depth",
+      "name": "Modulation Depth",
+      "type": "number",
+      "default": 0.25,
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.01,
+      "description": "Depth of the phase sweep."
+    },
+    {
+      "id": "stages",
+      "name": "Stages",
+      "type": "select",
+      "default": 2,
+      "options": [
+        { "label": "2 Stages", "value": 1 },
+        { "label": "4 Stages", "value": 2 },
+        { "label": "6 Stages", "value": 3 },
+        { "label": "8 Stages", "value": 4 },
+        { "label": "10 Stages", "value": 5 }
+      ],
+      "description": "Number of all-pass stages. More stages create more notches in the spectrum."
+    },
+    {
+      "id": "mode",
+      "name": "Control Mode",
+      "type": "select",
+      "default": 0,
+      "options": [
+        { "label": "Internal LFO", "value": 0 },
+        { "label": "Manual / Phase CV", "value": 1 }
+      ],
+      "description": "Source of phase modulation."
+    }
+  ],
+  "registers": [
+    "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10",
+    "temp", "temp1", "phaseReg", "depthReg", "wet"
+  ]
+}
+---
+; Phaser
+; Based on PhaserCADBlock.java
+@if ${param.lfoSel} == 0
+@equals lfoNum SIN0
+@equals lfoRateReg SIN0_RATE
+@else
+@equals lfoNum SIN1
+@equals lfoRateReg SIN1_RATE
+@endif
+
+
+@section init
+@if isequalto mode 0
+skp run, done_lfo
+wlds ${lfoNum}, ${param.rate}, 32767
+done_lfo:
+@endif
+
+@section main
+@if pinConnected(audio_input)
+
+; --- Phase Coefficient Setup ---
+@if isequalto mode 0
+; Internal LFO Configuration
+@if pinConnected(lfo_speed)
+@cv lfo_speed
+wrax ${lfoRateReg}, 0.0
+@endif
+@if pinConnected(lfo_width)
+@cv lfo_width
+wrax ${reg.depthReg}, 0.0
+@else
+sof 0.0, ${param.depth}
+wrax ${reg.depthReg}, 0.0
+@endif
+
+cho rdal, ${lfoNum}
+sof 0.5, 0.5                    ; Map -1..1 to 0..1
+; Nonlinear sweep approximation
+sof 1.0, -0.5                   ; Center at 0.5
+sof 1.999, 0.0                  ; Expand to -1..1
+mulx ${reg.depthReg}            ; Scale by depth
+sof 0.15, 0.83                  ; Map to all-pass stable range [0.83, 0.98]
+wrax ${reg.phaseReg}, 0.0
+@else
+; External Manual CV
+@cv phase_cv
+sof 0.15, 0.83                  ; Map CV [0..1] to [0.83, 0.98]
+wrax ${reg.phaseReg}, 0.0
+@endif
+
+; --- All-pass Filter Chain ---
+; Use 1/64 attenuation to maintain headroom through the cascade
+rdax ${input.audio_input}, 0.015625
+wrax ${reg.temp}, 0.0           ; Input to first stage
+
+; Stage 1
+rdax ${reg.temp}, 1.0
+wrax ${reg.temp1}, 0.0
+rdax ${reg.p1}, 1.0
+wrax ${reg.temp}, 1.0
+mulx ${reg.phaseReg}
+rdax ${reg.temp1}, 1.0
+wrax ${reg.p1}, -1.0
+mulx ${reg.phaseReg}
+
+; Stage 2
+rdax ${reg.temp}, 1.0
+wrax ${reg.temp1}, 0.0
+rdax ${reg.p2}, 1.0
+wrax ${reg.temp}, 1.0
+mulx ${reg.phaseReg}
+rdax ${reg.temp1}, 1.0
+wrax ${reg.p2}, -1.0
+mulx ${reg.phaseReg}
+
+; Stage 3 & 4
+@if stages >= 2
+rdax ${reg.temp}, 1.0
+wrax ${reg.temp1}, 0.0
+rdax ${reg.p3}, 1.0
+wrax ${reg.temp}, 1.0
+mulx ${reg.phaseReg}
+rdax ${reg.temp1}, 1.0
+wrax ${reg.p3}, -1.0
+mulx ${reg.phaseReg}
+
+rdax ${reg.temp}, 1.0
+wrax ${reg.temp1}, 0.0
+rdax ${reg.p4}, 1.0
+wrax ${reg.temp}, 1.0
+mulx ${reg.phaseReg}
+rdax ${reg.temp1}, 1.0
+wrax ${reg.p4}, -1.0
+mulx ${reg.phaseReg}
+@endif
+
+; Stage 5 & 6
+@if stages >= 3
+rdax ${reg.temp}, 1.0
+wrax ${reg.temp1}, 0.0
+rdax ${reg.p5}, 1.0
+wrax ${reg.temp}, 1.0
+mulx ${reg.phaseReg}
+rdax ${reg.temp1}, 1.0
+wrax ${reg.p5}, -1.0
+mulx ${reg.phaseReg}
+
+rdax ${reg.temp}, 1.0
+wrax ${reg.temp1}, 0.0
+rdax ${reg.p6}, 1.0
+wrax ${reg.temp}, 1.0
+mulx ${reg.phaseReg}
+rdax ${reg.temp1}, 1.0
+wrax ${reg.p6}, -1.0
+mulx ${reg.phaseReg}
+@endif
+
+; Stage 7 & 8
+@if stages >= 4
+rdax ${reg.temp}, 1.0
+wrax ${reg.temp1}, 0.0
+rdax ${reg.p7}, 1.0
+wrax ${reg.temp}, 1.0
+mulx ${reg.phaseReg}
+rdax ${reg.temp1}, 1.0
+wrax ${reg.p7}, -1.0
+mulx ${reg.phaseReg}
+
+rdax ${reg.temp}, 1.0
+wrax ${reg.temp1}, 0.0
+rdax ${reg.p8}, 1.0
+wrax ${reg.temp}, 1.0
+mulx ${reg.phaseReg}
+rdax ${reg.temp1}, 1.0
+wrax ${reg.p8}, -1.0
+mulx ${reg.phaseReg}
+@endif
+
+; Stage 9 & 10
+@if stages >= 5
+rdax ${reg.temp}, 1.0
+wrax ${reg.temp1}, 0.0
+rdax ${reg.p9}, 1.0
+wrax ${reg.temp}, 1.0
+mulx ${reg.phaseReg}
+rdax ${reg.temp1}, 1.0
+wrax ${reg.p9}, -1.0
+mulx ${reg.phaseReg}
+
+rdax ${reg.temp}, 1.0
+wrax ${reg.temp1}, 0.0
+rdax ${reg.p10}, 1.0
+wrax ${reg.temp}, 1.0
+mulx ${reg.phaseReg}
+rdax ${reg.temp1}, 1.0
+wrax ${reg.p10}, -1.0
+mulx ${reg.phaseReg}
+@endif
+
+; Final Stage Output Load
+rdax ${reg.temp}, 1.0
+
+; --- Gain Restoration ---
+; Restores the 1/64 attenuation (6 stages of sof -2.0)
+sof -2.0, 0.0
+sof -2.0, 0.0
+sof -2.0, 0.0
+sof -2.0, 0.0
+sof -2.0, 0.0
+sof -2.0, 0.0
+wrax ${reg.wet}, 1.0                ; Wet signal in wet register and ACC
+
+; --- Output Routing ---
+@if pinConnected(mix_out)
+rdax ${input.audio_input}, 1.0      ; Dry + Wet
+wrax ${output.mix_out}, 0.0
+@endif
+
+@if pinConnected(wet_out)
+rdax ${reg.wet}, 1.0
+wrax ${output.wet_out}, 0.0
+@endif
+
+@endif

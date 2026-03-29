@@ -24,6 +24,8 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
 
     // Track display values for all parameters
     const [displayValues, setDisplayValues] = useState<Record<string, number>>({});
+    // Track raw string input while user is actively typing (to allow '-', '.' etc)
+    const [rawInputValues, setRawInputValues] = useState<Record<string, string>>({});
 
     // Convert code values to display values when block or metadata changes
     useEffect(() => {
@@ -179,34 +181,55 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                                 {param.type === 'number' && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         <input
-                                            type="number"
+                                            type="text"
+                                            inputMode="decimal"
                                             className="property-input"
-                                            value={displayValue}
-                                            min={minValue}
-                                            max={maxValue}
-                                            step={stepValue}
+                                            value={rawInputValues[param.id] ?? String(displayValue)}
+                                            style={{ width: '72px', flexShrink: 0 }}
                                             onChange={(e) => {
-                                                const newDisplayValue = parseFloat(e.target.value);
-                                                // Just update display immediately, don't convert yet
-                                                setDisplayValues(prev => ({
-                                                    ...prev,
-                                                    [param.id]: newDisplayValue
-                                                }));
+                                                const raw = e.target.value;
+                                                // Always accept the raw string so '-' and '.' work as first chars
+                                                setRawInputValues(prev => ({ ...prev, [param.id]: raw }));
+                                                // Optimistically update the range slider if the value is already parseable
+                                                const parsed = parseFloat(raw);
+                                                if (!isNaN(parsed)) {
+                                                    setDisplayValues(prev => ({ ...prev, [param.id]: parsed }));
+                                                }
                                             }}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {
-                                                    e.preventDefault(); // Prevent form submission
-                                                    // Trigger blur which will handle the value change
+                                                    e.preventDefault();
                                                     e.currentTarget.blur();
+                                                } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                                    // Step up/down by configured step value
+                                                    e.preventDefault();
+                                                    const current = parseFloat(rawInputValues[param.id] ?? String(displayValue));
+                                                    if (isNaN(current)) return;
+                                                    const step = stepValue ?? 1;
+                                                    const next = parseFloat((current + (e.key === 'ArrowUp' ? step : -step)).toFixed(decimals));
+                                                    const clamped = Math.min(maxValue ?? Infinity, Math.max(minValue ?? -Infinity, next));
+                                                    setRawInputValues(prev => ({ ...prev, [param.id]: String(clamped) }));
+                                                    setDisplayValues(prev => ({ ...prev, [param.id]: clamped }));
                                                 }
                                             }}
+                                            onFocus={(e) => {
+                                                // Seed raw buffer from current display value when entering the field
+                                                setRawInputValues(prev => ({
+                                                    ...prev,
+                                                    [param.id]: prev[param.id] ?? String(displayValue)
+                                                }));
+                                            }}
                                             onBlur={(e) => {
-                                                // Only convert when user finishes editing (leaves the field)
-                                                const newDisplayValue = parseFloat(e.target.value);
-                                                if (param.displayMin !== undefined || param.displayMax !== undefined) {
-                                                    handleDisplayValueChange(param.id, newDisplayValue);
-                                                } else {
-                                                    handleParameterChange(param.id, newDisplayValue);
+                                                // Parse and commit on blur; revert raw buffer to committed value
+                                                const parsed = parseFloat(e.target.value);
+                                                const committed = isNaN(parsed) ? displayValue : parsed;
+                                                setRawInputValues(prev => ({ ...prev, [param.id]: String(committed) }));
+                                                if (!isNaN(parsed)) {
+                                                    if (param.displayMin !== undefined || param.displayMax !== undefined) {
+                                                        handleDisplayValueChange(param.id, committed);
+                                                    } else {
+                                                        handleParameterChange(param.id, committed);
+                                                    }
                                                 }
                                             }}
                                         />
@@ -219,6 +242,8 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                                             step={stepValue}
                                             onChange={(e) => {
                                                 const newDisplayValue = parseFloat(e.target.value);
+                                                // Sync raw buffer so the text field stays in step with the slider
+                                                setRawInputValues(prev => ({ ...prev, [param.id]: String(newDisplayValue) }));
                                                 if (param.displayMin !== undefined || param.displayMax !== undefined) {
                                                     handleDisplayValueChange(param.id, newDisplayValue);
                                                 } else {

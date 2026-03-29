@@ -25,12 +25,6 @@
       "name": "LFO Width",
       "type": "control",
       "required": false
-    },
-    {
-      "id": "mix_ctrl",
-      "name": "Mix Control",
-      "type": "control",
-      "required": false
     }
   ],
   "outputs": [
@@ -75,16 +69,6 @@
       "step": 0.1
     },
     {
-      "id": "mix",
-      "name": "Mix",
-      "type": "number",
-      "default": 0.5,
-      "min": 0,
-      "max": 1,
-      "description": "Wet/Dry mix balance.",
-      "step": 0.01
-    },
-    {
       "id": "lfoSel",
       "name": "LFO Select",
       "type": "select",
@@ -108,7 +92,6 @@
     }
   ],
   "registers": [
-    "dry"
   ]
 }
 ---
@@ -131,7 +114,6 @@ done_lfo:
 @section main
 ; Chorus
 rdax ${input.in}, 1.0
-wrax ${reg.dry}, 1.0
 wra ${mem.delayl}, 0.0
 
 @if pinConnected(lfo_rate)
@@ -152,14 +134,4 @@ wrax ${lfoRange}, 0.0
 cho rda, ${lfoNum}, SIN | REG | COMPC, ${center}
 cho rda, ${lfoNum}, SIN, ${center} + 1
 
-; Mixing logic: dry + mix * (wet - dry)
-rdax ${reg.dry}, -1.0
-@if pinConnected(mix_ctrl)
-mulx ${input.mix_ctrl}
-@else
-sof ${mix}, 0.0
-@endif
-rdax ${reg.dry}, 1.0
-
 wrax ${output.out}, 0.0
-

@@ -62,19 +62,41 @@
       "id": "invert",
       "name": "Invert",
       "type": "boolean",
-      "default": false
+      "default": false,
+      "description": "Inverts the output value"
     },
     {
       "id": "speedup",
       "name": "Speedup",
       "type": "boolean",
-      "default": false
+      "default": false,
+      "description": "Speeds up the response of the pot"
+    },
+    {
+      "id": "ignoreIfZero",
+      "name": "Ignore if Zero (Fallback to Default)",
+      "type": "boolean",
+      "default": false,
+      "description": "If true, blocks connected to this pot will use their default value when the pot is turned down.",
+      "visibleIf": "true == false"
+    },
+    {
+      "id": "zeroValue",
+      "name": "Zero Bypass Value",
+      "type": "number",
+      "default": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.01,
+      "description": "The value sent to connected @cv inputs when the pot is turned all the way down (zero-bypass active).",
+      "visibleIf": "ignoreIfZero == true"
     },
     {
       "id": "custom_range",
       "name": "Custom Scaling",
       "type": "boolean",
-      "default": false
+      "default": false,
+      "description": "Custom scaling for the pot"
     },
     {
       "id": "pot_min",

@@ -1,0 +1,28 @@
+;================================================================================
+; Direct Wire Test
+; Tests the simplest possible diagram: ADC straight to DAC.
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Register Aliases
+equ	adc1_out	REG0
+equ	adc2_out	REG1
+
+
+; Input Section
+;--------------------------------------------------------------------------------
+rdax	ADCR, 1
+wrax	adc1_out, 0
+rdax	ADCR, 1
+wrax	adc2_out, 0
+
+; Output Section
+;--------------------------------------------------------------------------------
+;	DAC Output
+rdax	adc1_out, 1.0
+wrax	DACR, 0
+;	DAC Output
+rdax	adc2_out, 1.0
+wrax	DACR, 0

@@ -1,0 +1,49 @@
+;================================================================================
+; test_mixing_all
+; Tests all mixer and crossfade blocks (Mixer 2, 3, 4, Crossfade 1, 2, 3).
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Register Aliases
+equ	adc_out	REG0
+equ	mixer2_output	REG1
+equ	mixer3_output	REG2
+equ	mixer4_output	REG3
+equ	crossfade_output	REG4
+
+;	"Generated from spincad source file Mixer_4_to_1.spincad"
+;	"Generated from spincad source file crossfade.spincad"
+
+; Input Section
+;--------------------------------------------------------------------------------
+rdax	ADCL, 1
+wrax	adc_out, 0
+
+; Main Program
+;--------------------------------------------------------------------------------
+rdax	adc_out, 0.501187
+wrax	mixer2_output, 0.0
+rdax	adc_out, 0.501187
+rdax	mixer2_output, 1.0
+wrax	mixer2_output, 0.0
+rdax	mixer2_output, 0.501187
+wrax	mixer3_output, 0.0
+;	REGISTERS
+;	we dont read input 1 unless it's connected
+rdax	mixer3_output, 0.501187	; read input signal
+;	if level 1 is connected we multiply by level 1
+wrax	mixer4_output, 0.0
+;	Dynamic interpolation or fixed fallback crossfade
+;	Fallback to static parameter fade
+rdax	mixer4_output, ((1.0 - 0.5) * 0.501187)
+rdax	mixer4_output, (0.5 * 0.501187)
+; wrax	crossfade_output, 0.0
+wrax	crossfade_output,	1.0	; Optimization: accumulator forwarded
+
+; Output Section
+;--------------------------------------------------------------------------------
+;	DAC Output
+; rdax	crossfade_output, 1.0	; rdax not needed with accumulator forwarding optimization
+wrax	DACL, 0

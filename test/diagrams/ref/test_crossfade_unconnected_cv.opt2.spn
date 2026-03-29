@@ -1,0 +1,54 @@
+;================================================================================
+; test_crossfade_unconnected_cv
+; Tests that crossfade2 and crossfade3 compile successfully when the fade control parameters are unconnected.
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Register Aliases
+equ	adc_out	REG0
+equ	crossfade2_output	REG1
+; OPTIMIZED OUT - equ	crossfade3_output	REG2 (Unused register)
+; OPTIMIZED OUT - equ	crossfade2_local_temp	REG3 (Unused register)
+; OPTIMIZED OUT - equ	crossfade3_local_temp	REG4 (Unused register)
+
+
+; Flattened Execution (TOPOLOGICAL ORDER)
+;--------------------------------------------------------------------------------
+;===============================================================================
+; ADC Input (input-1)
+; Outputs: Audio: adc_out
+; Parameters: ADC Number=0, Gain=1
+;-------------------------------------------------------------------------------
+;===============================================================================
+; Crossfade 2 (crossfade-2)
+; Inputs: Input 1: adc_out, Input 2: adc_out, Fade: (not connected)
+; Outputs: Output: crossfade2_output
+; Parameters: Fade=0.5
+;-------------------------------------------------------------------------------
+;===============================================================================
+; Crossfade 3 (crossfade-3)
+; Inputs: Input 1: crossfade2_output, Input 2: crossfade2_output, Fade: (not connected)
+; Outputs: Output: crossfade3_output
+; Parameters: Fade=0.5
+;-------------------------------------------------------------------------------
+;===============================================================================
+; DAC Output (output-1)
+; Inputs: Audio: crossfade3_output
+; Parameters: DAC Number=0
+;-------------------------------------------------------------------------------
+rdax	ADCL, 1
+wrax	adc_out, 0
+;	Crossfade 2
+;	Fallback to simple crossfade using parameter
+rdax	adc_out, (1.0 - 0.5)
+rdax	adc_out, 0.5
+wrax	crossfade2_output, 0.0
+;	Crossfade 3 (Restored Java logic)
+;	Fallback to simple crossfade using parameter
+rdax	crossfade2_output, (1.0 - 0.5)
+rdax	crossfade2_output, 0.5
+; wrax	crossfade3_output, 0.0
+; rdax	crossfade3_output, 1.0	; rdax not needed with accumulator forwarding optimization
+wrax	DACL, 0

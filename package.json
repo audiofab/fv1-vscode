@@ -2,7 +2,7 @@
   "name": "fv1-vscode",
   "displayName": "Audiofab FV-1 Programming",
   "description": "An extension providing development support for Spin Semiconductor's FV-1 chip and programming support for the Audiofab Easy Spin guitar pedal.",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "publisher": "ms-audiofab",
   "publisherDisplayName": "Audiofab Inc.",
   "icon": "resources/logo_600x493.png",
@@ -347,7 +347,7 @@
               "inputWavFile": {
                 "type": "string",
                 "description": "Path to a .wav file to use as ADC input.",
-                "default": "src/simulator/wav/minor-chords-32k.wav"
+                "default": "src/simulator/wav/not-midnight-32kHz.wav"
               },
               "sampleRate": {
                 "type": "number",
@@ -448,18 +448,20 @@
         },
         "fv1.simulation.oscilloscopeRefreshRate": {
           "type": "number",
-          "default": 1,
+          "default": 4,
           "enum": [
             1,
-            64,
-            128
+            4,
+            8,
+            16
           ],
           "enumDescriptions": [
-            "Every Frame (1)",
-            "64 Frames",
-            "128 Frames"
+            "Every sample (max resolution, highest CPU)",
+            "Every 4 samples (default — good balance)",
+            "Every 8 samples (low CPU)",
+            "Every 16 samples (very low CPU)"
           ],
-          "description": "The rate at which registers are sampled for the oscilloscope."
+          "description": "How many audio samples are skipped between each oscilloscope data point. Higher values reduce CPU and IPC load at the cost of scope time resolution."
         },
         "fv1.simulation.stopOnEntry": {
           "type": "boolean",
@@ -473,6 +475,21 @@
           },
           "default": [],
           "description": "List of absolute paths to directories containing custom .atl block definitions. Reload with 'FV-1: Refresh Custom Blocks'."
+        },
+        "fv1.optimizationLevel": {
+          "type": "integer",
+          "default": 2,
+          "enum": [
+            0,
+            1,
+            2
+          ],
+          "enumDescriptions": [
+            "Level 0: No optimization (all blocks isolated).",
+            "Level 1: Standard optimization (Instruction pruning).",
+            "Level 2: Aggressive optimization (Dead store elimination, register elision)."
+          ],
+          "description": "Sets the optimization level for the block diagram compiler. Default is Level 2 (Aggressive)."
         }
       }
     }

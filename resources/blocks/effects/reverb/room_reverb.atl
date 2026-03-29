@@ -8,9 +8,9 @@
   "color": "#7100FC",
   "inputs": [
     { "id": "input", "name": "Input", "type": "audio", "required": true },
-    { "id": "pre_delay", "name": "Pre Delay", "type": "control", "required": false },
-    { "id": "reverb_time", "name": "Reverb Time", "type": "control", "required": false },
-    { "id": "hf_loss", "name": "HF Loss", "type": "control", "required": false }
+    { "id": "pre_delay", "name": "Pre Delay", "type": "control", "required": false, "parameter": "preDelay" },
+    { "id": "reverb_time", "name": "Reverb Time", "type": "control", "required": false, "parameter": "reverbTime" },
+    { "id": "hf_loss", "name": "HF Loss", "type": "control", "required": false, "parameter": "hfLoss" }
   ],
   "outputs": [
     { "id": "outputL", "name": "Output L", "type": "audio" },
@@ -25,6 +25,16 @@
       "max": 0,
       "default": -6,
       "conversion": "DBLEVEL"
+    },
+    {
+      "id": "preDelay",
+      "name": "Pre-Delay (ms)",
+      "type": "number",
+      "default": 25,
+      "min": 0,
+      "max": 100,
+      "conversion": "MS_TO_SAMPLES",
+      "step": 1
     },
     {
       "id": "reverbTime",
@@ -63,6 +73,16 @@
       "step": 0.01
     },
     {
+      "id": "hfLoss",
+      "name": "HF Loss",
+      "type": "number",
+      "default": 1.0,
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.01,
+      "description": "High-frequency loss applied in the reverb loops. 1.0 = full HF, 0.0 = maximum loss."
+    },
+    {
       "id": "lfoRate",
       "name": "LFO Rate (Hz)",
       "type": "number",
@@ -97,7 +117,7 @@
     { "id": "d4", "size": 1781 }
   ],
   "registers": [
-    "apout", "temp", "kd", "lp1", "lp2", "lp3", "lp4", "hp1", "hp2", "tlp"
+    "apout", "temp", "kd", "rt_cv", "lp1", "lp2", "lp3", "lp4", "hp1", "hp2", "tlp"
   ]
 }
 ---
@@ -118,11 +138,16 @@ room_reverb_init:
 @if pinConnected(input)
 
 ; Room Reverb
-@if pinConnected(pre_delay)
-rdax ${input.pre_delay}, 0.1
-@else
-sof 0.0, 0.025
-@endif
+
+; Evaluate Control Voltages globally
+@cv hf_loss
+wrax ${reg.kd}, 0.0
+
+@cv reverb_time
+wrax ${reg.rt_cv}, 0.0
+
+@cv pre_delay
+sof 0.1, 0.0
 wrax ADDR_PTR, 0.0
 
 ; Feed input to pre-delay
@@ -146,9 +171,7 @@ wrax ${reg.apout}, 0.0
 
 ; Delay loop 1
 rda ${mem.d4}^, ${reverbTime}
-@if pinConnected(reverb_time)
-mulx ${input.reverb_time}
-@endif
+mulx ${reg.rt_cv}
 rdax ${reg.apout}, 1.0
 rda ${mem.lap1a}^, ${delayAllpassCoeff}
 wrap ${mem.lap1a}, -${delayAllpassCoeff}
@@ -159,17 +182,13 @@ wrhx ${reg.hp1}, -0.5
 wrax ${reg.temp}, -1.0
 rdfx ${reg.lp1}, 0.5
 wrhx ${reg.lp1}, -1.0
-@if pinConnected(hf_loss)
-mulx ${input.hf_loss}
-@endif
+mulx ${reg.kd}
 rdax ${reg.temp}, 1.0
 wra ${mem.d1}, 0.0
 
 ; Delay loop 2
 rda ${mem.d1}^, -${reverbTime}
-@if pinConnected(reverb_time)
-mulx ${input.reverb_time}
-@endif
+mulx ${reg.rt_cv}
 rdax ${reg.apout}, 1.0
 rda ${mem.lap2a}^, ${delayAllpassCoeff}
 wrap ${mem.lap2a}, -${delayAllpassCoeff}
@@ -180,17 +199,13 @@ wrhx ${reg.hp2}, -0.5
 wrax ${reg.temp}, -1.0
 rdfx ${reg.lp2}, 0.5
 wrhx ${reg.lp2}, -1.0
-@if pinConnected(hf_loss)
-mulx ${input.hf_loss}
-@endif
+mulx ${reg.kd}
 rdax ${reg.temp}, 1.0
 wra ${mem.d2}, 0.0
 
 ; Delay loop 3
 rda ${mem.d2}^, -1.0
-@if pinConnected(reverb_time)
-mulx ${input.reverb_time}
-@endif
+mulx ${reg.rt_cv}
 rdax ${reg.apout}, 1.0
 rda ${mem.lap3a}^, ${delayAllpassCoeff}
 wrap ${mem.lap3a}, -${delayAllpassCoeff}
@@ -207,9 +222,7 @@ wra ${mem.d3}, 0.0
 
 ; Delay loop 4
 rda ${mem.d3}^, -1.0
-@if pinConnected(reverb_time)
-mulx ${input.reverb_time}
-@endif
+mulx ${reg.rt_cv}
 rdax ${reg.apout}, 1.0
 rda ${mem.lap4a}^, ${delayAllpassCoeff}
 wrap ${mem.lap4a}, -${delayAllpassCoeff}
@@ -229,9 +242,7 @@ wrap ${mem.tap1}, -0.5
 wrax ${reg.temp}, 1.0
 rdfx ${reg.tlp}, 0.1
 wrhx ${reg.tlp}, -1.0
-@if pinConnected(hf_loss)
-mulx ${input.hf_loss}
-@endif
+mulx ${reg.kd}
 rdax ${reg.temp}, 1.0
 wra ${mem.tdel}+101, 0.0
 

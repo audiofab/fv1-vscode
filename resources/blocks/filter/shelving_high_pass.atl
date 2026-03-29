@@ -1,6 +1,6 @@
 ---
 {
-  "type": "fx.filter.shelving_hpf",
+  "type": "filter.shelving_hpf",
   "name": "Shelving HPF",
   "category": "Filter",
   "description": "High-pass filter with adjustable shelf depth",

@@ -163,6 +163,26 @@ Direct integration with the Audiofab USB Programmer:
 
 💾 **Export banks to HEX** for use with other tools or archival
 
+Code Optimization Levels
+-------------------------
+
+The block diagram compiler features a configurable three-level optimization system to balance code size and complexity:
+
+**Level 0 (None)**
+   All blocks remain isolated with no cross-block optimizations applied.
+
+**Level 1 (Standard)**
+   - **Accumulator Forwarding**: Eliminates redundant ``wrax``/``rdax`` pairs between blocks
+   - **Register Pruning**: Removes unused register assignments
+
+**Level 2 (Aggressive)** - *Default*
+   Includes all Level 1 optimizations plus:
+   - **Dead Store Elimination**: Removes ``wrax`` instructions whose registers are never read
+   - **Section Flattening**: Collapses Input/Main/Output sections into optimized topological order
+   - **Inline Comments**: Block comments are inlined for visibility in flattened execution mode
+
+Configure optimization level in VS Code settings under ``fv1.optimizationLevel`` to experiment with different tradeoffs between code size and readability.
+
 Supported Blocks
 ----------------
 
@@ -172,16 +192,25 @@ The extension includes a comprehensive library of effects and utilities:
    Hardware ADC and DAC routing
 
 **Control**
-   Smoothers, Power curve shaping, Tremolizers
+   Envelope followers, Smoothers, Power curve shaping, Ramp and Sin/Cos LFOs, Tremolizers
 
 **Gain/Mixing**
-   Custom Mixers, Multi-channel Crossfades, Volume controls
+   2:1 and 3:1 Mixers, Multi-channel Crossfades, Volume controls
 
 **Filter**
-   1-pole LPF/HPFs, 2-pole SVFs
+   1-pole Low/High-Pass Filters, 2-pole State Variable Filters (SVF), Shelving Filters
 
-**Effects**
-   Including Delays, Modulation (Chorus, Flanger), and Reverbs (Plate, Spring, Room, Minimal)
+**Effects - Delay**
+   Simple Delay, Triple-Tap Delay
+
+**Effects - Modulation**
+   Chorus, Flanger, Phaser
+
+**Effects - Pitch** *(New in v1.4.3)*
+   Pitch shifter with adjustable range, fixed pitch offset, dual offset variant, octave up/down
+
+**Effects - Reverb**
+   Plate, Spring, Room, and Minimal reverbs
 
 **Other**
    Fixed and Adjustable Sine Tone Generators

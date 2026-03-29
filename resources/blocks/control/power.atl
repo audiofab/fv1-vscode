@@ -6,15 +6,15 @@
   "description": "Applies a non-linear curve optionally inverted/flipped",
   "inputs": [
     {
-      "id": "control_input_1",
-      "name": "Control Input 1",
+      "id": "in",
+      "name": "Input",
       "type": "control"
     }
   ],
   "outputs": [
     {
-      "id": "control_output_1",
-      "name": "Control Output 1",
+      "id": "out",
+      "name": "Output",
       "type": "control"
     }
   ],
@@ -51,7 +51,7 @@
 
 @section main
 ; Applies a non-linear curve (square) optionally inverted/flipped
-rdax	${input.control_input_1},	1.0
+rdax	${input.in},	1.0
 @if ${invert} == true
 ; ---Invert
 sof	-0.9990234375,	0.9990234375
@@ -74,4 +74,4 @@ mulx	${reg.value}
 ; ---Flip
 sof	-0.9990234375,	0.9990234375
 @endif
-wrax	${output.control_output_1},	0
+wrax	${output.out},	0

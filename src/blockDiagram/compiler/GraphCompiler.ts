@@ -9,7 +9,7 @@ import { Block } from '../types/Block.js';
 import { BlockRegistry } from '../blocks/BlockRegistry.js';
 import { TopologicalSort } from './TopologicalSort.js';
 import { CodeGenerationContext } from '../types/CodeGenContext.js';
-import { CodeOptimizer } from './CodeOptimizer.js';
+import { CodeOptimizer, OptimizationLevel } from './CodeOptimizer.js';
 import { FV1Assembler } from '../../assembler/FV1Assembler.js';
 
 export interface CompilationStatistics {
@@ -49,6 +49,7 @@ export class GraphCompiler {
         delaySize: number;
         fv1AsmMemBug?: boolean;
         clampReals?: boolean;
+        optimizationLevel?: OptimizationLevel;
     }): CompilationResult {
         const errors: string[] = [];
         const warnings: string[] = [];
@@ -100,6 +101,12 @@ export class GraphCompiler {
         // that haven't been generated yet in the execution order
         this.preallocateAllOutputs(graph, context);
 
+        // 5. Enable section flattening if Aggressive optimization is selected
+        const level = options.optimizationLevel !== undefined ? options.optimizationLevel : OptimizationLevel.Aggressive;
+        if (level >= OptimizationLevel.Aggressive) {
+            context.setFlattenMode(true);
+        }
+
         // 5. Generate code for each block in execution order
         // Blocks will push their code to appropriate sections or push IR nodes
         try {
@@ -126,6 +133,12 @@ export class GraphCompiler {
                 }
 
                 context.setCurrentBlock(blockId);
+
+                // Add block comment ONLY in flattened mode (Level 2)
+                if (context.isFlattenMode()) {
+                    const blockComments = this.generateBlockComment(block, context, graph);
+                    context.pushMainCode(...blockComments);
+                }
 
                 // If it's a template-based block (to be implemented), it will push to IR
                 // For now, even legacy blocks can be adapted to push IR if they want
@@ -216,23 +229,27 @@ export class GraphCompiler {
         }
 
         // Section 3: Input Section (ADC reads, POT reads)
-        if (sections.input.length > 0) {
+        if (!context.isFlattenMode() && sections.input.length > 0) {
             codeLines.push('; Input Section');
             codeLines.push(';--------------------------------------------------------------------------------');
             codeLines.push(...sections.input);
             codeLines.push('');
         }
 
-        // Section 4: Main Program
+        // Section 4: Main Program (or Flattened Execution)
         if (sections.main.length > 0) {
-            codeLines.push('; Main Program');
+            if (context.isFlattenMode()) {
+                codeLines.push('; Flattened Execution (TOPOLOGICAL ORDER)');
+            } else {
+                codeLines.push('; Main Program');
+            }
             codeLines.push(';--------------------------------------------------------------------------------');
             codeLines.push(...sections.main);
             codeLines.push('');
         }
 
         // Section 5: Output Section (DAC writes)
-        if (sections.output.length > 0) {
+        if (!context.isFlattenMode() && sections.output.length > 0) {
             codeLines.push('; Output Section');
             codeLines.push(';--------------------------------------------------------------------------------');
             codeLines.push(...sections.output);
@@ -240,7 +257,7 @@ export class GraphCompiler {
         }
 
         // Apply post-processing optimizations to the complete code
-        const optimizerResult = this.optimizer.optimize(codeLines);
+        const optimizerResult = this.optimizer.optimize(codeLines, level);
 
         // 7. Assemble the code to get accurate instruction count
         let instructions = 0;
@@ -729,7 +746,7 @@ export class GraphCompiler {
             }
         }
 
-        // Pass 2: Serialize AST nodes into formatted string instructions
+        // Serialize AST nodes into formatted string instructions
         for (const node of optimizedNodes) {
             // Special handling for labels (end with :) and comments (op is ;)
             if (node.op.endsWith(':')) {
@@ -746,7 +763,13 @@ export class GraphCompiler {
                 if (node.comment) {
                     finalLine += `\t; ${node.comment}`;
                 }
-                irSections[node.section].push(finalLine);
+                
+                // If flattening, move everything except header/init to main
+                const targetSection = (context.isFlattenMode() && !['header', 'init'].includes(node.section)) 
+                    ? 'main' 
+                    : node.section;
+                    
+                irSections[targetSection].push(finalLine);
             }
         }
 

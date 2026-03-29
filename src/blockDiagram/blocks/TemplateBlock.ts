@@ -39,15 +39,13 @@ export class TemplateBlock extends BaseBlock {
                 type: p.type as any
             };
 
-            // Add display metadata for the UI
+            // Add display metadata for the UI ONLY if not already specified in ATL
             if (p.conversion === 'LOGFREQ') {
-                param.displayMin = p.min || 20;
-                param.displayMax = p.max || 5000;
-                param.displayUnit = 'Hz';
-                // The base value stored in the diagram should be the code value in natural units (Hz)
+                if (param.displayMin === undefined) param.displayMin = p.min || 20;
+                if (param.displayMax === undefined) param.displayMax = p.max || 5000;
+                if (param.displayUnit === undefined) param.displayUnit = 'Hz';
             } else if (p.conversion === 'DBLEVEL') {
-                param.displayUnit = 'dB';
-                // The base value stored in the diagram should be the code value in natural units (dB)
+                if (param.displayUnit === undefined) param.displayUnit = 'dB';
             }
 
             return param;
@@ -60,9 +58,11 @@ export class TemplateBlock extends BaseBlock {
     getCustomLabel(params: Record<string, any>, ctx?: any, blockId?: string): string | null {
         // Try resolving template from definition
         const dynamicLabel = this.templateEngine.resolveLabel(params, ctx, blockId);
-        if (dynamicLabel) return dynamicLabel;
+        
+        // If an explicit label template was provided (even if empty ""), respect it and skip fallback
+        if (dynamicLabel !== null) return dynamicLabel;
 
-        // Fallback to frequency heuristic
+        // Fallback to frequency heuristic (only if no explicit label template exists)
         const freqParam = (this._parameters as any[]).find(p => p.conversion === 'LOGFREQ');
         if (freqParam) {
             const val = params[freqParam.id] ?? freqParam.default;

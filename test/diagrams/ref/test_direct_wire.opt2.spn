@@ -1,0 +1,43 @@
+;================================================================================
+; Direct Wire Test
+; Tests the simplest possible diagram: ADC straight to DAC.
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Register Aliases
+; OPTIMIZED OUT - equ	adc1_out	REG0 (Unused register)
+; OPTIMIZED OUT - equ	adc2_out	REG1 (Unused register)
+
+
+; Flattened Execution (TOPOLOGICAL ORDER)
+;--------------------------------------------------------------------------------
+;===============================================================================
+; ADC Input (b1)
+; Outputs: Audio: adc1_out
+; Parameters: ADC Number=1
+;-------------------------------------------------------------------------------
+;===============================================================================
+; DAC Output (b3)
+; Inputs: Audio: adc1_out
+; Parameters: DAC Number=1
+;-------------------------------------------------------------------------------
+;===============================================================================
+; ADC Input (b2)
+; Outputs: Audio: adc2_out
+; Parameters: ADC Number=2
+;-------------------------------------------------------------------------------
+;===============================================================================
+; DAC Output (b4)
+; Inputs: Audio: adc2_out
+; Parameters: DAC Number=2
+;-------------------------------------------------------------------------------
+rdax	ADCR, 1
+; wrax	adc1_out, 0
+; rdax	adc1_out, 1.0	; rdax not needed with accumulator forwarding optimization
+wrax	DACR, 0
+rdax	ADCR, 1
+; wrax	adc2_out, 0
+; rdax	adc2_out, 1.0	; rdax not needed with accumulator forwarding optimization
+wrax	DACR, 0

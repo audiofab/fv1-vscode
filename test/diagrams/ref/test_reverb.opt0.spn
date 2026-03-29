@@ -1,0 +1,208 @@
+;================================================================================
+; plate_reverb_test
+; Tests complex memory allocation, multiple inputs, and internal LFO allocations.
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Potentiometer Assignments
+;--------------------------------------------------------------------------------
+; POT0: Plate Reverb (Damping)
+; POT1: Plate Reverb (Decay Time)
+
+; Block Declarations
+;--------------------------------------------------------------------------------
+equ	cv_b4_decayTimeCV	0.5
+equ	cv_b4_dampingCV	0.5
+equ	cv_b4_mixCV	0.5
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Register Aliases
+equ	adc_out	REG0
+equ	pot0_out	REG1
+equ	pot1_out	REG2
+equ	platereverb_outl	REG3
+equ	platereverb_outr	REG4
+equ	pot0_local_f1	REG5
+equ	pot0_local_f2	REG6
+equ	pot1_local_f1	REG7
+equ	pot1_local_f2	REG8
+equ	platereverb_local_decay	REG9
+equ	platereverb_local_decay_diffusion_2	REG10
+equ	platereverb_local_damping_reg	REG11
+equ	platereverb_local_one_minus_dmpg	REG12
+equ	platereverb_local_lp_inp	REG13
+equ	platereverb_local_lp30_31	REG14
+equ	platereverb_local_lp54_55	REG15
+equ	platereverb_local_mono	REG16
+equ	platereverb_local_diffuse_in	REG17
+equ	platereverb_local_temp	REG18
+equ	platereverb_local_temp2	REG19
+
+; Memory Allocations
+mem	mem0_predelay	655
+mem	mem1_ap13_14	156
+mem	mem2_ap19_20	117
+mem	mem3_ap15_16	417
+mem	mem4_ap21_22	305
+mem	mem5_ap23_24	748
+mem	mem6_del24_30	4903
+mem	mem7_ap31_33	1990
+mem	mem8_del33_39	4096
+mem	mem9_ap46_48	1008
+mem	mem10_del48_54	4643
+mem	mem11_ap55_59	2932
+mem	mem12_del59_63	3483
+
+;	Plate Reverb init
+skp	run, done
+wlds	SIN0, 27, 8
+wlds	SIN1, 23, 8
+DONE:
+
+; Input Section
+;--------------------------------------------------------------------------------
+rdax	ADCL, 1
+wrax	adc_out, 0
+ldax	POT0
+wrax	pot0_out, 0.0
+ldax	POT1
+wrax	pot1_out, 0.0
+
+; Main Program
+;--------------------------------------------------------------------------------
+;	Calculate decay time
+clr
+sof	0.0, cv_b4_decayTimeCV	; CV range: decayTime
+mulx	pot1_out
+sof	0.8, 0.0
+wrax	platereverb_local_decay, 1.0
+;	Calculate decay_diffusion_2
+sof	1.0, -0.35
+skp	neg, 1
+clr
+sof	1.0, 0.35
+sof	1.0, -0.1
+skp	gez, 1
+clr
+sof	1.0, 0.25
+wrax	platereverb_local_decay_diffusion_2, 0.0
+;	Damping
+sof	0.0, cv_b4_dampingCV	; CV range: damping
+mulx	pot0_out
+sof	-1.0, 0.99
+wrax	platereverb_local_damping_reg, -1.0
+sof	1.0, 0.9990234375
+wrax	platereverb_local_one_minus_dmpg, 0.0
+;	Mono sum and pre-delay
+rdax	adc_out, 1.0
+wrax	platereverb_local_mono, 1.0
+wra	mem0_predelay, 0.0
+;	Input low-pass
+rda	mem0_predelay#, 0.31852
+rdax	platereverb_local_lp_inp, 1.0-0.31852
+wrax	platereverb_local_lp_inp, 1.0
+;	Input diffusion
+rda	mem1_ap13_14#, -0.75
+wrap	mem1_ap13_14, 0.75
+rda	mem3_ap15_16#, -0.625
+wrap	mem3_ap15_16, 0.625
+rda	mem2_ap19_20#, -0.75
+wrap	mem2_ap19_20, 0.75
+rda	mem4_ap21_22#, -0.625
+wrap	mem4_ap21_22, 0.625
+wrax	platereverb_local_diffuse_in, 0.0
+;	Left Tank
+rda	mem12_del59_63#, 1.0
+mulx	platereverb_local_decay
+rdax	platereverb_local_diffuse_in, 1.0
+wrax	platereverb_local_temp, 0.0
+cho	rda, SIN0, SIN|REG|COMPC, mem5_ap23_24#-8-1
+cho	rda, SIN0, SIN, mem5_ap23_24#-8
+wrax	platereverb_local_temp2, 0.7
+rdax	platereverb_local_temp, 1.0
+wra	mem5_ap23_24, -0.7
+rdax	platereverb_local_temp2, 1.0
+wra	mem6_del24_30, 0.0
+rda	mem6_del24_30#, 1.0
+;	Tank LP
+mulx	platereverb_local_one_minus_dmpg
+wrax	platereverb_local_temp, 0.0
+rdax	platereverb_local_lp30_31, 1.0
+mulx	platereverb_local_damping_reg
+rdax	platereverb_local_temp, 1.0
+wrax	platereverb_local_lp30_31, 1.0
+mulx	platereverb_local_decay
+wrax	platereverb_local_temp, 0.0
+cho	rda, SIN1, COS|REG|COMPC, mem7_ap31_33#-8-1
+cho	rda, SIN1, COS, mem7_ap31_33#-8
+wrax	platereverb_local_temp2, -1.0
+mulx	platereverb_local_decay_diffusion_2
+rdax	platereverb_local_temp, 1.0
+wra	mem7_ap31_33, 1.0
+mulx	platereverb_local_decay_diffusion_2
+rdax	platereverb_local_temp2, 1.0
+wra	mem8_del33_39, 0.0
+rda	mem8_del33_39#, 1.0
+;	Right Tank
+mulx	platereverb_local_decay
+rdax	platereverb_local_diffuse_in, 1.0
+wrax	platereverb_local_temp, 0.0
+cho	rda, SIN0, COS|REG|COMPC, mem9_ap46_48#-8-1
+cho	rda, SIN0, COS, mem9_ap46_48#-8
+wrax	platereverb_local_temp2, 0.7
+rdax	platereverb_local_temp, 1.0
+wra	mem9_ap46_48, -0.7
+rdax	platereverb_local_temp2, 1.0
+wra	mem10_del48_54, 0.0
+rda	mem10_del48_54#, 1.0
+mulx	platereverb_local_one_minus_dmpg
+wrax	platereverb_local_temp, 0.0
+rdax	platereverb_local_lp54_55, 1.0
+mulx	platereverb_local_damping_reg
+rdax	platereverb_local_temp, 1.0
+wrax	platereverb_local_lp54_55, 1.0
+mulx	platereverb_local_decay
+wrax	platereverb_local_temp, 0.0
+cho	rda, SIN1, SIN|REG|COMPC, mem11_ap55_59#-8-1
+cho	rda, SIN1, SIN, mem11_ap55_59#-8
+wrax	platereverb_local_temp2, -1.0
+mulx	platereverb_local_decay_diffusion_2
+rdax	platereverb_local_temp, 1.0
+wra	mem11_ap55_59, 1.0
+mulx	platereverb_local_decay_diffusion_2
+rdax	platereverb_local_temp2, 1.0
+wra	mem12_del59_63, 0.0
+;	Left Output Taps
+rda	mem10_del48_54+292, 0.6
+rda	mem6_del24_30+2192, -0.6
+rda	mem10_del48_54+3274, 0.6
+rda	mem8_del33_39+1174, -0.6
+rda	mem11_ap55_59+2107, -0.6
+rda	mem12_del59_63+2198, 0.6
+rda	mem7_ap31_33+205, -0.6
+rdax	platereverb_local_mono, -1.0
+sof	cv_b4_mixCV, 0.0	; @mulcv default: mix
+rdax	platereverb_local_mono, 1.0
+wrax	platereverb_outl, 0.0
+;	Right Output Taps
+rda	mem6_del24_30+389, 0.6
+rda	mem12_del59_63+133, -0.6
+rda	mem6_del24_30+3993, 0.6
+rda	mem10_del48_54+2325, -0.6
+rda	mem7_ap31_33+1352, -0.6
+rda	mem8_del33_39+2943, 0.6
+rda	mem11_ap55_59+369, -0.6
+rdax	platereverb_local_mono, -1.0
+sof	cv_b4_mixCV, 0.0	; @mulcv default: mix
+rdax	platereverb_local_mono, 1.0
+wrax	platereverb_outr, 0.0
+
+; Output Section
+;--------------------------------------------------------------------------------
+;	DAC Output
+rdax	platereverb_outl, 1.0
+wrax	DACL, 0
+;	DAC Output
+rdax	platereverb_outr, 1.0
+wrax	DACR, 0

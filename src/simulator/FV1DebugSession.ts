@@ -78,7 +78,8 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                 type: 'config',
                 oscilloscopeEnabled: this.oscilloscopeEnabled,
                 oscilloscopeRefreshRate: this.oscilloscopeRefreshRate,
-                zoomLevel: this.zoomLevel
+                zoomLevel: this.zoomLevel,
+                currentStimulus: this.audioEngine.getStimulus()
             });
         }
     }
@@ -308,9 +309,9 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                 this.sendEvent('output', { category: 'stderr', output: msg + '\n' });
             }
         } else {
-            const msg = `Notice: Could not find input WAV file. Standard file resolution failed.`;
-            console.warn(msg);
-            this.sendEvent('output', { category: 'console', output: msg + '\n' });
+            // const msg = `Notice: Could not find input WAV file. Standard file resolution failed.`;
+            // console.warn(msg);
+            // this.sendEvent('output', { category: 'console', output: msg + '\n' });
             // Don't show error box for internal default if it's missing, only if user explicitly asked
             if (args.inputWavFile) {
                 vscode.window.showErrorMessage(`Missing WAV file: ${args.inputWavFile}`);
@@ -431,9 +432,9 @@ export class FV1DebugSession implements vscode.DebugAdapter {
 
         for (const p of searchPaths) {
             const exists = fs.existsSync(p);
-            const msg = `Searching for WAV at: ${p} (${exists ? 'Found!' : 'Not found'})`;
-            console.log(msg);
-            this.sendEvent('output', { category: 'console', output: msg + '\n' });
+            // const msg = `Searching for WAV at: ${p} (${exists ? 'Found!' : 'Not found'})`;
+            // console.log(msg);
+            // this.sendEvent('output', { category: 'console', output: msg + '\n' });
             if (exists) return p;
         }
 
@@ -778,7 +779,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         if (!this.isRunning) return;
 
         const startTime = Date.now();
-        const blockDurationMs = 40; // 40ms blocks (25fps) for smoother visualization
+        const blockDurationMs = 50; // 50ms blocks (20fps) — good balance of responsiveness vs IPC overhead
         const samplesToProcess = Math.floor(this.sampleRate * (blockDurationMs / 1000));
 
         const outL = new Float32Array(samplesToProcess);
@@ -792,10 +793,9 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         const snapshotDelayPtr = this.simulator.getDelayPointer();
         const snapshotAddrPtr = regs[24];
 
-        const lfoSin0 = new Float32Array(Math.ceil(samplesToProcess / this.oscilloscopeRefreshRate));
-        const numSamplesPerTrace = lfoSin0.length;
+        const numSamplesPerTrace = Math.ceil(samplesToProcess / this.oscilloscopeRefreshRate);
 
-        // Trace data for all 64 registers
+        // Allocate trace arrays for all 64 registers
         const registerTraces: Float32Array[] = this.oscilloscopeEnabled
             ? Array.from({ length: 64 }, () => new Float32Array(numSamplesPerTrace))
             : [];
@@ -806,7 +806,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             const skip = isFirstStep && i === 0;
             const [oL, oR, breakpointHit] = this.simulator.step(inSample.l, inSample.r, pot0, pot1, pot2, skip);
 
-            // Sample all registers based on refresh rate
+            // Sample all 64 registers at the configured refresh rate
             if (this.oscilloscopeEnabled && i % this.oscilloscopeRefreshRate === 0 && traceIdx < numSamplesPerTrace) {
                 const currentRegs = this.simulator.getRegisters();
                 for (let r = 0; r < 64; r++) {
@@ -847,13 +847,15 @@ export class FV1DebugSession implements vscode.DebugAdapter {
 
             // Only send expensive metadata if visualizations are enabled
             if (this.oscilloscopeEnabled) {
-                metadata.registerTraces = registerTraces;
+                metadata.registerTraces = registerTraces; // all 64, simple dense array
+                metadata.numTracePoints = numSamplesPerTrace;
                 metadata.delayPtr = snapshotDelayPtr;
                 metadata.delaySize = this.simulator.getDelaySize();
                 metadata.addrPtr = snapshotAddrPtr;
                 metadata.memories = this.symbolsChanged ? this.memories : undefined;
                 metadata.symbols = this.symbolsChanged ? this.symbols : undefined;
             }
+
 
             this.audioEngine.playBuffer(outL, outR, lastSample.l, lastSample.r, metadata);
             this.symbolsChanged = false;
@@ -902,17 +904,17 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         if (m.value === 'none') {
             this.audioStreamer.unload();
             this.sendEvent('output', { category: 'console', output: `Input stimulus: None (Silence)\n` });
-        } else if (m.value === 'tone') {
+        } else if (m.value === 'white-noise') {
             this.audioStreamer.unload();
             this.audioStreamer.setNoiseEnabled(true);
             this.sendEvent('output', { category: 'console', output: `Input stimulus: White Noise\n` });
-        } else if (m.value === 'built-in') {
+        } else if (['minor-chords', 'picky', 'rock-out', 'you-three', 'not-midnight', 'new-minor', 'breathy', 'breakdown'].includes(m.value)) {
             this.audioStreamer.unload();
-            const defaultWav = 'src/simulator/wav/minor-chords-32k.wav';
-            const resolved = this.resolveWavPath(defaultWav, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
+            const wavFile = `src/simulator/wav/${m.value}-32kHz.wav`;
+            const resolved = this.resolveWavPath(wavFile, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
             if (resolved) {
                 await this.audioStreamer.loadWav(resolved);
-                this.sendEvent('output', { category: 'console', output: `Input stimulus: Built-in loop\n` });
+                this.sendEvent('output', { category: 'console', output: `Input stimulus: ${m.value}\n` });
             }
         } else if (m.value === 'custom' && m.filePath) {
             this.audioStreamer.unload();
