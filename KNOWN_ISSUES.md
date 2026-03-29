@@ -1,3 +1,3 @@
 # Known Issues
 
-There are no known issues at this time
+- The Spring Reverb block in the block diagram editor seems to be broken. Will fix in the next release.
