@@ -13,7 +13,6 @@
 ;--------------------------------------------------------------------------------
 equ	cv_b4_decayTimeCV	0.5
 equ	cv_b4_dampingCV	0.5
-equ	cv_b4_mixCV	0.5
 
 ; Initialization
 ;--------------------------------------------------------------------------------
@@ -181,9 +180,6 @@ rda	mem8_del33_39+1174, -0.6
 rda	mem11_ap55_59+2107, -0.6
 rda	mem12_del59_63+2198, 0.6
 rda	mem7_ap31_33+205, -0.6
-rdax	platereverb_local_mono, -1.0
-sof	cv_b4_mixCV, 0.0	; @mulcv default: mix
-rdax	platereverb_local_mono, 1.0
 wrax	platereverb_outl, 0.0
 ;	Right Output Taps
 rda	mem6_del24_30+389, 0.6
@@ -193,9 +189,6 @@ rda	mem10_del48_54+2325, -0.6
 rda	mem7_ap31_33+1352, -0.6
 rda	mem8_del33_39+2943, 0.6
 rda	mem11_ap55_59+369, -0.6
-rdax	platereverb_local_mono, -1.0
-sof	cv_b4_mixCV, 0.0	; @mulcv default: mix
-rdax	platereverb_local_mono, 1.0
 wrax	platereverb_outr, 0.0
 
 ; Output Section

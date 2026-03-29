@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "blocks": [
+    {
+      "id": "in1",
+      "type": "input.adc",
+      "parameters": { "adcNumber": 0 }
+    },
+    {
+      "id": "delay1",
+      "type": "effects.delay.mn3011",
+      "parameters": {
+        "time": 0.5,
+        "fb_level": 0.5,
+        "fbk_gain": -6,
+        "max_delay": 1000
+      }
+    },
+    {
+      "id": "out1",
+      "type": "output.dac",
+      "parameters": { "dacNumber": 0 }
+    }
+  ],
+  "connections": [
+    { "source": "in1", "sourcePort": "out", "target": "delay1", "targetPort": "in" },
+    { "source": "delay1", "sourcePort": "mix", "target": "out1", "targetPort": "in" }
+  ]
+}

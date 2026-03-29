@@ -16,15 +16,50 @@ All parameters should be explicitly mapped using proper conversions. Use the `co
 
 ## 3. Fallbacks for Control Inputs
 Every control input must have a corresponding "fallback" strategy when the input pin is NOT connected by the user.
-Use the `@if pinConnected(input_id)` directive to switch between CV logic and static parameter logic:
+
+### The `@cv` Macro (Recommended)
+The standard way to handle control inputs is using the `@cv` macro. It automatically handles three scenarios based on whether the input port is connected:
+1. **Unconnected**: Loads the value of the port's associated parameter as a constant (`SOF 0.0, <equ>`).
+2. **Connected to a standard CV/LFO**: Loads the parameter value and scales it by the pot input (`CLR; SOF 0.0, <equ>; MULX <reg>`), giving ACC ∈ [0..paramValue].
+3. **Connected to a zero-bypassed Pot**: Uses the 5-instruction bypass block with the pot's `Zero Bypass Value` as the fallback (instead of the parameter). The pot value is scaled by the parameter value via `RDAX reg, <equ>`.
+
+The control input JSON **must** include a `"parameter"` field pointing to the parameter that provides the default/range:
+
+```json
+{ "id": "mixCV", "name": "Mix", "type": "control", "required": false, "parameter": "mix" }
+```
+
+Usage in the ATL template body — just one line:
+
+```assembly
+; ACC now holds the correct value (constant or pot-scaled)
+@cv mixCV
+```
+
+### The `@mulcv` Macro — Scale existing ACC by CV
+Use `@mulcv` when ACC already contains a signal you want to **multiply** by the CV value, without clearing first.
+
+| Port state | Generated assembly | Instructions |
+|---|---|---|
+| Unconnected | `SOF paramValue, 0.0` | 1 |
+| Connected | `SOF paramValue, 0.0; MULX reg` | 2 |
+| Zero-bypassed | `WRAX scratch; RDAX reg, equ; bypass; MULX scratch` | 7 |
+
+Example — applying a mix CV to a difference signal:
+```assembly
+rdax ${reg.mix_dry}, -1.0   ; ACC = wet - dry
+@mulcv mixCV                ; ACC = (wet - dry) * mix
+rdax ${reg.mix_dry}, 1.0    ; ACC = (wet - dry) * mix + dry
+```
+
+### Legacy `@if pinConnected` Method
+If you need highly custom logic between bypassed vs active states, you can still manually check if the pin is connected. Note that this method *does not* support the Zero-Bypassed Pot feature natively:
 
 ```assembly
 @if pinConnected(mixCV)
 rdax ${input.mixCV}, 1.0
-mulx ${input.mixCV}
 @else
-@multiplydouble mixSq ${mix}, ${mix}
-sof 0.0, ${mixSq}
+sof 0.0, ${mix}
 @endif
 ```
 

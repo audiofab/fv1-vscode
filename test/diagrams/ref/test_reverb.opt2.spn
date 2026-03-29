@@ -13,7 +13,6 @@
 ;--------------------------------------------------------------------------------
 equ	cv_b4_decayTimeCV	0.5
 equ	cv_b4_dampingCV	0.5
-equ	cv_b4_mixCV	0.5
 
 ; Initialization
 ;--------------------------------------------------------------------------------
@@ -34,7 +33,7 @@ equ	platereverb_local_one_minus_dmpg	REG12
 equ	platereverb_local_lp_inp	REG13
 equ	platereverb_local_lp30_31	REG14
 equ	platereverb_local_lp54_55	REG15
-equ	platereverb_local_mono	REG16
+; OPTIMIZED OUT - equ	platereverb_local_mono	REG16 (Unused register)
 equ	platereverb_local_diffuse_in	REG17
 equ	platereverb_local_temp	REG18
 equ	platereverb_local_temp2	REG19
@@ -79,9 +78,9 @@ DONE:
 ;-------------------------------------------------------------------------------
 ;===============================================================================
 ; Plate Reverb (reverb-1)
-; Inputs: Input: adc_out, Damping: pot0_out, Decay Time: pot1_out, Mix: (not connected)
+; Inputs: Input: adc_out, Damping: pot0_out, Decay Time: pot1_out
 ; Outputs: Left: platereverb_outl, Right: platereverb_outr
-; Parameters: Damping=0.5, Mix=0.5
+; Parameters: Damping=0.5
 ;-------------------------------------------------------------------------------
 ;===============================================================================
 ; DAC Output (output-1)
@@ -124,11 +123,11 @@ sof	1.0, 0.9990234375
 wrax	platereverb_local_one_minus_dmpg, 0.0
 ;	Mono sum and pre-delay
 rdax	adc_out, 1.0
-wrax	platereverb_local_mono, 1.0
 wra	mem0_predelay, 0.0
 ;	Input low-pass
 rda	mem0_predelay#, 0.31852
 rdax	platereverb_local_lp_inp, 1.0-0.31852
+wrax	platereverb_local_lp_inp, 1.0
 ;	Input diffusion
 rda	mem1_ap13_14#, -0.75
 wrap	mem1_ap13_14, 0.75
@@ -148,6 +147,7 @@ cho	rda, SIN0, SIN|REG|COMPC, mem5_ap23_24#-8-1
 cho	rda, SIN0, SIN, mem5_ap23_24#-8
 wrax	platereverb_local_temp2, 0.7
 rdax	platereverb_local_temp, 1.0
+wra	mem5_ap23_24, -0.7
 rdax	platereverb_local_temp2, 1.0
 wra	mem6_del24_30, 0.0
 rda	mem6_del24_30#, 1.0
@@ -157,6 +157,7 @@ wrax	platereverb_local_temp, 0.0
 rdax	platereverb_local_lp30_31, 1.0
 mulx	platereverb_local_damping_reg
 rdax	platereverb_local_temp, 1.0
+wrax	platereverb_local_lp30_31, 1.0
 mulx	platereverb_local_decay
 wrax	platereverb_local_temp, 0.0
 cho	rda, SIN1, COS|REG|COMPC, mem7_ap31_33#-8-1
@@ -177,6 +178,7 @@ cho	rda, SIN0, COS|REG|COMPC, mem9_ap46_48#-8-1
 cho	rda, SIN0, COS, mem9_ap46_48#-8
 wrax	platereverb_local_temp2, 0.7
 rdax	platereverb_local_temp, 1.0
+wra	mem9_ap46_48, -0.7
 rdax	platereverb_local_temp2, 1.0
 wra	mem10_del48_54, 0.0
 rda	mem10_del48_54#, 1.0
@@ -185,6 +187,7 @@ wrax	platereverb_local_temp, 0.0
 rdax	platereverb_local_lp54_55, 1.0
 mulx	platereverb_local_damping_reg
 rdax	platereverb_local_temp, 1.0
+wrax	platereverb_local_lp54_55, 1.0
 mulx	platereverb_local_decay
 wrax	platereverb_local_temp, 0.0
 cho	rda, SIN1, SIN|REG|COMPC, mem11_ap55_59#-8-1
@@ -204,9 +207,6 @@ rda	mem8_del33_39+1174, -0.6
 rda	mem11_ap55_59+2107, -0.6
 rda	mem12_del59_63+2198, 0.6
 rda	mem7_ap31_33+205, -0.6
-rdax	platereverb_local_mono, -1.0
-sof	cv_b4_mixCV, 0.0	; @mulcv default: mix
-rdax	platereverb_local_mono, 1.0
 wrax	platereverb_outl, 0.0
 ;	Right Output Taps
 rda	mem6_del24_30+389, 0.6
@@ -216,9 +216,6 @@ rda	mem10_del48_54+2325, -0.6
 rda	mem7_ap31_33+1352, -0.6
 rda	mem8_del33_39+2943, 0.6
 rda	mem11_ap55_59+369, -0.6
-rdax	platereverb_local_mono, -1.0
-sof	cv_b4_mixCV, 0.0	; @mulcv default: mix
-rdax	platereverb_local_mono, 1.0
 wrax	platereverb_outr, 0.0
 rdax	platereverb_outl, 1.0
 wrax	DACL, 0

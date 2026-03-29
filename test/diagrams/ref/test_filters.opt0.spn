@@ -6,10 +6,12 @@
 
 ; Block Declarations
 ;--------------------------------------------------------------------------------
-equ	cv_b2_f_cv	0.381150
-equ	cv_b2_q_cv	-0.585573
-;	Damping offset for Q=0.5
-equ	d_min 2.0
+equ	cv_b2_f_cv	0.374164
+equ	cv_b2_q_cv	0.707
+;	Calculate resonance range boundaries (negative damping d = -1/Q)
+equ	d_low_res -(1.414427)	; Pot=0 (Min Q) -> d_max_damping
+equ	d_high_res -(0.050000)	; Pot=1 (Max Q) -> d_min_damping
+equ	q_range_scale (d_high_res - d_low_res)
 
 ; Initialization
 ;--------------------------------------------------------------------------------
@@ -25,9 +27,10 @@ equ	svf_2p_hp	REG7
 equ	svf_2p_notch	REG8
 equ	svf_2p_local_lp_state	REG9
 equ	svf_2p_local_bp_state	REG10
-equ	svf_2p_local_f_coeff	REG11
-equ	svf_2p_local_d_coeff	REG12
-equ	svf_2p_local_temp	REG13
+equ	svf_2p_local_temp_lp_new	REG11
+equ	svf_2p_local_temp_inv_lp	REG12
+equ	svf_2p_local_temp_hp	REG13
+equ	svf_2p_local_d_coeff	REG14
 
 ;	"Generated from spincad source file LPF_RDFX.spincad"
 ;	"Generated from spincad source file HPF_RDFX.spincad"
@@ -51,29 +54,30 @@ wrax	hpf_1p_local_lpf1, -1.0
 ;	voila high pass filter!
 rdax	lpf_1p_lpf1, 1.0
 wrax	hpf_1p_output, 0
-;	--- 2-Pole SVF (Chamberlin) ---
-;	1. Calculate Frequency coefficient (f)
-sof	0.0, cv_b2_f_cv	; CV default: frequency
-wrax	svf_2p_local_f_coeff, 0.0
-;	2. Calculate Damping coefficient (d)
+;	--- 2-Pole SVF (Fixed Instruction Order & Dynamic Range) ---
+;	1. Calculate Low Pass update (L_new = L_old + F * B_old)
+rdax	svf_2p_local_bp_state, 1.0	; ACC = BandPass
+sof	cv_b2_f_cv, 0.0	; @mulcv default: frequency
+rdax	svf_2p_local_lp_state, 1.0	; ACC = F * BandPass + LowPass_old = LowPass_new
+wrax	svf_2p_local_temp_lp_new, 1.0	; REG3 = LowPass_new, ACC = LowPass_new
+wrax	svf_2p_lp, 1.0	; EXPORT Low Pass (ACC remains LowPass_new)
+wrax	svf_2p_local_lp_state, -1.0	; REG2 = LowPass_new, ACC = -LowPass_new
+wrax	svf_2p_local_temp_inv_lp, 0.0	; REG6 = -LowPass_new, ACC = 0
+;	2. Calculate Damping coefficient (Dynamic Negative Mapping)
 sof	0.0, cv_b2_q_cv	; CV default: q
-sof	1.0, d_min
-wrax	svf_2p_local_d_coeff, 0.0
-;	3. Filter Loop (Mathematically robust update)
-rdax	svf_2p_local_bp_state, 1.0
-mulx	svf_2p_local_f_coeff
-rdax	svf_2p_local_lp_state, 1.0
-wrax	svf_2p_lp, 1.0
-wrax	svf_2p_local_lp_state, 0.0	; lp_state updated, ACC = 0
-rdax	hpf_1p_output, 1.0
-rdax	svf_2p_local_lp_state, -1.0
-wrax	svf_2p_local_temp, 0.0	; temp = input - lp
-rdax	svf_2p_local_bp_state, -1.0
-mulx	svf_2p_local_d_coeff	; ACC = -d * bp
-rdax	svf_2p_local_temp, 1.0	; ACC = input - lp - d * bp
-mulx	svf_2p_local_f_coeff
-rdax	svf_2p_local_bp_state, 1.0
-wrax	svf_2p_local_bp_state, 0.0	; bp_state updated, ACC = 0
+sof	q_range_scale, d_low_res	; Map 0..1 to Negative Damping range
+wrax	svf_2p_local_d_coeff, 0.0	; REG=d, ACC=0
+;	3. Calculate High Pass (H = I - L_new + d * B_old)
+rdax	svf_2p_local_bp_state, 1.0	; ACC = BandPass
+mulx	svf_2p_local_d_coeff	; ACC = d * BandPass
+rdax	svf_2p_local_temp_inv_lp, 1.0	; ACC = d * BandPass - LowPass_new
+rdax	hpf_1p_output, 1.0	; ACC = d * BandPass - LowPass_new + Input = H
+wrax	svf_2p_local_temp_hp, 1.0	; REG4 = H, ACC = H
+;	4. Calculate Band Pass update (B_new = B_old + F * H)
+sof	cv_b2_f_cv, 0.0	; @mulcv default: frequency
+rdax	svf_2p_local_bp_state, 1.0	; ACC = F * H + BandPass_old = BandPass_new
+wrax	svf_2p_local_bp_state, 0.0	; REG1 = BandPass_new, ACC = 0
+;	5. Notch Calculation (Notch = L_new + H)
 
 ; Output Section
 ;--------------------------------------------------------------------------------

@@ -4,7 +4,7 @@
   "name": "Simple Reverb",
   "category": "Effects",
   "subcategory": "Reverb",
-  "description": "Minimal reverb with 4 input allpass and 2 delay loops",
+  "description": "Minimal 100% wet reverb with 4 input allpass and 2 delay loops. Reverb time can be controlled via parameter or external CV.",
   "color": "#7100FC",
   "width": 180,
   "inputs": [
@@ -18,14 +18,8 @@
       "id": "reverb_time",
       "name": "Reverb Time",
       "type": "control",
-      "required": false
-    },
-    {
-      "id": "mix_ctrl",
-      "name": "Mix",
-      "type": "control",
       "required": false,
-      "parameter": "mix"
+      "parameter": "reverbTime"
     }
   ],
   "outputs": [
@@ -45,16 +39,6 @@
       "max": 0.99,
       "description": "Feedback coefficient for the reverb tail (0.0 to 0.99). Controls the decay length.",
       "step": 0.01
-    },
-    {
-      "id": "mix",
-      "name": "Mix",
-      "type": "number",
-      "default": 0.5,
-      "min": 0,
-      "max": 1,
-      "step": 0.01,
-      "description": "Wet/Dry mix balance. 0.0 is pure dry, 1.0 is pure wet."
     }
   ],
   "memories": [
@@ -97,7 +81,7 @@
   ]
 }
 ---
-; Minimal reverb
+; Minimal 100% wet reverb
 @equals kap 0.325
 
 ; Store dry signal
@@ -121,12 +105,8 @@ wrap ${mem.api4}, -1.0
 wrax ${reg.apout}, 1.0
 
 ; First loop delay
-@if pinConnected(reverb_time)
 rda ${mem.del2}#, 1.0
-mulx ${input.reverb_time}
-@else
-rda ${mem.del2}#, ${reverbTime}
-@endif
+@mulcv reverb_time
 
 ; Loop allpass 1
 rda ${mem.ap1}#, -${kap}
@@ -138,12 +118,8 @@ wra ${mem.del1}, 1.99
 ; Second loop delay
 rdax ${reg.apout}, 1.0
 
-@if pinConnected(reverb_time)
 rda ${mem.del1}#, 1.0
-mulx ${input.reverb_time}
-@else
-rda ${mem.del1}#, ${reverbTime}
-@endif
+@mulcv reverb_time
 
 ; Loop allpass 2
 rda ${mem.ap2}#, -${kap}
@@ -152,12 +128,5 @@ wrap ${mem.ap2}, ${kap}
 ; Write to delay 2 and output
 wra ${mem.del2}, 1.99
 
-; Mixing logic: dry + mix * (wet - dry)
-; Reverb output (wet) is in ACC, but it is at 0.25 scale.
-; To have a balanced mix, we mix wet against 0.25 * dry.
-rdax ${reg.dry}, -0.25
-@mulcv mix_ctrl
-rdax ${reg.dry}, 0.25
-
+; Export final wet signal (already at 0.25 scale)
 wrax ${output.output}, 0.0
-

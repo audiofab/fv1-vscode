@@ -3,7 +3,7 @@
   "type": "filter.svf_2p",
   "name": "2-Pole SVF",
   "category": "Filter",
-  "description": "Efficient 2-pole State Variable Filter (Chamberlin) with Low-Pass, Band-Pass, High-Pass, and Notch outputs.",
+  "description": "2-pole State Variable Filter",
   "color": "#24f26f",
   "width": 180,
   "inputs": [
@@ -59,77 +59,98 @@
       "max": 10000,
       "default": 1000,
       "conversion": "SVFFREQ",
-      "description": "The center or cutoff frequency of the filter."
+      "description": "Center or cutoff frequency."
     },
     {
       "id": "q",
       "name": "Resonance (Q)",
       "type": "number",
+      "min": 0,
+      "max": 1,
+      "default": 0.5,
+      "step": 0.01,
+      "description": "The sweep position (0-1) between Min Q and Max Q."
+    },
+    {
+      "id": "q_min",
+      "name": "Min Q",
+      "type": "number",
       "min": 0.5,
-      "max": 20,
+      "max": 50.0,
       "default": 0.707,
       "step": 0.01,
-      "description": "The sharpness of the filter peak. 0.707 is Butterworth (flat response).",
-      "conversion": "SVFDAMP_RANGE"
+      "conversion": "SVF_DAMP",
+      "description": "The resonance at Pot=0. (Damping d_max = 1/q_min)"
+    },
+    {
+      "id": "q_max",
+      "name": "Max Q",
+      "type": "number",
+      "min": 1.0,
+      "max": 128.0,
+      "default": 20.0,
+      "step": 0.01,
+      "conversion": "SVF_DAMP",
+      "description": "The resonance at Pot=1. (Damping d_min = 1/q_max)"
     }
   ],
   "registers": [
     "lp_state",
     "bp_state",
-    "f_coeff",
-    "d_coeff",
-    "temp"
+    "temp_lp_new",
+    "temp_inv_lp",
+    "temp_hp",
+    "d_coeff"
   ]
 }
 ---
 @section header
-  ; Damping offset for Q=0.5
-  equ d_min 2.0
+  ; Calculate resonance range boundaries (negative damping d = -1/Q)
+  @assert ${param.q_min} < ${param.q_max}, "Min Q must be less than Max Q"
+  equ d_low_res -(${param.q_min}) ; Pot=0 (Min Q) -> d_max_damping
+  equ d_high_res -(${param.q_max}) ; Pot=1 (Max Q) -> d_min_damping
+  equ q_range_scale (d_high_res - d_low_res)
 
 @section main
-  ; --- 2-Pole SVF (Chamberlin) ---
-  
-  ; 1. Calculate Frequency coefficient (f)
-  @cv f_cv
-  wrax ${reg.f_coeff}, 0.0
+  ; --- 2-Pole SVF (Fixed Instruction Order & Dynamic Range) ---
 
-  ; 2. Calculate Damping coefficient (d)
+  ; 1. Calculate Low Pass update (L_new = L_old + F * B_old)
+  rdax ${reg.bp_state}, 1.0     ; ACC = BandPass
+  @mulcv f_cv                   ; ACC = F * BandPass
+  rdax ${reg.lp_state}, 1.0     ; ACC = F * BandPass + LowPass_old = LowPass_new
+  wrax ${reg.temp_lp_new}, 1.0  ; REG3 = LowPass_new, ACC = LowPass_new
+  @if pinConnected(lp)
+    wrax ${output.lp}, 1.0      ; EXPORT Low Pass (ACC remains LowPass_new)
+  @endif
+  wrax ${reg.lp_state}, -1.0    ; REG2 = LowPass_new, ACC = -LowPass_new
+  wrax ${reg.temp_inv_lp}, 0.0  ; REG6 = -LowPass_new, ACC = 0
+
+  ; 2. Calculate Damping coefficient (Dynamic Negative Mapping)
   @cv q_cv
-  sof 1.0, d_min
-  wrax ${reg.d_coeff}, 0.0
+  sof q_range_scale, d_low_res  ; Map 0..1 to Negative Damping range
+  wrax ${reg.d_coeff}, 0.0      ; REG=d, ACC=0
 
-  ; 3. Filter Loop (Mathematically robust update)
-  rdax ${reg.bp_state}, 1.0
-  mulx ${reg.f_coeff}
-  rdax ${reg.lp_state}, 1.0
-  @if pinConnected(lp) || pinConnected(notch)
-    wrax ${output.lp}, 1.0
+  ; 3. Calculate High Pass (H = I - L_new + d * B_old)
+  rdax ${reg.bp_state}, 1.0     ; ACC = BandPass
+  mulx ${reg.d_coeff}           ; ACC = d * BandPass
+  rdax ${reg.temp_inv_lp}, 1.0  ; ACC = d * BandPass - LowPass_new
+  rdax ${input.in}, 1.0         ; ACC = d * BandPass - LowPass_new + Input = H
+  wrax ${reg.temp_hp}, 1.0      ; REG4 = H, ACC = H
+  @if pinConnected(hp)
+    wrax ${output.hp}, 1.0      ; EXPORT High Pass (ACC remains H)
   @endif
-  wrax ${reg.lp_state}, 0.0      ; lp_state updated, ACC = 0
 
-  rdax ${input.in}, 1.0
-  rdax ${reg.lp_state}, -1.0
-  wrax ${reg.temp}, 0.0          ; temp = input - lp
-  rdax ${reg.bp_state}, -1.0
-  mulx ${reg.d_coeff}            ; ACC = -d * bp
-  rdax ${reg.temp}, 1.0          ; ACC = input - lp - d * bp
-  @if pinConnected(hp) || pinConnected(notch)
-    wrax ${output.hp}, 1.0
-    mulx ${reg.f_coeff}          ; ACC = f * hp
-  @else
-    mulx ${reg.f_coeff}
-  @endif
-  
-  rdax ${reg.bp_state}, 1.0
-  wrax ${reg.bp_state}, 0.0      ; bp_state updated, ACC = 0
-  
+  ; 4. Calculate Band Pass update (B_new = B_old + F * H)
+  @mulcv f_cv                   ; ACC = F * H
+  rdax ${reg.bp_state}, 1.0     ; ACC = F * H + BandPass_old = BandPass_new
   @if pinConnected(bp)
-    rdax ${reg.bp_state}, 1.0
-    wrax ${output.bp}, 0.0
+    wrax ${output.bp}, 1.0      ; EXPORT Band Pass (ACC remains BandPass_new)
   @endif
+  wrax ${reg.bp_state}, 0.0     ; REG1 = BandPass_new, ACC = 0
 
+  ; 5. Notch Calculation (Notch = L_new + H)
   @if pinConnected(notch)
-    rdax ${output.lp}, 1.0
-    rdax ${output.hp}, 1.0
-    wrax ${output.notch}, 0.0
+    rdax ${reg.temp_lp_new}, 1.0 ; ACC = LowPass_new
+    rdax ${reg.temp_hp}, 1.0     ; ACC = LowPass_new + H = Notch
+    wrax ${output.notch}, 0.0    ; Export Notch
   @endif

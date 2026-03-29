@@ -263,10 +263,10 @@ export class CodeOptimizer {
             const tokens = codePart.split(/\s+/);
             const op = tokens[0].toLowerCase();
 
-            // Instructions that read from a register
-            const readsReg = ['rdax', 'maxx', 'mulx', 'rda', 'cho'].includes(op);
-            // Instructions that write to a register
-            const writesReg = ['wrax', 'wra', 'wral', 'wrar'].includes(op);
+            // Instructions that read from a register (not memory/hardware aliases)
+            const readsReg = ['rdax', 'maxx', 'mulx'].includes(op);
+            // Instructions that write to a register (not delay memory)
+            const writesReg = ['wrax'].includes(op);
 
             if (readsReg || writesReg) {
                 // Handle different instruction formats
@@ -311,20 +311,45 @@ export class CodeOptimizer {
                 const line = optimized[writeIdx].trim();
                 if (line.startsWith(';')) continue; // Already optimized out or comment
 
-                // A store is dead if there are no reads at all OR no reads after this store before the next store/end
-                const hasReadAfter = reads.some(readIdx => readIdx > writeIdx);
+                // In FV-1, registers persist across samples (loop iterations).
+                // A store is dead if it is overwritten before being read.
+                // We must check if there's a read later in this loop OR at the start of the next loop.
+                const nextRead = reads.find(readIdx => readIdx > writeIdx);
+                const sameLoopWrites = indices.filter(idx => idx > writeIdx);
+                const nextWrite = sameLoopWrites.length > 0 ? sameLoopWrites[0] : undefined;
+
+                let isDead = false;
+                if (nextRead !== undefined) {
+                    // There is a read after this write in the same loop.
+                    // It is dead ONLY if there is another write to the same register BEFORE that read.
+                    if (nextWrite !== undefined && nextWrite < nextRead) {
+                        isDead = true;
+                    } else {
+                        isDead = false;
+                    }
+                } else {
+                    // There is no read after this write in the same loop iteration.
+                    // Check if it is read at the beginning of the NEXT loop iteration (wrap-around).
+                    const firstRead = reads[0];
+                    const firstWrite = indices[0];
+                    if (firstRead !== undefined && (firstWrite === undefined || firstRead < firstWrite)) {
+                        isDead = false; // Live: read at the start of the next cycle
+                    } else {
+                        isDead = true; // Dead: never read or overwritten before being read
+                    }
+                }
                 
-                if (!hasReadAfter) {
-                    // This store is candidates for elimination if it has an ACC-preserving multiplier (1.0)
-                    // OR if it's followed by another wrax/clr that makes the ACC-clearing effect redundant.
+                if (isDead) {
+                    // This store is candidate for elimination if it has an ACC-preserving multiplier (1.0)
+                    // OR if it's followed by another instruction that makes the ACC-clearing effect redundant.
                     
                     const wraxMatch = line.match(/^wrax\s+(\w+),\s*(k_1|1|1\.0)(?:\s*;.*)?$/i);
                     if (wraxMatch) {
                         // wrax REG, 1.0 only exists to preserve ACC. If REG is dead, it's useless.
-                        optimized[writeIdx] = `; OPTIMIZED (DSE) - ${line.trim()} (Register ${reg} is never read)`;
+                        optimized[writeIdx] = `; OPTIMIZED (DSE) - ${line.trim()} (Register ${reg} is never read effectively)`;
                     } else {
                         // If it clears ACC (wrax REG, 0), it might still be needed for the CLR side effect.
-                        // However, if the NEXT instruction is a WRAX/CLR/ABS etc. that overwrites ACC, we can still prune.
+                        // However, if the NEXT instruction is a WRAX/CLR/ABS/SOF etc. that overwrites ACC, we can still prune.
                         let nextOpIndex = writeIdx + 1;
                         while (nextOpIndex < optimized.length) {
                             const nextLine = optimized[nextOpIndex].trim();
@@ -335,7 +360,7 @@ export class CodeOptimizer {
                         if (nextOpIndex < optimized.length) {
                             const nextLine = optimized[nextOpIndex].trim().toLowerCase();
                             // If next instruction sets ACC entirely ignoring previous value
-                            if (nextLine.startsWith('rdax') || nextLine.startsWith('clr') || nextLine.startsWith('or')) {
+                            if (nextLine.startsWith('rdax') || nextLine.startsWith('clr') || nextLine.startsWith('or') || nextLine.startsWith('sof') || nextLine.startsWith('cho rda')) {
                                 optimized[writeIdx] = `; OPTIMIZED (DSE) - ${line.trim()} (Pruned clearing write to dead register)`;
                             }
                         }

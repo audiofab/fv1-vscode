@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.4.4]
+
+- Added an MN3011 block
+- Fixed a few bugs related to SVF and aggressive optimization
+
 ## [1.4.3]
 
 - **New Blocks**: Envelope follower, Phaser effect, and four new Pitch shifting effects (pitch shifter, fixed offset, dual offset, octave up/down)

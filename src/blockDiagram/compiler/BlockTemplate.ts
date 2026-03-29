@@ -563,7 +563,7 @@ export class BlockTemplate {
                         const prevClearsAcc = prevNode && (
                             prevNode.op === 'CLR' ||
                             (prevNode.op === 'WRAX' && (prevNode.args[1] === '0.0' || prevNode.args[1] === '0' || parseFloat(prevNode.args[1]) === 0)) ||
-                            (prevNode.op === 'WRA'  && (prevNode.args[1] === '0.0' || prevNode.args[1] === '0' || parseFloat(prevNode.args[1]) === 0)) ||
+                            (prevNode.op === 'WRA' && (prevNode.args[1] === '0.0' || prevNode.args[1] === '0' || parseFloat(prevNode.args[1]) === 0)) ||
                             (prevNode.op === 'WRHX' && (prevNode.args[1] === '0.0' || prevNode.args[1] === '0' || parseFloat(prevNode.args[1]) === 0))
                         );
                         if (!prevClearsAcc) {
@@ -697,9 +697,11 @@ export class BlockTemplate {
             case 'LOGFREQ':
                 return (1.0 - Math.exp(-2.0 * Math.PI * val / Fs)).toFixed(6);
             case 'SVFFREQ':
-                return (2.0 * Math.sin(Math.PI * val / Fs)).toFixed(6);
-            case 'SVFDAMP_RANGE':
-                return (1.0 / val - 2.0).toFixed(6);
+                // Returns sin(2 * pi * f / Fs), matching SpinCAD's base frequency coefficient
+                return (Math.sin(2.0 * Math.PI * val / Fs)).toFixed(6);
+            case 'SVF_DAMP':
+                // Returns 1.0 / Q (Chamberlin damping d). Used for Min/Max bounds.
+                return (1.0 / val).toFixed(6);
             case 'SINLFOFREQ':
             case 'HZ_TO_LFO_RATE':
                 return Math.round((1 << 18) * Math.PI * val / Fs);

@@ -24,12 +24,6 @@
       "name": "Decay Time",
       "type": "control",
       "parameter": "decayTime"
-    },
-    {
-      "id": "mixCV",
-      "name": "Mix",
-      "type": "control",
-      "parameter": "mix"
     }
   ],
   "outputs": [
@@ -63,16 +57,6 @@
       "min": 0,
       "max": 1,
       "description": "Reverb decay length (T60/feedback coefficient 0.0 to 1.0).",
-      "step": 0.01
-    },
-    {
-      "id": "mix",
-      "name": "Mix",
-      "type": "number",
-      "default": 0.5,
-      "min": 0,
-      "max": 1,
-      "description": "Wet/Dry mix balance. 0.0 is pure dry, 1.0 is pure wet.",
       "step": 0.01
     },
     {
@@ -339,9 +323,6 @@ rda ${mem.del59_63}+2198, ${tap0_6}
 rda ${mem.ap31_33}+205, ${tapNeg0_6}
 @endif
 
-rdax ${reg.mono}, -1.0
-@mulcv mixCV
-rdax ${reg.mono}, 1.0
 wrax ${output.outL}, 0.0
 
 ; Right Output Taps
@@ -359,8 +340,5 @@ rda ${mem.del33_39}+2943, ${tap0_6}
 rda ${mem.ap55_59}+369, ${tapNeg0_6}
 @endif
 
-rdax ${reg.mono}, -1.0
-@mulcv mixCV
-rdax ${reg.mono}, 1.0
 wrax ${output.outR}, 0.0
 

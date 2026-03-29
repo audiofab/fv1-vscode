@@ -1,0 +1,65 @@
+;================================================================================
+; Untitled Diagram
+;  Block Diagram Editor (https://www.audiofab.com/)
+;================================================================================
+
+; Block Declarations
+;--------------------------------------------------------------------------------
+;	MN3011 Target Ratios (stage / 3328)
+equ	t1_ratio 0.118990	; 396/3328
+equ	t2_ratio 0.198918	; 662/3328
+equ	t3_ratio 0.358774	; 1194/3328
+equ	t4_ratio 0.518630	; 1726/3328
+equ	t5_ratio 0.838341	; 2790/3328
+equ	t6_ratio 1.0	; 3328/3328
+
+; Initialization
+;--------------------------------------------------------------------------------
+; Register Aliases
+equ	adc_out	REG0
+equ	mn3011_mix	REG1
+; OPTIMIZED OUT - equ	mn3011_tap6	REG2 (Unused register)
+; OPTIMIZED OUT - equ	mn3011_local_pot_val	REG3 (Unused register)
+; OPTIMIZED OUT - equ	mn3011_local_mix_acc	REG4 (Unused register)
+; OPTIMIZED OUT - equ	mn3011_local_tap_out	REG5 (Unused register)
+
+; Memory Allocations
+mem	mem0_buffer	32768
+
+
+; Input Section
+;--------------------------------------------------------------------------------
+rdax	ADCL, 1
+wrax	adc_out, 0
+
+; Main Program
+;--------------------------------------------------------------------------------
+;	1. Feedback Processing
+clr
+;	2. Input Summing & Write
+rdax	adc_out, 0.501187
+wra	mem0_buffer, 0.0
+;	3. Multitap Summation
+;	--- Static Time (Fixed RDA mode) ---
+;	Tap 6
+rda	mem0_buffer + (32768 * 0.5 * t6_ratio), 1.0
+sof	0.501187, 0.0
+;	Tap 5
+rda	mem0_buffer + (32768 * 0.5 * t5_ratio), 0.501187
+;	Tap 4
+rda	mem0_buffer + (32768 * 0.5 * t4_ratio), 0.501187
+;	Tap 3
+rda	mem0_buffer + (32768 * 0.5 * t3_ratio), 0.501187
+;	Tap 2
+rda	mem0_buffer + (32768 * 0.5 * t2_ratio), 0.501187
+;	Tap 1
+rda	mem0_buffer + (32768 * 0.5 * t1_ratio), 0.501187
+;	4. Export Final Mix
+; wrax	mn3011_mix, 0.0
+wrax	mn3011_mix,	1.0	; Optimization: accumulator forwarded
+
+; Output Section
+;--------------------------------------------------------------------------------
+;	DAC Output
+; rdax	mn3011_mix, 1.0	; rdax not needed with accumulator forwarding optimization
+wrax	DACL, 0
