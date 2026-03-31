@@ -420,7 +420,13 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             display: inline-block;
             padding: 2px 8px;
             background-color: var(--vscode-statusBarItem-prominentBackground);
+            color: var(--vscode-statusBarItem-prominentForeground);
             border-radius: 3px;
+        }
+        
+        .resource-stats .warning {
+            background-color: var(--vscode-statusBarItem-warningBackground);
+            color: var(--vscode-statusBarItem-warningForeground);
         }
         
         .resource-stats .over-limit {

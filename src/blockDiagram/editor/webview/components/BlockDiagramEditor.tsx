@@ -793,21 +793,33 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                     Blocks: {graph.blocks.length} | Connections: {graph.connections.length} | Selected: {selectedBlockIds.length}
                 </div>
                 <div className="footer-section resource-stats">
-                    <span className={resourceStats.instructionsUsed > resourceStats.progSize ? 'over-limit' : ''} title="Instruction Usage">
-                        Instr: {resourceStats.instructionsUsed}/{resourceStats.progSize}
-                    </span>
-                    <span className={resourceStats.registersUsed > resourceStats.regCount ? 'over-limit' : ''} title="Register Usage">
-                        Reg: {resourceStats.registersUsed}/{resourceStats.regCount}
-                    </span>
-                    <span className={resourceStats.memoryUsed > resourceStats.delaySize ? 'over-limit' : ''} title="Delay Memory Usage">
-                        Mem: {resourceStats.memoryUsed}/{resourceStats.delaySize}
-                    </span>
-                    <span
-                        className={resourceStats.lfosUsed > 4 ? 'over-limit' : ''}
-                        title={`LFO Usage${resourceStats.usedLFOs?.length ? ': ' + resourceStats.usedLFOs.join(', ') : ''}`}
-                    >
-                        〰 {resourceStats.lfosUsed}/4
-                    </span>
+                    {(() => {
+                        const getUsageClass = (used: number, limit: number) => {
+                            if (used > limit) return 'over-limit';
+                            if (used > limit * 0.8) return 'warning';
+                            return '';
+                        };
+
+                        return (
+                            <>
+                                <span className={getUsageClass(resourceStats.instructionsUsed, resourceStats.progSize)} title="Instruction Usage">
+                                    Instr: {resourceStats.instructionsUsed}/{resourceStats.progSize}
+                                </span>
+                                <span className={getUsageClass(resourceStats.registersUsed, resourceStats.regCount)} title="Register Usage">
+                                    Reg: {resourceStats.registersUsed}/{resourceStats.regCount}
+                                </span>
+                                <span className={getUsageClass(resourceStats.memoryUsed, resourceStats.delaySize)} title="Delay Memory Usage">
+                                    Mem: {resourceStats.memoryUsed}/{resourceStats.delaySize}
+                                </span>
+                                <span
+                                    className={getUsageClass(resourceStats.lfosUsed, 4)}
+                                    title={`LFO Usage${resourceStats.usedLFOs?.length ? ': ' + resourceStats.usedLFOs.join(', ') : ''}`}
+                                >
+                                    〰 {resourceStats.lfosUsed}/4
+                                </span>
+                            </>
+                        );
+                    })()}
                 </div>
                 <div className="footer-section">
                     Zoom: {Math.round(zoom * 100)}%
