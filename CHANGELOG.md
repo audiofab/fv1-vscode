@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.4.5]
+
+- Fix a couple of bugs in the SVF and Phaser blocks
+- Improve arbitrary signal plotting
+
 ## [1.4.4]
 
 - Added an MN3011 block
