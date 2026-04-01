@@ -138,7 +138,7 @@ done_lfo:
 @if isequalto mode 0
 ; Internal LFO Configuration
 @if pinConnected(lfo_speed)
-@cv lfo_speed
+rdax ${input.lfo_speed}, ${rate} / 511.0
 wrax ${lfoRateReg}, 0.0
 @endif
 @if pinConnected(lfo_width)
