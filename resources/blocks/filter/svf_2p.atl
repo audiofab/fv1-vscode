@@ -19,13 +19,6 @@
       "type": "control",
       "required": false,
       "parameter": "frequency"
-    },
-    {
-      "id": "q_cv",
-      "name": "Q CV",
-      "type": "control",
-      "required": false,
-      "parameter": "q"
     }
   ],
   "outputs": [
@@ -75,47 +68,33 @@
   ],
   "registers": [
     "lp_state",
-    "bp_state",
-    "temp_hp",
-    "d_coeff"
+    "bp_state"
   ]
 }
 ---
 @section header
   ; Resonance bounds: Calculate Damping (d = 1/Q)
   equ d_target (${param.q})
-  ; Calculate POT scaling scope (Max damping is ~1.99 at POT=0, Min damping is d_target at POT=1)
-  equ d_slope (1.99 - d_target)
 
 @section main
   ; --- 2-Pole SVF (Standard Hal Chamberlin Topology) ---
 
   ; 1. Calculate High Pass (H = I - L_old - d * B_old)
-  @if pinConnected(q_cv)
-    ; Dynamic Damping (Mapped safely to keep multipliers strictly < 2.0)
-    ; We read the raw POT directly because @cv pre-scales the value, 
-    ; making it impossible to invert it later (requires multiplier > 2.0).
-    rdax ${input.q_cv}, 1.0         ; ACC = POT (0.0 to 1.0)
-    sof d_slope, 0.0                ; ACC = POT * (1.99 - d_target)
-    wrax ${reg.d_coeff}, 0.0        ; REG_D = Difference_in_Damping
-    
-    rdax ${reg.bp_state}, 1.0       ; ACC = B_old
-    mulx ${reg.d_coeff}             ; ACC = Diff * B_old
-    rdax ${reg.bp_state}, -1.99     ; ACC = Diff * B_old - 1.99 * B_old = -d * B_old
-    rdax ${reg.lp_state}, -1.0      ; ACC = -d * B_old - L_old
-    rdax ${input.in}, 1.0           ; ACC = I - L_old - d * B_old = HighPass
-  @else
-    ; Fixed Damping (saves register usage & CPU cycles)
-    rdax ${input.in}, 1.0           ; ACC = I
-    rdax ${reg.lp_state}, -1.0      ; ACC = I - L_old
-    rdax ${reg.bp_state}, -(d_target)  ; ACC = I - L_old - d_fixed * B_old = HighPass
-  @endif
+  ; Fixed Damping (saves register usage & CPU cycles)
+  rdax ${input.in}, 1.0           ; ACC = I
+  rdax ${reg.lp_state}, -1.0      ; ACC = I - L_old
+  rdax ${reg.bp_state}, -(d_target)  ; ACC = I - L_old - d_fixed * B_old = HighPass
 
   @if pinConnected(hp)
     wrax ${output.hp}, 1.0          ; EXPORT High Pass (ACC remains H)
   @endif
+
   @if pinConnected(notch)
-    wrax ${reg.temp_hp}, 1.0        ; Save H to compute Notch later
+    ; Perfect Chamberlin Notch: H + L_old
+    rdax ${reg.lp_state}, 1.0       ; ACC = H + L_old
+    wrax ${output.notch}, -1.0      ; EXPORT Notch, ACC = - (H + L_old)
+    rdax ${reg.lp_state}, 1.0       ; ACC = -H - L_old + L_old = -H
+    sof -1.0, 0.0                   ; ACC = H (Restoring H for next integration step)
   @endif
 
   ; 2. Calculate Band Pass update (B_new = B_old + F * H)
@@ -135,10 +114,3 @@
     wrax ${output.lp}, 1.0          ; EXPORT Low Pass
   @endif
   wrax ${reg.lp_state}, 0.0         ; REG_L = L_new, ACC = 0
-
-  ; 4. Calculate Notch (Notch = L_new + H)
-  @if pinConnected(notch)
-    rdax ${reg.lp_state}, 1.0       ; ACC = L_new
-    rdax ${reg.temp_hp}, 1.0        ; ACC = L_new + H = Notch
-    wrax ${output.notch}, 0.0       ; EXPORT Notch
-  @endif
