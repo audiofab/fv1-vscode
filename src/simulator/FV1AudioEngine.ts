@@ -194,36 +194,104 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     button.active { background: #e81123; color: white; font-weight: bold; }
 
                     #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100; display: flex; align-items: center; justify-content: center; cursor: pointer; text-align: center; }
-
-                    /* Legend and Register Selector */
-                    .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-                    .legend-item { font-size: 8px; padding: 1px 4px; border-radius: 2px; cursor: pointer; border: 1px solid transparent; opacity: 0.6; transition: opacity 0.2s; }
-                    .legend-item.active { opacity: 1; border-color: currentColor; font-weight: bold; }
-                    .legend-item:hover { opacity: 0.9; background: rgba(255,255,255,0.1); }
-
-                    .selector-trigger { font-size: 8px; color: var(--vscode-button-background); cursor: pointer; text-decoration: underline; margin-top: 4px; display: inline-block; }
-                    
-                    #regSelectorModal {
-                        display: none;
-                        position: fixed;
-                        top: 20px;
-                        left: 20px;
-                        right: 20px;
-                        bottom: 20px;
-                        background: var(--vscode-sideBar-background);
+                    /* Register Explorer (Collapsible) */
+                    .register-explorer {
+                        margin-top: 12px;
                         border: 1px solid var(--vscode-widget-border);
-                        z-index: 200;
-                        padding: 10px;
-                        flex-direction: column;
-                        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+                        border-radius: 4px;
+                        background: rgba(0, 0, 0, 0.1);
+                        overflow: hidden;
                     }
-                    .modal-header { font-size: 11px; font-weight: bold; margin-bottom: 8px; display: flex; justify-content: space-between; }
-                    .reg-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 4px; }
-                    .reg-option { font-size: 9px; padding: 2px 4px; cursor: pointer; border: 1px solid transparent; border-radius: 2px; display: flex; align-items: center; gap: 4px; }
-                    .reg-option:hover { background: rgba(255,255,255,0.1); }
-                    .reg-option.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
-                    .reg-check { width: 8px; height: 8px; border: 1px solid var(--vscode-foreground); flex-shrink: 0; }
-                    .selected .reg-check { background: var(--vscode-foreground); }
+                    .explorer-header {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 6px 10px;
+                        background: var(--vscode-sideBarSectionHeader-background);
+                        cursor: pointer;
+                        user-select: none;
+                        transition: background 0.1s;
+                    }
+                    .explorer-header:hover { background: var(--vscode-list-hoverBackground); }
+                    .explorer-header .chevron { 
+                        font-size: 8px; 
+                        transition: transform 0.2s; 
+                        opacity: 0.7;
+                        min-width: 10px;
+                    }
+                    .register-explorer.expanded .chevron { transform: rotate(90deg); }
+                    .explorer-header .title { 
+                        font-size: 10px; 
+                        font-weight: bold; 
+                        text-transform: uppercase; 
+                        opacity: 0.8; 
+                        white-space: nowrap;
+                    }
+                    .explorer-header .active-summary { 
+                        font-size: 9px; 
+                        opacity: 0.9; 
+                        font-family: var(--vscode-editor-font-family);
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 4px;
+                        flex: 1;
+                    }
+                    
+                    .explorer-body {
+                        display: none;
+                        padding: 12px 10px;
+                        flex-direction: column;
+                        gap: 12px;
+                        max-height: 300px;
+                        overflow-y: auto;
+                        border-top: 1px solid var(--vscode-widget-border);
+                    }
+                    .register-explorer.expanded .explorer-body { display: flex; }
+
+                    .reg-section-title {
+                        font-size: 9px;
+                        text-transform: uppercase;
+                        color: var(--vscode-descriptionForeground);
+                        margin-bottom: 6px;
+                        font-weight: bold;
+                        border-bottom: 1px solid rgba(255,255,255,0.05);
+                        padding-bottom: 2px;
+                    }
+                    .reg-grid { 
+                        display: flex; 
+                        flex-wrap: wrap; 
+                        gap: 6px; 
+                    }
+                    .reg-pill { 
+                        font-size: 9px; 
+                        padding: 3px 10px; 
+                        cursor: pointer; 
+                        border: 1px solid rgba(255,255,255,0.1);
+                        border-radius: 12px; 
+                        display: flex; 
+                        align-items: center; 
+                        justify-content: center;
+                        background: rgba(255,255,255,0.02);
+                        transition: all 0.2s;
+                        color: var(--vscode-descriptionForeground);
+                        white-space: nowrap;
+                        width: auto;
+                    }
+                    .reg-pill:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.3); }
+                    .reg-pill.active { 
+                        background: rgba(255,255,255,0.1);
+                        border-color: currentColor;
+                        font-weight: bold;
+                        opacity: 1;
+                        box-shadow: 0 0 4px currentColor;
+                        color: inherit; /* Set dynamically */
+                    }
+                    .active-summary span {
+                        margin-right: 6px;
+                        font-weight: bold;
+                    }
+                    .active-summary span:last-child { margin-right: 0; }
 
                     /* Tooltip Style */
                     #memTooltip {
@@ -259,16 +327,6 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     </div>
                 </div>
 
-                <div id="regSelectorModal">
-                    <div class="modal-header">
-                        <span>Select Registers to Plot</span>
-                        <span id="closeSelector" style="cursor: pointer;">✕</span>
-                    </div>
-                    <div id="regGrid" class="reg-grid"></div>
-                    <div style="margin-top: 10px; text-align: right;">
-                        <button id="applySelector">Apply</button>
-                    </div>
-                </div>
 
                 <div class="container">
                     <div class="controls-box">
@@ -302,8 +360,17 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             </div>
                         </div>
                         <canvas id="scope" width="400" height="120" class="scope-canvas"></canvas>
-                        <div id="scopeLegend" class="legend"></div>
-                        <div id="openSelector" class="selector-trigger">Manage Registers...</div>
+                        
+                        <div id="registerExplorer" class="register-explorer">
+                            <div id="explorerHeader" class="explorer-header">
+                                <span class="chevron">▶</span>
+                                <span class="title">Signals & Registers</span>
+                                <span id="activeSummary" class="active-summary">DACL, DACR</span>
+                            </div>
+                            <div id="explorerBody" class="explorer-body">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
                     </div>
 
                     <div id="specBox" class="viz-box">
@@ -390,12 +457,10 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
 
                     let currentRefreshRate = 1; // Track for display
                     
-                    const openSelector = document.getElementById('openSelector');
-                    const closeSelector = document.getElementById('closeSelector');
-                    const applySelector = document.getElementById('applySelector');
-                    const regSelectorModal = document.getElementById('regSelectorModal');
-                    const regGrid = document.getElementById('regGrid');
-                    const scopeLegend = document.getElementById('scopeLegend');
+                    const explorerHeader = document.getElementById('explorerHeader');
+                    const registerExplorer = document.getElementById('registerExplorer');
+                    const explorerBody = document.getElementById('explorerBody');
+                    const activeSummary = document.getElementById('activeSummary');
 
                     let bypassActive = false;
                     let bufferQueue = [];
@@ -417,12 +482,13 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     let selectedRegisters = [22, 23]; // Default DACL, DACR
                     let symbols = [];
                     let registerLabels = {}; // Cache of labels
-                    let hiddenRegisters = new Set(); // Track hidden indices
                     let zoomLevel = 1;
 
                     const TRACE_COLORS = [
                         '#00ff00', '#ff4444', '#4facfe', '#ff00ff', 
-                        '#ffaa00', '#ffffff', '#ffff00', '#00ffff'
+                        '#ffaa00', '#ffffff', '#ffff00', '#00ffff',
+                        '#ff8888', '#88ff88', '#8888ff', '#ff88ff',
+                        '#ffff88', '#88ffff', '#ffaabb', '#aaffbb'
                     ];
 
                     const DURATION_PRESETS = [0.001, 0.01, 0.1, 1];
@@ -503,20 +569,61 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     zoomIn.addEventListener('click', () => updateZoom(durationIndex - 1));
                     zoomOut.addEventListener('click', () => updateZoom(durationIndex + 1));
 
-                    // Selector Logic
-                    openSelector.addEventListener('click', () => {
-                        renderSelectorGrid();
-                        regSelectorModal.style.display = 'flex';
+                    // Explorer Toggle
+                    explorerHeader.addEventListener('click', () => {
+                        registerExplorer.classList.toggle('expanded');
+                        if (registerExplorer.classList.contains('expanded')) {
+                            renderRegisterExplorer();
+                        }
                     });
-                    closeSelector.addEventListener('click', () => regSelectorModal.style.display = 'none');
-                    applySelector.addEventListener('click', () => {
-                        const items = regGrid.querySelectorAll('.reg-option.selected');
-                        selectedRegisters = Array.from(items).map(i => parseInt(i.dataset.reg));
-                        regSelectorModal.style.display = 'none';
+
+                    function toggleRegister(idx) {
+                        const pos = selectedRegisters.indexOf(idx);
+                        if (pos >= 0) {
+                            selectedRegisters.splice(pos, 1);
+                        } else {
+                            if (selectedRegisters.length < TRACE_COLORS.length) {
+                                selectedRegisters.push(idx);
+                            } else {
+                                updateStatus('Max ' + TRACE_COLORS.length + ' traces supported');
+                                return;
+                            }
+                        }
+                        
                         initHistory();
-                        renderLegend();
+                        updateActiveSummary();
+                        drawTraces();
+                        
+                        // Optimized: Directly update the DOM pill if it exists instead of full re-render
+                        const pill = document.querySelector('.reg-pill[data-idx="' + idx + '"]');
+                        if (pill) {
+                            const activeIdx = selectedRegisters.indexOf(idx);
+                            const isActive = activeIdx >= 0;
+                            pill.className = 'reg-pill' + (isActive ? ' active' : '');
+                            pill.style.color = isActive ? TRACE_COLORS[activeIdx % TRACE_COLORS.length] : '';
+                        }
+                        
+                        // Need to update OTHER pills too because their trace colors (indices) might have shifted
+                        selectedRegisters.forEach((reg, i) => {
+                            const p = document.querySelector('.reg-pill[data-idx="' + reg + '"]');
+                            if (p) {
+                                p.style.color = TRACE_COLORS[i % TRACE_COLORS.length];
+                            }
+                        });
+
                         vscode.postMessage({ type: 'registerSelectionChange', selection: selectedRegisters });
-                    });
+                    }
+
+                    function updateActiveSummary() {
+                        if (selectedRegisters.length === 0) {
+                            activeSummary.innerHTML = 'No signals selected';
+                        } else {
+                            activeSummary.innerHTML = selectedRegisters.map((idx, i) => {
+                                const color = TRACE_COLORS[i % TRACE_COLORS.length];
+                                return '<span style="color: ' + color + '">' + getRegisterLabel(idx) + '</span>';
+                            }).join('');
+                        }
+                    }
 
                     function getRegisterLabel(idx) {
                         if (registerLabels[idx]) return registerLabels[idx];
@@ -554,48 +661,73 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         return 'R' + idx;
                     }
 
-                    function renderSelectorGrid() {
-                        regGrid.innerHTML = '';
+                    let lastSymbolsJson = '';
+                    function renderRegisterExplorer() {
+                        if (!registerExplorer.classList.contains('expanded')) return;
                         
-                        // Filter registers: We only want standard registers, user symbols, or General Purpose (32-63)
-                        const standardIndices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 20, 21, 22, 23, 24];
+                        // Smart Render: Only re-build DOM if content actually changed
+                        const currentJson = JSON.stringify({ symbols, registers: 64 });
+                        if (currentJson === lastSymbolsJson) return;
+                        lastSymbolsJson = currentJson;
+
+                        explorerBody.innerHTML = '';
+                        
+                        const standardIndices = [20, 21, 22, 23, 24, 16, 17, 18, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
                         const symbolIndices = symbols.map(s => parseInt(s.value));
                         
-                        for (let i = 0; i < 64; i++) {
-                            const isStandard = standardIndices.includes(i);
-                            const isSymbol = symbolIndices.includes(i);
-                            const isGP = (i >= 32 && i < 64);
-                            
-                            if (isStandard || isSymbol || isGP) {
-                                const opt = document.createElement('div');
-                                opt.className = 'reg-option' + (selectedRegisters.includes(i) ? ' selected' : '');
-                                opt.dataset.reg = i;
-                                opt.innerHTML = '<div class="reg-check"></div>' + getRegisterLabel(i);
-                                opt.onclick = () => opt.classList.toggle('selected');
-                                regGrid.appendChild(opt);
+                        const groups = [
+                            { title: 'Standard I/O', indices: [20, 21, 22, 23, 24, 16, 17, 18] },
+                            { title: 'Hardware LFOs', indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] },
+                            { title: 'User Registers & Symbols', indices: Array.from({length: 32}, (_, i) => i + 32) }
+                        ];
+
+                        groups.forEach(group => {
+                            const availableInGroup = group.indices.filter(i => {
+                                return standardIndices.includes(i) || symbolIndices.includes(i) || (i >= 32 && i < 64);
+                            });
+
+                            if (availableInGroup.length > 0) {
+                                const section = document.createElement('div');
+                                section.className = 'reg-section';
+                                
+                                const head = document.createElement('div');
+                                head.className = 'reg-section-title';
+                                head.innerText = group.title;
+                                section.appendChild(head);
+
+                                const grid = document.createElement('div');
+                                grid.className = 'reg-grid';
+
+                                availableInGroup.forEach(i => {
+                                    const pill = document.createElement('div');
+                                    const activeIdx = selectedRegisters.indexOf(i);
+                                    const isActive = activeIdx >= 0;
+                                    
+                                    pill.className = 'reg-pill' + (isActive ? ' active' : '');
+                                    pill.dataset.idx = i;
+                                    const label = getRegisterLabel(i);
+                                    pill.innerText = label;
+                                    pill.title = label;
+
+                                    if (isActive) {
+                                        pill.style.color = TRACE_COLORS[activeIdx % TRACE_COLORS.length];
+                                    } else {
+                                        pill.style.color = '';
+                                    }
+
+                                    grid.appendChild(pill);
+                                });
+                                section.appendChild(grid);
+                                explorerBody.appendChild(section);
                             }
-                        }
+                        });
                     }
 
+                    // Remove old renderLegend function and associated hiddenRegisters logic 
                     function renderLegend() {
-                        scopeLegend.innerHTML = '';
-                        selectedRegisters.forEach((reg, i) => {
-                            const item = document.createElement('div');
-                            const isActive = !hiddenRegisters.has(reg);
-                            item.className = 'legend-item' + (isActive ? ' active' : '');
-                            item.style.color = TRACE_COLORS[i % TRACE_COLORS.length];
-                            item.innerText = getRegisterLabel(reg);
-                            item.onclick = () => {
-                                if (hiddenRegisters.has(reg)) {
-                                    hiddenRegisters.delete(reg);
-                                } else {
-                                    hiddenRegisters.add(reg);
-                                }
-                                renderLegend(); // Immediate feedback
-                                drawTraces();
-                            };
-                            scopeLegend.appendChild(item);
-                        });
+                        // Legacy - renamed/absorbed into explorer
+                        renderRegisterExplorer();
+                        updateActiveSummary();
                     }
 
                     function initHistory() {
@@ -790,9 +922,6 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         selectedRegisters.forEach((reg, traceIdx) => {
                             const data = registerHistory[reg];
                             if (!data) return;
-
-                            // Use the hiddenRegisters set
-                            if (hiddenRegisters.has(reg)) return;
 
                             scopeCtx.beginPath();
                             scopeCtx.strokeStyle = TRACE_COLORS[traceIdx % TRACE_COLORS.length];
@@ -993,7 +1122,15 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         }
                     }
 
-                    // Initialization
+                    // Initialization: Permanent Event Delegation on the root explorer container
+                    registerExplorer.addEventListener('click', (e) => {
+                        const pill = e.target.closest('.reg-pill');
+                        if (pill && pill.dataset.idx !== undefined) {
+                            e.stopPropagation();
+                            toggleRegister(parseInt(pill.dataset.idx));
+                        }
+                    });
+
                     initHistory();
                     renderLegend();
                     vscode.postMessage({ type: 'ready' });
