@@ -57,7 +57,9 @@ Block Types
    Route processed audio to the hardware DAC.
 
 **Control Blocks**
-   Modify signals with potentiometers, smoothing, curves, and tremolo effects.
+   Modify signals with potentiometers, smoothing, curves, and tremolo effects. 
+   
+   *Zero Bypass Feature (Ignore if Zero)*: Potentiometer blocks have a special setting called "Ignore if Zero". When enabled, you can provide a "Zero Bypass Value". When the physical potentiometer is turned all the way down, the control voltage automatically falls back to this specified bypass value instead of 0. This is extremely useful for parameters like Mix or Delay Time where the "zero" knob position should default to a mathematically pure state (e.g. 100% dry, or fully bypassing an effect path) rather than exactly `0.0`. The main use case is for configuring presets that you can switch to and know exactly where the controls will be set by default (so long as you turn the pots all the way down), while still having the flexibility to adjust them live if you want.
 
 **Gain/Mixing Blocks**
    Mix multiple signals together, add gain or adjust volume levels.

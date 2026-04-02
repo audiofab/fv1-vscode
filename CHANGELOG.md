@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.4.6]
+
+- Fix color schemes to work with recent VS Code change
+- Add zero POT bypass feature
+
 ## [1.4.5]
 
 - Fix a couple of bugs in the SVF and Phaser blocks

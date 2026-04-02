@@ -186,6 +186,14 @@ Use these to pre-calculate constants for your assembly code or invoke built-in h
 - ``@equals result, value``: Evaluate expression and assign to variable identifier.
 - ``@multiplydouble result, a, b`` / ``@dividedouble`` / ``@plusdouble`` / ``@minusdouble``: Math evaluated statically against parameters.
 
+Control Voltage (CV) Macros
+"""""""""""""""""""""""""""
+
+When building blocks with modulation or control inputs, use these macros to seamlessly load signals into the accumulator while automatically handling unconnected limits, parameter scaling, and the **Zero Bypass** (Ignore if Zero) potentiometer feature. Your parameter JSON must specify an associated ``parameter`` (e.g. ``"parameter": "mix"``) for these to work.
+
+- ``@cv pin_id``: Flushes the accumulator and loads the CV value. If the pin is unconnected, it loads the raw parameter constant. If connected to a Pot with Zero Bypass enabled, it will seamlessly jump to the user's bypass value when tracking below 1%.
+- ``@mulcv pin_id``: Multiplies the existing value in the accumulator by the CV value. Supports the same fallback and Zero Bypass scaling natively without corrupting the signal you are scaling.
+
 Code Sections
 """""""""""""
 
