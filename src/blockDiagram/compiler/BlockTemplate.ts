@@ -546,16 +546,13 @@ export class BlockTemplate {
 
                 if (reg) {
                     if (isZeroBypassed) {
-                        // 5-instruction bypass block, adapted for range scaling.
-                        // Key insight: RDAX reg, equName reads pot and scales by paramValue in one instruction,
-                        // so the bypass fallback must also be pre-scaled: zeroVal * paramValue.
                         const zeroVal = ctx.getInputZeroValue(block.id, portId);
-                        const zeroValScaled = zeroVal * parseFloat(paramValue.toString());
-                        ir.push({ op: 'RDAX', args: [reg, equName], section, comment: `CV: ${paramId} * pot` });
+                        ir.push({ op: 'RDAX', args: [reg, '1.0'], section, comment: `Read pot` });
                         ir.push({ op: 'SOF', args: ['1.0', '-0.02'], section, comment: 'Subtract bypass threshold' });
                         ir.push({ op: 'SKP', args: ['GEZ', '1'], section, comment: 'Skip if pot >= threshold' });
-                        ir.push({ op: 'SOF', args: ['0.0', `${(zeroValScaled - (-0.02)).toFixed(6)}`], section, comment: `Zero fallback: ${zeroVal} * ${paramId}` });
+                        ir.push({ op: 'SOF', args: ['0.0', `${(zeroVal - 0.02).toFixed(6)}`], section, comment: `Zero fallback` });
                         ir.push({ op: 'SOF', args: ['1.0', '0.02'], section, comment: 'Re-add threshold' });
+                        ir.push({ op: 'SOF', args: [equName, '0.0'], section, comment: `Scale CV by ${paramId}` });
                     } else {
                         // Standard connected: CLR (if needed), load range, scale by pot.
                         // Check if ACC is already 0 from the previous instruction so we can skip the CLR.
@@ -619,21 +616,16 @@ export class BlockTemplate {
 
                 if (mulcvReg) {
                     if (mulcvZeroBypassed) {
-                        // Zero-bypass: we can't branch ACC to two paths without a temp register,
-                        // but the bypass threshold approach still works — we write AC to a scratch,
-                        // do the bypass check on the pot, then MULX both components.
-                        // Actually: just apply the same RDAX-based bypass but we need ACC beforehand.
-                        // Solution: save ACC to a local scratch, do bypass, MULX scratch.
                         const scratch = ctx.getScratchRegister();
                         const mulcvZeroVal = ctx.getInputZeroValue(block.id, mulcvPortId);
-                        const mulcvZeroValScaled = mulcvZeroVal * parseFloat(mulcvParamValue.toString());
                         ir.push({ op: 'WRAX', args: [scratch, '0.0'], section, comment: 'Save ACC for @mulcv bypass' });
-                        ir.push({ op: 'RDAX', args: [mulcvReg, mulcvEquName], section, comment: `@mulcv: ${mulcvParamId} * pot` });
+                        ir.push({ op: 'RDAX', args: [mulcvReg, '1.0'], section, comment: `Read pot` });
                         ir.push({ op: 'SOF', args: ['1.0', '-0.02'], section, comment: 'Subtract bypass threshold' });
                         ir.push({ op: 'SKP', args: ['GEZ', '1'], section, comment: 'Skip if pot >= threshold' });
-                        ir.push({ op: 'SOF', args: ['0.0', `${(mulcvZeroValScaled - (-0.02)).toFixed(6)}`], section, comment: `Zero fallback: ${mulcvZeroVal} * ${mulcvParamId}` });
+                        ir.push({ op: 'SOF', args: ['0.0', `${(mulcvZeroVal - 0.02).toFixed(6)}`], section, comment: `Zero fallback` });
                         ir.push({ op: 'SOF', args: ['1.0', '0.02'], section, comment: 'Re-add threshold' });
                         ir.push({ op: 'MULX', args: [scratch], section, comment: 'Scale saved signal by CV' });
+                        ir.push({ op: 'SOF', args: [mulcvEquName, '0.0'], section, comment: `Scale by ${mulcvParamId}` });
                     } else {
                         // Connected: scale ACC by paramValue, then scale by pot
                         ir.push({ op: 'SOF', args: [mulcvEquName, '0.0'], section, comment: `@mulcv: scale by ${mulcvParamId}` });

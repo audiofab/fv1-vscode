@@ -77,8 +77,7 @@
       "name": "Ignore if Zero (Fallback to Default)",
       "type": "boolean",
       "default": false,
-      "description": "If true, blocks connected to this pot will use their default value when the pot is turned down.",
-      "visibleIf": "true == false"
+      "description": "If true, blocks connected to this pot will use their default value when the pot is turned down."
     },
     {
       "id": "zeroValue",

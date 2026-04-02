@@ -1,0 +1,146 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "test_ignore_if_zero",
+    "author": "",
+    "description": "Tests that ignoreIfZero bypass functionality produces valid assembly for @cv and @mulcv."
+  },
+  "blocks": [
+    {
+      "id": "input-adc",
+      "type": "input.adc",
+      "position": {
+        "x": -16.655678632238534,
+        "y": -103.63545406618061
+      },
+      "parameters": {
+        "gain": 1,
+        "adcNumber": 0
+      }
+    },
+    {
+      "id": "pot-cv",
+      "type": "input.pot",
+      "position": {
+        "x": -18.50630959137621,
+        "y": 48.18227296690969
+      },
+      "parameters": {
+        "potNumber": 0,
+        "ignoreIfZero": true,
+        "zeroValue": 0.5
+      }
+    },
+    {
+      "id": "pot-mulcv",
+      "type": "input.pot",
+      "position": {
+        "x": 7.402523836550472,
+        "y": 224.05823040822042
+      },
+      "parameters": {
+        "potNumber": 1,
+        "ignoreIfZero": true,
+        "zeroValue": 0.25
+      }
+    },
+    {
+      "id": "pitch-shift",
+      "type": "effects.pitch.pitch_shift",
+      "position": {
+        "x": 222.20757150965142,
+        "y": -51.81772703309031
+      },
+      "parameters": {
+        "semitones": 12,
+        "lfoWidth": 4096,
+        "lfoSel": 0
+      }
+    },
+    {
+      "id": "svf-filter",
+      "type": "filter.svf_2p",
+      "position": {
+        "x": 459.2201906924038,
+        "y": 96.23292163288198
+      },
+      "parameters": {
+        "frequency": 1000,
+        "q": 0.707
+      }
+    },
+    {
+      "id": "output-dac",
+      "type": "output.dac",
+      "position": {
+        "x": 690.6809169977432,
+        "y": -37.0126621664931
+      },
+      "parameters": {
+        "dacNumber": 0
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn_g3ibbj8",
+      "from": {
+        "blockId": "input-adc",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "pitch-shift",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "conn_gd8medy",
+      "from": {
+        "blockId": "pot-cv",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "pitch-shift",
+        "portId": "pitch_ctrl"
+      }
+    },
+    {
+      "id": "conn_6u5013y",
+      "from": {
+        "blockId": "pitch-shift",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "svf-filter",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "conn_fxsus7y",
+      "from": {
+        "blockId": "pot-mulcv",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "svf-filter",
+        "portId": "f_cv"
+      }
+    },
+    {
+      "id": "conn_9qrvxv8",
+      "from": {
+        "blockId": "svf-filter",
+        "portId": "lp"
+      },
+      "to": {
+        "blockId": "output-dac",
+        "portId": "in"
+      }
+    }
+  ],
+  "canvas": {
+    "zoom": 0.5403600876626365,
+    "panX": 91.35795533986663,
+    "panY": 219.68486500761645
+  }
+}
