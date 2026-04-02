@@ -55,12 +55,12 @@ export class CodeGenerationContext implements CodeGenContext {
     // Set of EQU names pushed to IR header section (decoupled from equDeclarations)
     private headerEquSet: Set<string> = new Set();
 
-    // FV-1 hardware limits
-    private readonly MAX_REGISTERS = 32;  // REG0-REG31
-    private readonly MAX_MEMORY = 32768;  // Delay memory words
+    // FV-1 hardware limits (configurable via compile options)
+    private readonly maxMemory: number;
 
-    constructor(graph: BlockGraph) {
+    constructor(graph: BlockGraph, options?: { delaySize?: number }) {
         this.graph = graph;
+        this.maxMemory = options?.delaySize ?? 32768;
     }
 
     /**
@@ -337,14 +337,9 @@ being processed
             return existing.alias;  // Return alias, not raw register name
         }
 
-        // Check if we have room for another permanent register
-        // Need to ensure we don't collide with scratch registers
-        if (this.nextRegister > this.nextScratchRegister) {
-            throw new Error(
-                'Out of registers! Permanent registers (REG0-REG' + (this.nextRegister - 1) +
-                ') have collided with scratch registers (REG' + (this.nextScratchRegister + 1) + '-REG31).'
-            );
-        }
+        // NOTE: No hard limit check here. Registers are allowed to spill past REG31
+        // during code generation. The actual limit is enforced post-optimization
+        // after dead store elimination and register renumbering compact the set.
 
         const registerName = `REG${this.nextRegister}`;
         this.nextRegister++;
@@ -419,14 +414,9 @@ being processed
      * available again after the current block's code generation completes
      */
     getScratchRegister(): string {
-        // Check if we have room for another scratch register
-        // Need to ensure we don't collide with permanent registers
-        if (this.nextScratchRegister < this.nextRegister) {
-            throw new Error(
-                'Out of registers! Scratch registers (REG' + (this.nextScratchRegister + 1) + '-REG31) ' +
-                'have collided with permanent registers (REG0-REG' + (this.nextRegister - 1) + ').'
-            );
-        }
+        // NOTE: No hard limit check here. Scratch registers may temporarily overlap
+        // with permanent registers during code generation. The renumbering pass
+        // will compact everything post-optimization.
 
         const registerName = `REG${this.nextScratchRegister}`;
         this.nextScratchRegister--;
@@ -538,13 +528,13 @@ being processed
         // }
 
         // Check if enough memory available
-        if (this.nextMemoryAddress + size > this.MAX_MEMORY) {
+        if (this.nextMemoryAddress + size > this.maxMemory) {
             // Update nextMemoryAddress to reflect total attempted allocation
             // so getUsedMemorySize() returns the correct total when error is caught
             this.nextMemoryAddress += size;
             throw new Error(
                 `Out of delay memory! Requested ${size} words, ` +
-                `but only ${this.MAX_MEMORY - (this.nextMemoryAddress - size)} available.`
+                `but only ${this.maxMemory - (this.nextMemoryAddress - size)} available.`
             );
         }
 

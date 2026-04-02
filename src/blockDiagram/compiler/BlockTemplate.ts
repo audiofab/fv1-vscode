@@ -725,8 +725,11 @@ export class BlockTemplate {
     private resolveOutputs(block: Block, ctx: CodeGenContext): Record<string, string> {
         const resolved: Record<string, string> = {};
         for (const output of this.definition.outputs) {
-            const reg = ctx.allocateRegister(block.id, output.id);
-            resolved[output.id] = reg;
+            // Only allocate a register if this output is connected downstream
+            if (ctx.isOutputConnected(block.id, output.id)) {
+                const reg = ctx.allocateRegister(block.id, output.id);
+                resolved[output.id] = reg;
+            }
         }
         return resolved;
     }

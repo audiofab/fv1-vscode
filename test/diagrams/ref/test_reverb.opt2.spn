@@ -26,17 +26,17 @@ equ	platereverb_outr	REG4
 ; OPTIMIZED OUT - equ	pot0_local_f2	REG6 (Unused register)
 ; OPTIMIZED OUT - equ	pot1_local_f1	REG7 (Unused register)
 ; OPTIMIZED OUT - equ	pot1_local_f2	REG8 (Unused register)
-equ	platereverb_local_decay	REG9
-equ	platereverb_local_decay_diffusion_2	REG10
-equ	platereverb_local_damping_reg	REG11
-equ	platereverb_local_one_minus_dmpg	REG12
-equ	platereverb_local_lp_inp	REG13
-equ	platereverb_local_lp30_31	REG14
-equ	platereverb_local_lp54_55	REG15
+equ	platereverb_local_decay	REG5
+equ	platereverb_local_decay_diffusion_2	REG6
+equ	platereverb_local_damping_reg	REG7
+equ	platereverb_local_one_minus_dmpg	REG8
+equ	platereverb_local_lp_inp	REG9
+equ	platereverb_local_lp30_31	REG10
+equ	platereverb_local_lp54_55	REG11
 ; OPTIMIZED OUT - equ	platereverb_local_mono	REG16 (Unused register)
-equ	platereverb_local_diffuse_in	REG17
-equ	platereverb_local_temp	REG18
-equ	platereverb_local_temp2	REG19
+equ	platereverb_local_diffuse_in	REG12
+equ	platereverb_local_temp	REG13
+equ	platereverb_local_temp2	REG14
 
 ; Memory Allocations
 mem	mem0_predelay	655

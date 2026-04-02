@@ -18,10 +18,9 @@ equ	t6_ratio 1.0	; 3328/3328
 ; Register Aliases
 equ	adc_out	REG0
 ; OPTIMIZED OUT - equ	mn3011_mix	REG1 (Unused register)
-; OPTIMIZED OUT - equ	mn3011_tap6	REG2 (Unused register)
-; OPTIMIZED OUT - equ	mn3011_local_pot_val	REG3 (Unused register)
-; OPTIMIZED OUT - equ	mn3011_local_mix_acc	REG4 (Unused register)
-; OPTIMIZED OUT - equ	mn3011_local_tap_out	REG5 (Unused register)
+; OPTIMIZED OUT - equ	mn3011_local_pot_val	REG2 (Unused register)
+; OPTIMIZED OUT - equ	mn3011_local_mix_acc	REG3 (Unused register)
+; OPTIMIZED OUT - equ	mn3011_local_tap_out	REG4 (Unused register)
 
 ; Memory Allocations
 mem	mem0_buffer	32768

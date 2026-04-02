@@ -15,8 +15,8 @@ equ	cv_b2_mix_ctrl	1
 equ	adc_out	REG0
 equ	simple_audio_output	REG1
 ; OPTIMIZED OUT - equ	crossfade_output	REG2 (Unused register)
-equ	simple_local_dry	REG3
-equ	simple_local_wet	REG4
+equ	simple_local_dry	REG2
+equ	simple_local_wet	REG3
 
 ; Memory Allocations
 mem	mem0_delayl	16384

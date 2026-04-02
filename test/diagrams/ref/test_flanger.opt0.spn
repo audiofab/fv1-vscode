@@ -15,7 +15,6 @@ equ	pot0_out	REG1
 equ	flanger_output	REG2
 equ	pot0_local_f1	REG3
 equ	pot0_local_f2	REG4
-equ	flanger_tap	REG5
 
 ; Memory Allocations
 mem	mem0_delayl	1024

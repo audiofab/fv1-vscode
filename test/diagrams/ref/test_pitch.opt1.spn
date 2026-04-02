@@ -16,17 +16,16 @@ equ	adc_out	REG0
 equ	octave_up_down_octave_up	REG1
 equ	pitch_shift_out	REG2
 equ	pitch_offset_out	REG3
-; OPTIMIZED OUT - equ	octave_up_down_octave_down	REG4 (Unused register)
-equ	pitch_offset_local_sigs	REG5
-equ	pitch_offset_local_sigc	REG6
-equ	pitch_offset_local_lpf	REG7
-equ	pitch_offset_local_hpf	REG8
-equ	pitch_offset_local_sigfil	REG9
-equ	pitch_offset_local_sinosc	REG10
-equ	pitch_offset_local_cososc	REG11
-equ	pitch_offset_local_temp	REG12
-equ	pitch_offset_local_shift_amount	REG13
-equ	pitch_offset_local_potfil	REG14
+equ	pitch_offset_local_sigs	REG4
+equ	pitch_offset_local_sigc	REG5
+equ	pitch_offset_local_lpf	REG6
+equ	pitch_offset_local_hpf	REG7
+equ	pitch_offset_local_sigfil	REG8
+equ	pitch_offset_local_sinosc	REG9
+equ	pitch_offset_local_cososc	REG10
+equ	pitch_offset_local_temp	REG11
+equ	pitch_offset_local_shift_amount	REG12
+equ	pitch_offset_local_potfil	REG13
 
 ; Memory Allocations
 mem	mem0_delayl	4096

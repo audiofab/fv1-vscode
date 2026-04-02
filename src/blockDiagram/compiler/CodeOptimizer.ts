@@ -13,6 +13,7 @@ export interface OptimizationResult {
     code: string[];
     optimizationsApplied: number;
     details: string[];
+    finalRegisterCount: number;
 }
 
 export class CodeOptimizer {
@@ -21,7 +22,9 @@ export class CodeOptimizer {
      */
     optimize(code: string[], level: OptimizationLevel = OptimizationLevel.Aggressive): OptimizationResult {
         if (level === OptimizationLevel.None) {
-            return { code, optimizationsApplied: 0, details: ['Optimization level 0 (None) selected.'] };
+            // Count existing register declarations even with no optimization
+            const regCount = code.filter(l => !l.trim().startsWith(';') && /^equ\s+\w+\s+REG\d+/i.test(l.trim())).length;
+            return { code, optimizationsApplied: 0, details: ['Optimization level 0 (None) selected.'], finalRegisterCount: regCount };
         }
 
         let optimizedCode = [...code];
@@ -65,10 +68,18 @@ export class CodeOptimizer {
             details.push(`Pruned ${unusedRegResult.count} unused register declaration(s)`);
         }
 
+        // Optimization 5: Renumber surviving registers sequentially from REG0
+        const renumberResult = this.renumberRegisters(optimizedCode);
+        optimizedCode = renumberResult.code;
+        if (renumberResult.renumbered > 0) {
+            details.push(`Renumbered ${renumberResult.renumbered} register(s) to REG0-REG${renumberResult.finalRegisterCount - 1}`);
+        }
+
         return {
             code: optimizedCode,
             optimizationsApplied: totalOptimizations,
-            details
+            details,
+            finalRegisterCount: renumberResult.finalRegisterCount
         };
     }
 
@@ -437,5 +448,53 @@ export class CodeOptimizer {
             applied: prunedCount > 0,
             count: prunedCount
         };
+    }
+
+    /**
+     * Optimization 5: Renumber registers sequentially
+     * 
+     * After dead store elimination and unused register pruning,
+     * compact the surviving register assignments to REG0..REGn.
+     * Only EQU declaration lines are modified; all DSP code references
+     * aliases, not raw register names.
+     */
+    private renumberRegisters(code: string[]): { code: string[], finalRegisterCount: number, renumbered: number } {
+        const regEquPattern = /^equ\s+(\w+)\s+REG(\d+)/i;
+        const assignments: { lineIndex: number, alias: string, oldReg: number }[] = [];
+
+        for (let i = 0; i < code.length; i++) {
+            const line = code[i].trim();
+            // Skip commented-out lines (pruned by previous passes)
+            if (line.startsWith(';')) continue;
+            const match = line.match(regEquPattern);
+            if (match) {
+                assignments.push({ lineIndex: i, alias: match[1], oldReg: parseInt(match[2]) });
+            }
+        }
+
+        if (assignments.length === 0) {
+            return { code, finalRegisterCount: 0, renumbered: 0 };
+        }
+
+        // Sort by original register number to maintain stable ordering
+        assignments.sort((a, b) => a.oldReg - b.oldReg);
+
+        // Build renumbered code
+        const renumbered = [...code];
+        let renumberedCount = 0;
+
+        for (let newIdx = 0; newIdx < assignments.length; newIdx++) {
+            const entry = assignments[newIdx];
+            const newRegName = `REG${newIdx}`;
+            if (entry.oldReg !== newIdx) {
+                // Replace the register number in the EQU declaration
+                renumbered[entry.lineIndex] = renumbered[entry.lineIndex].replace(
+                    /REG\d+/i, newRegName
+                );
+                renumberedCount++;
+            }
+        }
+
+        return { code: renumbered, finalRegisterCount: assignments.length, renumbered: renumberedCount };
     }
 }

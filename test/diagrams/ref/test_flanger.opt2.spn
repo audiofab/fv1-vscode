@@ -15,7 +15,6 @@ equ	pot0_out	REG1
 ; OPTIMIZED OUT - equ	flanger_output	REG2 (Unused register)
 ; OPTIMIZED OUT - equ	pot0_local_f1	REG3 (Unused register)
 ; OPTIMIZED OUT - equ	pot0_local_f2	REG4 (Unused register)
-; OPTIMIZED OUT - equ	flanger_tap	REG5 (Unused register)
 
 ; Memory Allocations
 mem	mem0_delayl	1024

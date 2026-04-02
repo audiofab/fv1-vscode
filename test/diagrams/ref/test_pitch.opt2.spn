@@ -14,19 +14,18 @@ equ	cv_b4_shift_ctrl	0.5
 ; Register Aliases
 ; OPTIMIZED OUT - equ	adc_out	REG0 (Unused register)
 ; OPTIMIZED OUT - equ	octave_up_down_octave_up	REG1 (Unused register)
-equ	pitch_shift_out	REG2
+equ	pitch_shift_out	REG0
 ; OPTIMIZED OUT - equ	pitch_offset_out	REG3 (Unused register)
-; OPTIMIZED OUT - equ	octave_up_down_octave_down	REG4 (Unused register)
-equ	pitch_offset_local_sigs	REG5
-equ	pitch_offset_local_sigc	REG6
-equ	pitch_offset_local_lpf	REG7
-equ	pitch_offset_local_hpf	REG8
-equ	pitch_offset_local_sigfil	REG9
-equ	pitch_offset_local_sinosc	REG10
-equ	pitch_offset_local_cososc	REG11
-equ	pitch_offset_local_temp	REG12
-equ	pitch_offset_local_shift_amount	REG13
-equ	pitch_offset_local_potfil	REG14
+equ	pitch_offset_local_sigs	REG1
+equ	pitch_offset_local_sigc	REG2
+equ	pitch_offset_local_lpf	REG3
+equ	pitch_offset_local_hpf	REG4
+equ	pitch_offset_local_sigfil	REG5
+equ	pitch_offset_local_sinosc	REG6
+equ	pitch_offset_local_cososc	REG7
+equ	pitch_offset_local_temp	REG8
+equ	pitch_offset_local_shift_amount	REG9
+equ	pitch_offset_local_potfil	REG10
 
 ; Memory Allocations
 mem	mem0_delayl	4096

@@ -18,10 +18,9 @@ equ	t6_ratio 1.0	; 3328/3328
 ; Register Aliases
 equ	adc_out	REG0
 equ	mn3011_mix	REG1
-equ	mn3011_tap6	REG2
-equ	mn3011_local_pot_val	REG3
-equ	mn3011_local_mix_acc	REG4
-equ	mn3011_local_tap_out	REG5
+equ	mn3011_local_pot_val	REG2
+equ	mn3011_local_mix_acc	REG3
+equ	mn3011_local_tap_out	REG4
 
 ; Memory Allocations
 mem	mem0_buffer	32768

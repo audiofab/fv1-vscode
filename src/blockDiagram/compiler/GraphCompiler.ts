@@ -94,7 +94,7 @@ export class GraphCompiler {
         const executionOrder = sortResult.order!;
 
         // 3. Create code generation context
-        const context = new CodeGenerationContext(graph);
+        const context = new CodeGenerationContext(graph, { delaySize: options.delaySize });
 
         // 4. Pre-allocate registers for all connected outputs
         // This is necessary for feedback loops where blocks may read from outputs
@@ -259,11 +259,22 @@ export class GraphCompiler {
         // Apply post-processing optimizations to the complete code
         const optimizerResult = this.optimizer.optimize(codeLines, level);
 
+        // Post-optimization register limit check
+        // This runs AFTER dead store elimination and register pruning/renumbering,
+        // so it reflects the true minimum register requirement
+        const maxRegisters = options.regCount ?? 32;
+        if (optimizerResult.finalRegisterCount > maxRegisters) {
+            errors.push(
+                `Program requires ${optimizerResult.finalRegisterCount} registers after optimization, ` +
+                `but the configured maximum is ${maxRegisters} (REG0-REG${maxRegisters - 1}). Remove some blocks to reduce register pressure.`
+            );
+        }
+
         // 7. Assemble the code to get accurate instruction count
         let instructions = 0;
         let lfosUsed = 0;
         let usedLFOs: string[] = [];
-        let registersUsed = context.getUsedRegisterCount();
+        let registersUsed = optimizerResult.finalRegisterCount;
 
         try {
             const assembler = new FV1Assembler({

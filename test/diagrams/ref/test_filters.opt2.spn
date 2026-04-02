@@ -14,16 +14,13 @@ equ	d_target (1.414427)
 ;--------------------------------------------------------------------------------
 ; Register Aliases
 ; OPTIMIZED OUT - equ	adc_out	REG0 (Unused register)
-equ	lpf_1p_lpf1	REG1
+equ	lpf_1p_lpf1	REG0
 ; OPTIMIZED OUT - equ	hpf_1p_output	REG2 (Unused register)
-equ	svf_2p_lp	REG3
+equ	svf_2p_lp	REG1
 ; OPTIMIZED OUT - equ	lpf_1p_local_output	REG4 (Unused register)
-equ	hpf_1p_local_lpf1	REG5
-; OPTIMIZED OUT - equ	svf_2p_bp	REG6 (Unused register)
-; OPTIMIZED OUT - equ	svf_2p_hp	REG7 (Unused register)
-; OPTIMIZED OUT - equ	svf_2p_notch	REG8 (Unused register)
-equ	svf_2p_local_lp_state	REG9
-equ	svf_2p_local_bp_state	REG10
+equ	hpf_1p_local_lpf1	REG2
+equ	svf_2p_local_lp_state	REG3
+equ	svf_2p_local_bp_state	REG4
 
 ;	"Generated from spincad source file LPF_RDFX.spincad"
 ;	"Generated from spincad source file HPF_RDFX.spincad"

@@ -19,11 +19,8 @@ equ	hpf_1p_output	REG2
 equ	svf_2p_lp	REG3
 equ	lpf_1p_local_output	REG4
 equ	hpf_1p_local_lpf1	REG5
-equ	svf_2p_bp	REG6
-equ	svf_2p_hp	REG7
-equ	svf_2p_notch	REG8
-equ	svf_2p_local_lp_state	REG9
-equ	svf_2p_local_bp_state	REG10
+equ	svf_2p_local_lp_state	REG6
+equ	svf_2p_local_bp_state	REG7
 
 ;	"Generated from spincad source file LPF_RDFX.spincad"
 ;	"Generated from spincad source file HPF_RDFX.spincad"
