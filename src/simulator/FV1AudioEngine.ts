@@ -183,7 +183,48 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
 
                     .pot-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
                     .pot-label { color: var(--vscode-foreground); font-size: 10px; width: 35px; }
-                    .pot-slider { flex: 1; height: 2px; cursor: pointer; accent-color: var(--vscode-button-background); }
+                    .pot-slider { 
+                        flex: 1; 
+                        height: 20px; 
+                        background: transparent; 
+                        cursor: pointer; 
+                        -webkit-appearance: none;
+                        appearance: none;
+                    }
+                    .pot-slider:focus { outline: none; }
+
+                    /* Track Styling */
+                    .pot-slider::-webkit-slider-runnable-track {
+                        width: 100%;
+                        height: 4px;
+                        background: color-mix(in srgb, var(--vscode-foreground) 20%, transparent);
+                        border-radius: 2px;
+                        border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+                    }
+
+                    /* Thumb Styling */
+                    .pot-slider::-webkit-slider-thumb {
+                        -webkit-appearance: none;
+                        appearance: none;
+                        height: 14px;
+                        width: 14px;
+                        border-radius: 50%;
+                        background: var(--vscode-button-background);
+                        cursor: pointer;
+                        margin-top: -6px; /* Center thumb on 4px track with border */
+                        border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                    }
+
+                    .pot-slider:focus::-webkit-slider-thumb {
+                        outline: 2px solid var(--vscode-focusBorder);
+                        outline-offset: 2px;
+                    }
+
+                    .pot-slider::-webkit-slider-thumb:active {
+                        background: var(--vscode-button-hoverBackground);
+                    }
+
                     .pot-value { font-family: var(--vscode-editor-font-family); font-size: 10px; width: 30px; color: var(--vscode-descriptionForeground); text-align: right; }
 
                     .stimulus-box { margin-top: 4px; }
