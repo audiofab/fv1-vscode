@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.4.7]
+
+- Improve the optimizer
+
 ## [1.4.6]
 
 - Fix color schemes to work with recent VS Code change
