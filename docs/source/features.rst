@@ -181,6 +181,13 @@ The block diagram compiler features a configurable three-level optimization syst
    - **Section Flattening**: Collapses Input/Main/Output sections into optimized topological order
    - **Inline Comments**: Block comments are inlined for visibility in flattened execution mode
 
+**All Levels** (always applied):
+   - **Disconnected Output Pruning**: Output ports with no downstream connection never allocate a register, saving register space at the source
+   - **Register Renumbering**: After all passes complete, surviving register declarations are compacted sequentially from ``REG0`` upward, eliminating gaps
+
+.. note::
+   Register and memory limits are enforced **after** optimization, not before. The compiler can temporarily exceed hardware limits during code generation and still succeed if the optimizer brings totals back within bounds. All hardware limits (registers, program size, delay memory) are pulled from your VS Code settings, not hardcoded.
+
 Configure optimization level in VS Code settings under ``fv1.optimizationLevel`` to experiment with different tradeoffs between code size and readability.
 
 Supported Blocks

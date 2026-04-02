@@ -143,9 +143,15 @@ The ATL compiler doesn't just blindly concatenate assembly; it also runs a multi
 
 - **Algebraic Folding**: Static mathematical expressions are resolved into single floats during compilation.
 - **Dead Output Elimination**: If an output pin is left unconnected in the block diagram, the compiler automatically skips generating the assembly for calculating and writing that output (when safely possible), preserving DSP cycles.
+- **Disconnected Output Pruning**: Output ports with no downstream connection never allocate a physical register at all. This means blocks with many optional outputs (e.g., crossovers, multi-band processors) don't waste register space on unused paths.
 - **Accumulator Forwarding**: Redundant write-then-read steps (e.g., ``WRAX reg, 0.0`` immediately followed by ``RDAX reg, 1.0``) are collapsed into a single ``WRAX reg, 1.0`` instruction to conserve instruction slots.
 - **Move Pruning**: Trims redundant register moves (such as unnecessary ``WRAX`` → ``LDAX`` sequences).
+- **Dead Store Elimination** (Level 2): Identifies ``WRAX`` instructions whose target register is never subsequently read and eliminates them entirely, reclaiming both instruction slots and registers.
 - **Auto-Clearing**: Automatically injects ``CLR`` instructions when leaving input stages if the accumulator is left dirty, ensuring no bleed-over between unconnected audio blocks.
+- **Register Renumbering**: After all optimization passes complete, surviving register EQU declarations are compacted sequentially from ``REG0`` upward. This eliminates numbering gaps left by pruned registers and guarantees a minimal register footprint.
+
+.. note::
+   Register limits are enforced **after** all optimization passes, not during code generation. This means your block can safely allocate internal registers without worrying about premature "out of registers" errors — the optimizer will prune dead stores first and only then check whether the surviving register count fits within the hardware limit.
 
 Token Substitution
 ^^^^^^^^^^^^^^^^^^

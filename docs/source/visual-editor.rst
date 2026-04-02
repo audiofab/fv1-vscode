@@ -118,7 +118,14 @@ The extension automatically optimizes generated code at multiple levels of aggre
    - Dead Store Elimination: Removes ``wrax`` instructions whose registers are never read
    - Section Flattening: Collapses Input/Main/Output sections into optimized topological order
 
+**All Levels** (always applied):
+   - Disconnected Output Pruning: Output ports that have no downstream connection never consume a register in the first place, conserving register space at the source
+   - Register Renumbering: After all optimization passes complete, surviving register declarations are compacted sequentially from ``REG0`` upward, eliminating gaps left by pruned registers
+
 Configure the optimization level with the ``fv1.optimizationLevel`` setting (0, 1, or 2). Higher levels produce smaller code but may be harder to debug.
+
+.. note::
+   Register limits are enforced **after** optimization, not before. This means the compiler can temporarily allocate more than 32 registers during code generation and still succeed if the optimizer eliminates enough dead stores to bring the total back under the limit.
 
 This means your diagrams typically generate highly efficient code that uses fewer instruction slots than manual assembly.
 
