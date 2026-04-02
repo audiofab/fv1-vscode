@@ -4,7 +4,13 @@
     {
       "id": "in1",
       "type": "input.adc",
-      "parameters": { "adcNumber": 0 }
+      "parameters": {
+        "adcNumber": 0
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      }
     },
     {
       "id": "delay1",
@@ -14,16 +20,51 @@
         "fb_level": 0.5,
         "fbk_gain": -6,
         "max_delay": 1000
+      },
+      "position": {
+        "x": 200,
+        "y": 100
       }
     },
     {
       "id": "out1",
       "type": "output.dac",
-      "parameters": { "dacNumber": 0 }
+      "parameters": {
+        "dacNumber": 0
+      },
+      "position": {
+        "x": 400,
+        "y": 0
+      }
     }
   ],
   "connections": [
-    { "source": "in1", "sourcePort": "out", "target": "delay1", "targetPort": "in" },
-    { "source": "delay1", "sourcePort": "mix", "target": "out1", "targetPort": "in" }
-  ]
+    {
+      "id": "conn_f4n8tz5",
+      "from": {
+        "blockId": "in1",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "delay1",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "conn_bumr9ho",
+      "from": {
+        "blockId": "delay1",
+        "portId": "mix"
+      },
+      "to": {
+        "blockId": "out1",
+        "portId": "in"
+      }
+    }
+  ],
+  "canvas": {
+    "zoom": 1,
+    "panX": 0,
+    "panY": 0
+  }
 }

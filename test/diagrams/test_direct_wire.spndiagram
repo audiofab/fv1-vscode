@@ -10,7 +10,10 @@
       "parameters": {
         "adcNumber": 1
       },
-      "position": { "x": 100, "y": 100 }
+      "position": {
+        "x": 100,
+        "y": 100
+      }
     },
     {
       "id": "b2",
@@ -18,7 +21,10 @@
       "parameters": {
         "adcNumber": 2
       },
-      "position": { "x": 100, "y": 200 }
+      "position": {
+        "x": 100,
+        "y": 200
+      }
     },
     {
       "id": "b3",
@@ -26,7 +32,10 @@
       "parameters": {
         "dacNumber": 1
       },
-      "position": { "x": 400, "y": 100 }
+      "position": {
+        "x": 400,
+        "y": 100
+      }
     },
     {
       "id": "b4",
@@ -34,17 +43,39 @@
       "parameters": {
         "dacNumber": 2
       },
-      "position": { "x": 400, "y": 200 }
+      "position": {
+        "x": 400,
+        "y": 200
+      }
     }
   ],
   "connections": [
     {
-      "from": { "blockId": "b1", "portId": "out" },
-      "to": { "blockId": "b3", "portId": "in" }
+      "from": {
+        "blockId": "b1",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "b3",
+        "portId": "in"
+      },
+      "id": "conn_qcfs0ly"
     },
     {
-      "from": { "blockId": "b2", "portId": "out" },
-      "to": { "blockId": "b4", "portId": "in" }
+      "from": {
+        "blockId": "b2",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "b4",
+        "portId": "in"
+      },
+      "id": "conn_ncokigk"
     }
-  ]
+  ],
+  "canvas": {
+    "zoom": 1,
+    "panX": 0,
+    "panY": 0
+  }
 }

@@ -9,23 +9,35 @@
     {
       "id": "input-1",
       "type": "input.adc",
-      "position": { "x": 0, "y": 0 },
-      "parameters": { "gain": 1, "adcNumber": 0 }
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "parameters": {
+        "gain": 1,
+        "adcNumber": 0
+      }
     },
     {
       "id": "delay-1",
       "type": "effects.delay.simple",
-      "position": { "x": 200, "y": 0 },
+      "position": {
+        "x": 200,
+        "y": 0
+      },
       "parameters": {
         "delayTime": 250,
         "feedback": 0.5,
-        "mix": 1.0
+        "mix": 1
       }
     },
     {
       "id": "crossfade-1",
       "type": "math.crossfade",
-      "position": { "x": 400, "y": 0 },
+      "position": {
+        "x": 400,
+        "y": 0
+      },
       "parameters": {
         "mix": 0.25
       }
@@ -33,16 +45,64 @@
     {
       "id": "output-1",
       "type": "output.dac",
-      "position": { "x": 600, "y": 0 },
-      "parameters": { "dacNumber": 0 }
+      "position": {
+        "x": 600,
+        "y": 0
+      },
+      "parameters": {
+        "dacNumber": 0
+      }
     }
   ],
   "connections": [
-    { "source": "input-1", "sourcePort": "out", "target": "delay-1", "targetPort": "audio_input" },
-    
-    { "source": "input-1", "sourcePort": "out", "target": "crossfade-1", "targetPort": "input1" },
-    { "source": "delay-1", "sourcePort": "audio_output", "target": "crossfade-1", "targetPort": "input2" },
-    
-    { "source": "crossfade-1", "sourcePort": "output", "target": "output-1", "targetPort": "in" }
-  ]
+    {
+      "id": "conn_6s55dp4",
+      "from": {
+        "blockId": "input-1",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "delay-1",
+        "portId": "audio_input"
+      }
+    },
+    {
+      "id": "conn_0trk9mc",
+      "from": {
+        "blockId": "input-1",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "crossfade-1",
+        "portId": "input1"
+      }
+    },
+    {
+      "id": "conn_qun6h9h",
+      "from": {
+        "blockId": "delay-1",
+        "portId": "audio_output"
+      },
+      "to": {
+        "blockId": "crossfade-1",
+        "portId": "input2"
+      }
+    },
+    {
+      "id": "conn_aqk7n2s",
+      "from": {
+        "blockId": "crossfade-1",
+        "portId": "output"
+      },
+      "to": {
+        "blockId": "output-1",
+        "portId": "in"
+      }
+    }
+  ],
+  "canvas": {
+    "zoom": 1,
+    "panX": 0,
+    "panY": 0
+  }
 }

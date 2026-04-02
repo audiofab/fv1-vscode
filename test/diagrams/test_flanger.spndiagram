@@ -9,19 +9,34 @@
     {
       "id": "input-1",
       "type": "input.adc",
-      "position": { "x": 0, "y": 0 },
-      "parameters": { "gain": 1, "adcNumber": 0 }
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "parameters": {
+        "gain": 1,
+        "adcNumber": 0
+      }
     },
     {
       "id": "pot-1",
       "type": "input.pot",
-      "position": { "x": 0, "y": 100 },
-      "parameters": { "potNumber": 0, "invert": true }
+      "position": {
+        "x": 0,
+        "y": 100
+      },
+      "parameters": {
+        "potNumber": 0,
+        "invert": true
+      }
     },
     {
       "id": "flanger-1",
       "type": "effects.modulation.flanger",
-      "position": { "x": 200, "y": 0 },
+      "position": {
+        "x": 200,
+        "y": 0
+      },
       "parameters": {
         "baseDelay": 5,
         "rate": 5,
@@ -34,13 +49,53 @@
     {
       "id": "output-1",
       "type": "output.dac",
-      "position": { "x": 400, "y": 0 },
-      "parameters": { "dacNumber": 0 }
+      "position": {
+        "x": 400,
+        "y": 0
+      },
+      "parameters": {
+        "dacNumber": 0
+      }
     }
   ],
   "connections": [
-    { "source": "input-1", "sourcePort": "out", "target": "flanger-1", "targetPort": "input" },
-    { "source": "pot-1", "sourcePort": "out", "target": "flanger-1", "targetPort": "rateIn" },
-    { "source": "flanger-1", "sourcePort": "output", "target": "output-1", "targetPort": "in" }
-  ]
+    {
+      "id": "conn_myzedn7",
+      "from": {
+        "blockId": "input-1",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "flanger-1",
+        "portId": "input"
+      }
+    },
+    {
+      "id": "conn_t3xytll",
+      "from": {
+        "blockId": "pot-1",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "flanger-1",
+        "portId": "rateIn"
+      }
+    },
+    {
+      "id": "conn_vzhpa2w",
+      "from": {
+        "blockId": "flanger-1",
+        "portId": "output"
+      },
+      "to": {
+        "blockId": "output-1",
+        "portId": "in"
+      }
+    }
+  ],
+  "canvas": {
+    "zoom": 1,
+    "panX": 0,
+    "panY": 0
+  }
 }

@@ -6,31 +6,160 @@
   },
   "blocks": [
     {
-      "id": "adc", "type": "input.adc", "parameters": { "adcNumber": 0 }
+      "id": "adc",
+      "type": "input.adc",
+      "parameters": {
+        "adcNumber": 0
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      }
     },
     {
-      "id": "mix2", "type": "math.mixer2", "parameters": { "gain1": -6, "gain2": -6 }
+      "id": "mix2",
+      "type": "math.mixer2",
+      "parameters": {
+        "gain1": -6,
+        "gain2": -6
+      },
+      "position": {
+        "x": 31.592582718476876,
+        "y": 266.5569797492188
+      }
     },
     {
-      "id": "mix3", "type": "math.mixer3", "parameters": { "gain1": -6, "gain2": -6, "gain3": -6 }
+      "id": "mix3",
+      "type": "math.mixer3",
+      "parameters": {
+        "gain1": -6,
+        "gain2": -6,
+        "gain3": -6
+      },
+      "position": {
+        "x": 400,
+        "y": 0
+      }
     },
     {
-      "id": "mix4", "type": "math.mixer4", "parameters": { "gain1": -6, "gain2": -6, "gain3": -6, "gain4": -6 }
+      "id": "mix4",
+      "type": "math.mixer4",
+      "parameters": {
+        "gain1": -6,
+        "gain2": -6,
+        "gain3": -6,
+        "gain4": -6
+      },
+      "position": {
+        "x": 600,
+        "y": 100
+      }
     },
     {
-      "id": "xfade", "type": "math.crossfade", "parameters": { "fade": 0.5 }
+      "id": "xfade",
+      "type": "math.crossfade",
+      "parameters": {
+        "fade": 0.5
+      },
+      "position": {
+        "x": 800,
+        "y": 0
+      }
     },
     {
-      "id": "dac", "type": "output.dac", "parameters": { "dacNumber": 0 }
+      "id": "dac",
+      "type": "output.dac",
+      "parameters": {
+        "dacNumber": 0
+      },
+      "position": {
+        "x": 1000,
+        "y": 100
+      }
     }
   ],
   "connections": [
-    { "source": "adc", "sourcePort": "out", "target": "mix2", "targetPort": "input1" },
-    { "source": "adc", "sourcePort": "out", "target": "mix2", "targetPort": "input2" },
-    { "source": "mix2", "sourcePort": "output", "target": "mix3", "targetPort": "input1" },
-    { "source": "mix3", "sourcePort": "output", "target": "mix4", "targetPort": "input1" },
-    { "source": "mix4", "sourcePort": "output", "target": "xfade", "targetPort": "input1" },
-    { "source": "mix4", "sourcePort": "output", "target": "xfade", "targetPort": "input2" },
-    { "source": "xfade", "sourcePort": "output", "target": "dac", "targetPort": "in" }
-  ]
+    {
+      "id": "conn_ftea6b6",
+      "from": {
+        "blockId": "adc",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "mix2",
+        "portId": "input1"
+      }
+    },
+    {
+      "id": "conn_n8i66nw",
+      "from": {
+        "blockId": "adc",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "mix2",
+        "portId": "input2"
+      }
+    },
+    {
+      "id": "conn_93jbhiu",
+      "from": {
+        "blockId": "mix2",
+        "portId": "output"
+      },
+      "to": {
+        "blockId": "mix3",
+        "portId": "input1"
+      }
+    },
+    {
+      "id": "conn_ucwws6v",
+      "from": {
+        "blockId": "mix3",
+        "portId": "output"
+      },
+      "to": {
+        "blockId": "mix4",
+        "portId": "input1"
+      }
+    },
+    {
+      "id": "conn_xiw5n7o",
+      "from": {
+        "blockId": "mix4",
+        "portId": "output"
+      },
+      "to": {
+        "blockId": "xfade",
+        "portId": "input1"
+      }
+    },
+    {
+      "id": "conn_wvj861v",
+      "from": {
+        "blockId": "mix4",
+        "portId": "output"
+      },
+      "to": {
+        "blockId": "xfade",
+        "portId": "input2"
+      }
+    },
+    {
+      "id": "conn_17pnwox",
+      "from": {
+        "blockId": "xfade",
+        "portId": "output"
+      },
+      "to": {
+        "blockId": "dac",
+        "portId": "in"
+      }
+    }
+  ],
+  "canvas": {
+    "zoom": 0.5403600876626365,
+    "panX": 168.66849010137204,
+    "panY": 121.31585604719328
+  }
 }

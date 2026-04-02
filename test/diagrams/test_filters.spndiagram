@@ -6,25 +6,111 @@
   },
   "blocks": [
     {
-      "id": "adc", "type": "input.adc", "parameters": { "adcNumber": 0 }
+      "id": "adc",
+      "type": "input.adc",
+      "parameters": {
+        "adcNumber": 0
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      }
     },
     {
-      "id": "lp1", "type": "filter.lpf_1p", "parameters": { "freq": 1000 }
+      "id": "lp1",
+      "type": "filter.lpf_1p",
+      "parameters": {
+        "freq": 1000
+      },
+      "position": {
+        "x": 200,
+        "y": 100
+      }
     },
     {
-      "id": "hp1", "type": "filter.hpf_1p", "parameters": { "freq": 500 }
+      "id": "hp1",
+      "type": "filter.hpf_1p",
+      "parameters": {
+        "freq": 500
+      },
+      "position": {
+        "x": 400,
+        "y": 0
+      }
     },
     {
-      "id": "svf", "type": "filter.svf_2p", "parameters": { "frequency": 2000, "q": 0.707 }
+      "id": "svf",
+      "type": "filter.svf_2p",
+      "parameters": {
+        "frequency": 2000,
+        "q": 0.707
+      },
+      "position": {
+        "x": 600,
+        "y": 100
+      }
     },
     {
-      "id": "dac", "type": "output.dac", "parameters": { "dacNumber": 0 }
+      "id": "dac",
+      "type": "output.dac",
+      "parameters": {
+        "dacNumber": 0
+      },
+      "position": {
+        "x": 800,
+        "y": 0
+      }
     }
   ],
   "connections": [
-    { "source": "adc", "sourcePort": "out", "target": "lp1", "targetPort": "input" },
-    { "source": "lp1", "sourcePort": "lpf1", "target": "hp1", "targetPort": "input" },
-    { "source": "hp1", "sourcePort": "output", "target": "svf", "targetPort": "in" },
-    { "source": "svf", "sourcePort": "lp", "target": "dac", "targetPort": "in" }
-  ]
+    {
+      "id": "conn_deor0ci",
+      "from": {
+        "blockId": "adc",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "lp1",
+        "portId": "input"
+      }
+    },
+    {
+      "id": "conn_8lk9umj",
+      "from": {
+        "blockId": "lp1",
+        "portId": "lpf1"
+      },
+      "to": {
+        "blockId": "hp1",
+        "portId": "input"
+      }
+    },
+    {
+      "id": "conn_3sp4b5n",
+      "from": {
+        "blockId": "hp1",
+        "portId": "output"
+      },
+      "to": {
+        "blockId": "svf",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "conn_hnawb7j",
+      "from": {
+        "blockId": "svf",
+        "portId": "lp"
+      },
+      "to": {
+        "blockId": "dac",
+        "portId": "in"
+      }
+    }
+  ],
+  "canvas": {
+    "zoom": 1,
+    "panX": 0,
+    "panY": 0
+  }
 }
