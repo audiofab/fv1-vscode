@@ -1,0 +1,145 @@
+---
+{
+  "type": "fx.ducking_reverb",
+  "name": "Ducking Reverb",
+  "category": "Effects",
+  "subcategory": "Reverb",
+  "description": "Reverb that automatically ducks in volume while you are playing.",
+  "color": "#7100fc",
+  "width": 180,
+  "inputs": [
+    {
+      "id": "in",
+      "name": "Audio Input",
+      "type": "audio",
+      "required": true
+    },
+    {
+      "id": "decay_cv",
+      "name": "Decay",
+      "type": "control",
+      "required": false,
+      "parameter": "decay"
+    },
+    {
+      "id": "duck_sens_cv",
+      "name": "Sensitivity",
+      "type": "control",
+      "required": false,
+      "parameter": "duck_sens"
+    }
+  ],
+  "outputs": [
+    {
+      "id": "out",
+      "name": "Audio Output",
+      "type": "audio"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "decay",
+      "name": "Reverb Decay",
+      "type": "number",
+      "default": 0.85,
+      "min": 0,
+      "max": 0.99,
+      "step": 0.01,
+      "description": "Length of the reverb tail."
+    },
+    {
+      "id": "duck_sens",
+      "name": "Ducking Sensitivity",
+      "type": "number",
+      "default": 2.0,
+      "min": 0.0,
+      "max": 10.0,
+      "step": 0.1,
+      "description": "How hard the reverb ducks when you play."
+    }
+  ],
+  "memories": [
+    { "id": "ap1", "size": 142 },
+    { "id": "ap2", "size": 379 },
+    { "id": "ap3", "size": 842 },
+    { "id": "ap4", "size": 1111 },
+    { "id": "del1", "size": 4012 },
+    { "id": "del2", "size": 5211 }
+  ],
+  "registers": [
+    "env",
+    "gain",
+    "apout",
+    "duck_sens_val",
+    "decay_val"
+  ]
+}
+---
+@section main
+  @equals kap 0.5
+  
+  ; Evaluate CVs
+  @cv duck_sens_cv
+  wrax ${reg.duck_sens_val}, 0.0
+  @cv decay_cv
+  wrax ${reg.decay_val}, 0.0
+  
+  ; 1. Envelope Follower (Fast Attack, Slow Release)
+  rdax ${input.in}, 1.0
+  absa
+  rdax ${reg.env}, -1.0           ; ACC = |IN| - ENV
+  skp gez, attack
+  ; Release path
+  sof 0.005, 0.0                  ; Slow release
+  skp run, update_env
+attack:
+  sof 0.5, 0.0                    ; Fast attack
+update_env:
+  rdax ${reg.env}, 1.0            ; ACC = Delta + ENV
+  wrax ${reg.env}, 1.0            ; Update ENV register, keeping ENV in ACC
+  
+  ; 2. Calculate Ducking Gain (Gain = 1.0 - Sens * ENV)
+  ; Limit Gain from dropping below 0
+  rdax ${reg.env}, -0.25         ; ACC = -ENV/4 (Scale down env impact to allow high sens numbers)
+  mulx ${reg.duck_sens_val}      ; ACC = -ENV/4 * Sens
+  sof 1.0, 1.0                   ; ACC = 1.0 - (ENV/4 * Sens)
+  
+  ; Clamp Gain to positive values
+  skp gez, no_clamp
+  sof 0.0, 0.0
+no_clamp:
+  wrax ${reg.gain}, 0.0           ; Save final Ducking Gain
+  
+  ; 3. Reverb Input scaling (Wet signal only)
+  rdax ${input.in}, 0.25
+  mulx ${reg.gain}                ; ACC = Input * DuckingGain
+
+  ; 4. Reverb Processing (Minimal 4 Allpass, 2 Delay Network)
+  rda ${mem.ap1}#, ${kap}
+  wrap ${mem.ap1}, -1.0
+  rda ${mem.ap2}#, ${kap}
+  wrap ${mem.ap2}, -1.0
+  rda ${mem.ap3}#, ${kap}
+  wrap ${mem.ap3}, -1.0
+  rda ${mem.ap4}#, ${kap}
+  wrap ${mem.ap4}, -1.0
+  
+  ; Saving Allpass Output to write into the reverb tank
+  wrax ${reg.apout}, 0.0
+  
+  ; Delay Loop 1 (Tank Left)
+  rdax ${reg.apout}, 1.0
+  rda ${mem.del2}#, 1.0
+  mulx ${reg.decay_val}
+  wra ${mem.del1}, 0.0
+
+  ; Delay Loop 2 (Tank Right)
+  rdax ${reg.apout}, 1.0
+  rda ${mem.del1}#, 1.0
+  mulx ${reg.decay_val}
+  wra ${mem.del2}, 0.0
+  
+  ; 5. Output
+  rda ${mem.del1}#, 1.0
+  rda ${mem.del2}#, 1.0
+  wrax ${output.out}, 0.0

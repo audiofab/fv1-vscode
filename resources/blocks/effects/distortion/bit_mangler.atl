@@ -1,0 +1,74 @@
+---
+{
+  "type": "effects.bit_mangler",
+  "name": "The Bit-Mangler",
+  "category": "Effects",
+  "subcategory": "Lo-Fi",
+  "description": "An enveloped sample-rate reducer (Fixed: Namespaced labels and gain staging).",
+  "color": "#6f24f2",
+  "inputs": [
+    { "id": "input", "name": "Audio In", "type": "audio" },
+    { "id": "sensCV", "name": "Sensitivity CV", "type": "control", "required": false, "parameter": "sens" },
+    { "id": "mixCV", "name": "Mix CV", "type": "control", "required": false, "parameter": "mix" }
+  ],
+  "outputs": [
+    { "id": "out", "name": "Audio Out", "type": "audio" }
+  ],
+  "parameters": [
+    { "id": "base_rate", "name": "Crush Step", "type": "number", "default": 0.05, "min": 0, "max": 0.5, "step": 0.001 },
+    { "id": "sens", "name": "Env Sensitivity", "type": "number", "default": 0.1, "min": 0, "max": 1, "step": 0.01 },
+    { "id": "mix", "name": "Dry/Wet Mix", "type": "number", "default": 1.0, "min": 0, "max": 1, "step": 0.01 }
+  ],
+  "registers": [ "env", "counter", "held", "temp_mix", "dry_val" ]
+}
+---
+; The Bit-Mangler - Namespaced SRR
+; Fixes jump collisions and hardware register leakage (Register 0).
+
+@section main
+@if pinConnected(input)
+; 0. Initialization (First Run only)
+skp run, ${local.SKIP_INIT}
+rdax ${input.input}, 1.0
+wrax ${reg.held}, 0.0
+${local.SKIP_INIT}:
+
+; 1. Envelope Follower
+clr
+rdax ${input.input}, 1.0
+absa
+rdfx ${reg.env}, 0.001
+wrax ${reg.env}, 0.0
+
+; 2. S&H Counter
+; Increment = base_rate + (env * sens)
+@cv sensCV                  ; ACC = sensCV
+mulx ${reg.env}             ; ACC = sensCV * env
+rdax ${reg.counter}, 1.0    ; ACC = (sensCV * env) + counter
+sof 1.0, ${param.base_rate} ; ACC = (sensCV * env) + counter + base_rate
+wrax ${reg.counter}, 1.0
+
+; 3. Check for Sample Event (trigger at 0.99)
+sof 1.0, -0.99
+skp neg, ${local.SKIP_SAMPLE}
+
+; --- Sample Block (Runs only on Trigger) ---
+clr                     ; MUST clear ACC to avoid using the 'counter-0.95' residual!
+rdax ${input.input}, 1.0
+wrax ${reg.held}, 0.0    ; Update S&H value
+sof 0.0, 0.0
+wrax ${reg.counter}, 0.0 ; Reset counter
+
+${local.SKIP_SAMPLE}:
+; 4. Final Output Mix: Out = Dry + (Wet - Dry) * Mix
+clr                     ; Clear ACC after skip to avoid counter pollution
+@cv mixCV               ; Load mix value (0 to 1) 
+wrax ${reg.temp_mix}, 0.0
+
+rdax ${input.input}, 1.0 ; Dry signal
+wrax ${reg.dry_val}, -1.0 ; dry_val = dry, ACC = -dry
+rdax ${reg.held}, 1.0    ; ACC = wet - dry
+mulx ${reg.temp_mix}      ; ACC = (wet - dry) * mix
+rdax ${reg.dry_val}, 1.0 ; ACC = dry + (wet - dry) * mix
+wrax ${output.out}, 0.0
+@endif

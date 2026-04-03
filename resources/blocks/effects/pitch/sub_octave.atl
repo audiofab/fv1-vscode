@@ -1,0 +1,100 @@
+---
+{
+  "type": "fx.sub_octave",
+  "name": "Sub-Octave Synth",
+  "category": "Effects",
+  "subcategory": "Pitch",
+  "description": "Clean -1 octave generator with an integrated lowpass filter to remove pitch-shifting artifacts.",
+  "color": "#fcba03",
+  "width": 180,
+  "inputs": [
+    {
+      "id": "in",
+      "name": "Input",
+      "type": "audio",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "id": "out",
+      "name": "Output",
+      "type": "audio"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "sub_level",
+      "name": "Sub Level",
+      "type": "number",
+      "default": 1.0,
+      "min": 0.0,
+      "max": 1.5,
+      "step": 0.05
+    },
+    {
+      "id": "filter_freq",
+      "name": "Filter Frequency",
+      "type": "number",
+      "default": 250,
+      "min": 80,
+      "max": 800,
+      "step": 10,
+      "conversion": "SVFFREQ",
+      "description": "Frequency cutoff to remove digital fuzz from the pitch shifted signal."
+    }
+  ],
+  "memories": [
+    {
+      "id": "buffer",
+      "size": 4096
+    },
+    {
+      "id": "temp",
+      "size": 1
+    }
+  ],
+  "registers": [
+    "lps",
+    "lp2"
+  ]
+}
+---
+@section init
+  ; Initialize Ramp LFO for EXACTLY -1 Octave (rate -8192 = 0.5x speed)
+  skp run, init_sub
+  wldr RMP0, -8192, 4096
+  init_sub:
+
+@section main
+  ; Write input to delay buffer
+  rdax ${input.in}, 1.0
+  wra ${mem.buffer}, 0.0
+
+  ; Read Pitch -1 Octave
+  cho rda, RMP0, REG | COMPC, ${mem.buffer}
+  cho rda, RMP0, 0, ${mem.buffer} + 1
+  wra ${mem.temp}, 0.0
+  cho rda, RMP0, RPTR2 | COMPC, ${mem.buffer}
+  cho rda, RMP0, RPTR2, ${mem.buffer} + 1
+  cho sof, RMP0, NA | COMPC, 0.0
+  cho rda, RMP0, NA, ${mem.temp}
+  
+  ; ACC now contains the raw -1 octave signal
+  ; Apply 2-Pole Lowpass filter to clean it up into a synth sine wave
+  
+  ; Pole 1
+  rdax ${reg.lps}, -1.0
+  sof ${param.filter_freq}, 0.0
+  rdax ${reg.lps}, 1.0
+  wrax ${reg.lps}, 1.0
+  
+  ; Pole 2
+  rdax ${reg.lp2}, -1.0
+  sof ${param.filter_freq}, 0.0
+  rdax ${reg.lp2}, 1.0
+  wrax ${reg.lp2}, 1.0
+  
+  ; Gain
+  sof ${param.sub_level}, 0.0
+  wrax ${output.out}, 0.0

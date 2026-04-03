@@ -1,0 +1,180 @@
+---
+{
+  "type": "fx.tape_degrade",
+  "name": "Tape Degrader",
+  "category": "Effects",
+  "subcategory": "Lo-Fi",
+  "description": "Simulates tape wow, flutter, and top-end age loss.",
+  "color": "#24F2F2",
+  "width": 180,
+  "inputs": [
+    {
+      "id": "in",
+      "name": "Input",
+      "type": "audio",
+      "required": true
+    },
+    {
+      "id": "wow_rate_cv",
+      "name": "Wow Rate",
+      "type": "control",
+      "required": false,
+      "parameter": "wow_rate"
+    },
+    {
+      "id": "wow_depth_cv",
+      "name": "Wow Depth",
+      "type": "control",
+      "required": false,
+      "parameter": "wow_depth"
+    },
+    {
+      "id": "flutter_rate_cv",
+      "name": "Flutter Rate",
+      "type": "control",
+      "required": false,
+      "parameter": "flutter_rate"
+    },
+    {
+      "id": "flutter_depth_cv",
+      "name": "Flutter Depth",
+      "type": "control",
+      "required": false,
+      "parameter": "flutter_depth"
+    }
+  ],
+  "outputs": [
+    {
+      "id": "out",
+      "name": "Output",
+      "type": "audio"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "wow_rate",
+      "name": "Wow Rate (Hz)",
+      "type": "number",
+      "default": 0.5,
+      "min": 0.1,
+      "max": 2.0,
+      "step": 0.01,
+      "conversion": "HZ_TO_LFO_RATE"
+    },
+    {
+      "id": "wow_depth",
+      "name": "Wow Depth (ms)",
+      "type": "number",
+      "default": 1.5,
+      "min": 0,
+      "max": 5.0,
+      "step": 0.1,
+      "conversion": "MS_TO_LFO_RANGE"
+    },
+    {
+      "id": "flutter_rate",
+      "name": "Flutter Rate (Hz)",
+      "type": "number",
+      "default": 12.0,
+      "min": 5.0,
+      "max": 20.0,
+      "step": 0.1,
+      "conversion": "HZ_TO_LFO_RATE"
+    },
+    {
+      "id": "flutter_depth",
+      "name": "Flutter Depth (ms)",
+      "type": "number",
+      "default": 0.2,
+      "min": 0,
+      "max": 1.5,
+      "step": 0.01,
+      "conversion": "MS_TO_LFO_RANGE"
+    },
+    {
+      "id": "age",
+      "name": "Tape Age (Tone)",
+      "type": "number",
+      "default": 0.3,
+      "min": 0.01,
+      "max": 1.0,
+      "step": 0.01,
+      "description": "1.0 is bright, lower is darker (aged tape)."
+    }
+  ],
+  "memories": [
+    {
+      "id": "tape_buffer",
+      "size": 4096
+    }
+  ],
+  "registers": [
+    "lpf_state"
+  ]
+}
+---
+@section init
+  skp run, init_tape
+  wlds SIN0, ${wow_rate}, ${wow_depth}
+  wlds SIN1, ${flutter_rate}, ${flutter_depth}
+  init_tape:
+
+@section main
+  ; CV Modulation for Wow/Flutter 
+  ; Since rates are HZ_TO_LFO_RATE, we must scale them manually
+  @if pinConnected(wow_rate_cv)
+    rdax ${input.wow_rate_cv}, ${wow_rate} / 511.0
+    wrax SIN0_RATE, 0.0
+  @endif
+  
+  ; Depths are MS_TO_LFO_RANGE which goes up to 32767. So scale / 32767.0
+  @if pinConnected(wow_depth_cv)
+    rdax ${input.wow_depth_cv}, ${wow_depth} / 32767.0
+    wrax SIN0_RANGE, 0.0
+  @endif
+
+  @if pinConnected(flutter_rate_cv)
+    rdax ${input.flutter_rate_cv}, ${flutter_rate} / 511.0
+    wrax SIN1_RATE, 0.0
+  @endif
+  
+  @if pinConnected(flutter_depth_cv)
+    rdax ${input.flutter_depth_cv}, ${flutter_depth} / 32767.0
+    wrax SIN1_RANGE, 0.0
+  @endif
+
+  ; Write to Tape
+  rdax ${input.in}, 1.0
+  wra ${mem.tape_buffer}, 0.0
+
+  ; Read Wow Tape Head (SIN0)
+  @equals center ${mem.tape_buffer} + 2048
+  cho rda, SIN0, SIN | REG | COMPC, ${center}
+  cho rda, SIN0, SIN, ${center} + 1
+  
+  ; Modulate with Flutter (SIN1) off the same base, summing them creates composite warble
+  ; Actually, FV-1 CHO adds to ACC! So we just do another CHO RDA but without REG tracking?
+  ; To maintain unity volume, we shouldn't add audio signals, we should add address offsets.
+  ; But we can't add address offsets in SpinASM dynamically easily. 
+  ; Instead, we just read from the buffer with Flutter and average the two reads!
+  ; Multiply Wow read by 0.5
+  sof 0.5, 0.0
+  wrax ${reg.lpf_state}, 0.0 ; Temporarily hold Wow audio
+
+  ; Read Flutter Tape Head (SIN1)
+  cho rda, SIN1, SIN | REG | COMPC, ${center}
+  cho rda, SIN1, SIN, ${center} + 1
+  sof 0.5, 0.0
+  
+  ; Combine Wow and Flutter audio signals
+  rdax ${reg.lpf_state}, 1.0
+  
+  ; Tape Age Degradation (1-Pole Lowpass: L_new = L_old + Age * (I - L_old))
+  ; ACC = Input (Composite Warble)
+  rdax ${reg.lpf_state}, -1.0       ; ACC = I - L_old
+  sof ${param.age}, 0.0             ; ACC = Age * (I - L_old)
+  rdax ${reg.lpf_state}, 1.0        ; ACC = L_old + Age * (I - L_old) = L_new
+  wrax ${reg.lpf_state}, 1.0        ; Save new state and keep L_new in ACC
+
+  ; Export
+  wrax ${output.out}, 0.0

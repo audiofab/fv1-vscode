@@ -1,0 +1,129 @@
+---
+{
+  "type": "fx.harmonic_tremolo",
+  "name": "Harmonic Tremolo",
+  "category": "Effects",
+  "subcategory": "Modulation",
+  "description": "True vintage harmonic tremolo using a crossover.",
+  "color": "#24F2F2",
+  "width": 180,
+  "inputs": [
+    {
+      "id": "in",
+      "name": "Input",
+      "type": "audio",
+      "required": true
+    },
+    {
+      "id": "rate_cv",
+      "name": "Rate",
+      "type": "control",
+      "required": false,
+      "parameter": "rate"
+    },
+    {
+      "id": "depth_cv",
+      "name": "Depth",
+      "type": "control",
+      "required": false,
+      "parameter": "depth"
+    }
+  ],
+  "outputs": [
+    {
+      "id": "out",
+      "name": "Output",
+      "type": "audio"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "rate",
+      "name": "Tremolo Rate (Hz)",
+      "type": "number",
+      "default": 3.0,
+      "min": 0.5,
+      "max": 12.0,
+      "step": 0.1,
+      "conversion": "HZ_TO_LFO_RATE"
+    },
+    {
+      "id": "depth",
+      "name": "Depth",
+      "type": "number",
+      "default": 1.0,
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.01,
+      "description": "Intensity of the tremolo effect."
+    },
+    {
+      "id": "crossover",
+      "name": "Crossover Freq",
+      "type": "number",
+      "default": 600,
+      "min": 100,
+      "max": 2000,
+      "step": 10,
+      "conversion": "SVFFREQ",
+      "description": "Frequency split for the two bands."
+    }
+  ],
+  "registers": [
+    "lpf_state",
+    "lfo_val",
+    "lfo_inv",
+    "depth_temp"
+  ]
+}
+---
+@section init
+  skp run, init_trem
+  ; Depth in WLDS is useless for RDAL (RDAL reads raw sine), so max it
+  wlds SIN0, ${rate}, 32767
+  init_trem:
+
+@section main
+  ; 0. Evaluate Rate CV dynamically (Scaled manually to avoid SOF > 1.99 limits from HZ_TO_LFO_RATE bounds)
+  @if pinConnected(rate_cv)
+    rdax ${input.rate_cv}, ${rate} / 511.0
+    wrax SIN0_RATE, 0.0
+  @endif
+
+  ; 1. Evaluate Depth CV dynamically
+  @cv depth_cv                      ; ACC = Depth (0.0 to 1.0)
+  sof 0.5, 0.0                      ; ACC = Depth / 2
+  wrax ${reg.depth_temp}, 0.0       ; Save scaled depth
+
+  ; 2. Generate LFO
+  cho rdal, SIN0                    ; ACC = LFO (-1.0 to 1.0)
+  mulx ${reg.depth_temp}            ; ACC = LFO * (Depth / 2)
+  sof 1.0, 0.5                      ; ACC = LFO * (Depth / 2) + 0.5 (Scale to 0.0 - 1.0)
+  wrax ${reg.lfo_val}, -1.0         ; Save LFO_VAL, ACC = -LFO_VAL
+  sof 1.0, 1.0                      ; ACC = 1.0 - LFO_VAL
+  wrax ${reg.lfo_inv}, 0.0          ; Save LFO_INV, ACC = 0
+  
+  ; 2. Crossover Filter (1-Pole)
+  ; Lowpass = L_old + F * (Input - L_old)
+  rdax ${input.in}, 1.0             ; ACC = Input
+  rdax ${reg.lpf_state}, -1.0       ; ACC = Input - L_old
+  sof ${param.crossover}, 0.0       ; ACC = F * (Input - L_old)
+  rdax ${reg.lpf_state}, 1.0        ; ACC = F * (Input - L_old) + L_old
+  wrax ${reg.lpf_state}, -1.0       ; REG_L = Lowpass, ACC = -Lowpass
+  
+  ; Highpass = Input - Lowpass
+  rdax ${input.in}, 1.0             ; ACC = Input - Lowpass = Highpass
+  
+  ; 3. Modulate Highpass
+  mulx ${reg.lfo_inv}               ; ACC = Highpass * LFO_INV
+  
+  ; 4. Modulate Lowpass & Mix
+  ; Need to bring Highpass to a free register, but we can just use lfo_inv as a temp
+  wrax ${reg.lfo_inv}, 0.0          ; Save modulated Highpass in lfo_inv
+  
+  rdax ${reg.lpf_state}, 1.0        ; ACC = Lowpass
+  mulx ${reg.lfo_val}               ; ACC = Lowpass * LFO_VAL
+  rdax ${reg.lfo_inv}, 1.0          ; ACC = (Lowpass * LFO) + (Highpass * LFO_INV)
+  
+  ; 5. Output
+  wrax ${output.out}, 0.0

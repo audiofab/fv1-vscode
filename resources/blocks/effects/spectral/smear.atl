@@ -1,0 +1,91 @@
+---
+{
+  "type": "effects.smear",
+  "name": "Spectral Smear",
+  "category": "Effects",
+  "subcategory": "Reverb",
+  "description": "Diffusion bank of prime-numbered all-pass filters. Fix: Unity Gain and stabilized unrolled structure.",
+  "color": "#6f24f2",
+  "inputs": [
+    { "id": "input", "name": "Audio In", "type": "audio" },
+    { "id": "density", "name": "Density", "type": "control", "required": false, "parameter": "feedback" }
+  ],
+  "outputs": [
+    { "id": "out", "name": "Audio Out", "type": "audio" }
+  ],
+  "parameters": [
+    {
+      "id": "feedback",
+      "name": "Density (Feedback)",
+      "type": "number",
+      "default": 0.5,
+      "min": 0.0,
+      "max": 0.65,
+      "step": 0.01,
+      "description": "Density of the smear. Capped at 0.65 for stability."
+    }
+  ],
+  "memories": [
+    { "id": "ap1", "size": 151 },
+    { "id": "ap2", "size": 211 },
+    { "id": "ap3", "size": 331 },
+    { "id": "ap4", "size": 439 }
+  ],
+  "registers": [ "fb_reg", "ap_in", "ap_out", "ap_temp" ]
+}
+---
+; Spectral Smear - Multi-tap Diffusion (Stable Unity Gain)
+
+@section main
+@if pinConnected(input)
+; Prep feedback register (capped at 0.65 for safety)
+@cv density
+sof 0.65, 0.0 ; cap feedback range
+wrax ${reg.fb_reg}, 0.0
+
+rdax ${input.input}, 1.0
+wrax ${reg.ap_in}, 1.0
+
+; --- AP Stages (Discrete Unrolled All-pass) ---
+; Stage 1
+rda ${mem.ap1}#, 1.0
+wrax ${reg.ap_out}, -1.0
+mulx ${reg.fb_reg}
+rdax ${reg.ap_in}, 1.0
+wra ${mem.ap1}, 1.0
+mulx ${reg.fb_reg}
+rdax ${reg.ap_out}, 1.0
+wrax ${reg.ap_in}, 0.0
+
+; Stage 2
+rda ${mem.ap2}#, 1.0
+wrax ${reg.ap_out}, -1.0
+mulx ${reg.fb_reg}
+rdax ${reg.ap_in}, 1.0
+wra ${mem.ap2}, 1.0
+mulx ${reg.fb_reg}
+rdax ${reg.ap_out}, 1.0
+wrax ${reg.ap_in}, 0.0
+
+; Stage 3
+rda ${mem.ap3}#, 1.0
+wrax ${reg.ap_out}, -1.0
+mulx ${reg.fb_reg}
+rdax ${reg.ap_in}, 1.0
+wra ${mem.ap3}, 1.0
+mulx ${reg.fb_reg}
+rdax ${reg.ap_out}, 1.0
+wrax ${reg.ap_in}, 0.0
+
+; Stage 4
+rda ${mem.ap4}#, 1.0
+wrax ${reg.ap_out}, -1.0
+mulx ${reg.fb_reg}
+rdax ${reg.ap_in}, 1.0
+wra ${mem.ap4}, 1.0
+mulx ${reg.fb_reg}
+rdax ${reg.ap_out}, 1.0
+
+; Output (Unity Gain)
+wrax ${output.out}, 0.0
+@endif
