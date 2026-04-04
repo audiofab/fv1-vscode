@@ -3,7 +3,7 @@
     "module": "node16",
     "target": "esnext",
     "outDir": "out",
-    "lib": ["esnext"],
+    "lib": ["esnext", "dom"],
     "sourceMap": true,
     "rootDir": "src",
     "strict": true,
@@ -15,7 +15,8 @@
     "declaration": true,
     "composite": true,
     "allowJs": true,
-    "moduleResolution": "node16"
+    "moduleResolution": "node16",
+    "types": ["node"]
   },
   "include": ["src/**/*", "types/**/*"],
   "exclude": [
