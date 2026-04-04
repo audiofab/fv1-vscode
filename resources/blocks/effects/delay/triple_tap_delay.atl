@@ -139,10 +139,10 @@
 ---
 ; ThreeTap Delay
 @if pinConnected(feedback)
-rdax ${input.feedback}, ${fbkGain}
+rdax ${input.feedback}, 1.0    ; Read at unity — @cv fbk_ctrl applies the gain scaling below
 wrax ${reg.temp}, 0.0
-@cv fbk_ctrl
-mulx ${reg.temp}
+@cv fbk_ctrl                   ; ACC = fbkGain_linear * pot (or just fbkGain_linear if unconnected)
+mulx ${reg.temp}               ; ACC = feedback * fbkGain [* pot]
 @endif
 rdax ${input.in}, ${inputGain}
 wra ${mem.delayl}, 0.0
