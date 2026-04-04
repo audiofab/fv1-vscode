@@ -1,5 +1,21 @@
 # Change Log
 
+## [1.4.8]
+
+- Minor block bugfixes
+- The addition of numerous new blocks including:
+  - Entropy LFO
+  - Bit Mangler
+  - Chip Tune
+  - Tape Degrade
+  - Ducking Reverb
+  - Spectral Smear
+  - Harmonic Tremolo
+  - Micro Stutter
+  - Sub Octave
+  - Auto Wah
+  - BBD Loss
+
 ## [1.4.7]
 
 - Improve the optimizer
