@@ -1,0 +1,207 @@
+---
+{
+  "type": "filter.auto_wah",
+  "name": "Auto-Wah",
+  "category": "Filter",
+  "description": "Envelope-controlled resonant bandpass filter. Pick harder to open the filter — produces the talkbox-like vowel sweep made famous by the Living on a Prayer guitar intro.",
+  "color": "#f26724",
+  "width": 180,
+  "inputs": [
+    {
+      "id": "in",
+      "name": "Input",
+      "type": "audio",
+      "required": true
+    },
+    {
+      "id": "sensitivity_cv",
+      "name": "Sensitivity",
+      "type": "control",
+      "required": false,
+      "parameter": "sensitivity"
+    },
+    {
+      "id": "resonance_cv",
+      "name": "Resonance",
+      "type": "control",
+      "required": false,
+      "parameter": "resonance"
+    },
+    {
+      "id": "mix_cv",
+      "name": "Mix",
+      "type": "control",
+      "required": false,
+      "parameter": "mix"
+    }
+  ],
+  "outputs": [
+    {
+      "id": "out",
+      "name": "Output",
+      "type": "audio"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "base_freq",
+      "name": "Base Freq",
+      "type": "number",
+      "default": 300,
+      "min": 100,
+      "max": 1500,
+      "step": 10,
+      "conversion": "SVFFREQ",
+      "description": "Lowest filter frequency (at silence). Sweep rises above this on transients."
+    },
+    {
+      "id": "sensitivity",
+      "name": "Sensitivity",
+      "type": "number",
+      "default": 0.55,
+      "min": 0.0,
+      "max": 0.6,
+      "step": 0.01,
+      "description": "How far the envelope opens the filter. Higher = wider vowel sweep."
+    },
+    {
+      "id": "resonance",
+      "name": "Resonance",
+      "type": "number",
+      "default": 0.82,
+      "min": 0.0,
+      "max": 0.97,
+      "step": 0.01,
+      "description": "Filter Q / resonant peak. Higher values add the characteristic vowel quack."
+    },
+    {
+      "id": "attack",
+      "name": "Attack",
+      "type": "number",
+      "default": 0.08,
+      "min": 0.01,
+      "max": 0.5,
+      "step": 0.01,
+      "description": "Envelope attack speed. Higher = faster response to pick transients."
+    },
+    {
+      "id": "release",
+      "name": "Release",
+      "type": "number",
+      "default": 0.004,
+      "min": 0.001,
+      "max": 0.05,
+      "step": 0.001,
+      "description": "Envelope release speed. Lower = slower filter close after note ends."
+    },
+    {
+      "id": "mix",
+      "name": "Dry/Wet Mix",
+      "type": "number",
+      "default": 1.0,
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.01
+    }
+  ],
+  "registers": [
+    "env",
+    "bp",
+    "lp",
+    "freq_reg",
+    "damp_reg",
+    "sens_reg",
+    "mix_reg",
+    "dry_val",
+    "temp"
+  ]
+}
+---
+@section main
+@if pinConnected(in)
+
+  ; ======================================================
+  ; Stage 0: Save dry signal
+  ; ======================================================
+  rdax ${input.in}, 1.0
+  wrax ${reg.dry_val}, 0.0
+
+  ; ======================================================
+  ; Stage 1: Load CVs
+  ; ======================================================
+  @cv sensitivity_cv
+  wrax ${reg.sens_reg}, 0.0
+
+  @cv resonance_cv
+  sof -1.0, 1.0                      ; damp = 1 - resonance (high resonance → low damping)
+  wrax ${reg.damp_reg}, 0.0
+
+  @cv mix_cv
+  wrax ${reg.mix_reg}, 0.0
+
+  ; ======================================================
+  ; Stage 2: Envelope Follower (Fast Attack, Slow Release)
+  ; ======================================================
+  rdax ${input.in}, 1.0
+  sof 1.99, 0.0                      ; 2x pre-boost for detection only — env reaches higher values at normal guitar levels
+  absa
+  rdax ${reg.env}, -1.0              ; ACC = |input| - env
+  skp gez, ${local.ATK}
+  ; Release path
+  sof ${param.release}, 0.0
+  skp run, ${local.UPD}
+${local.ATK}:
+  sof ${param.attack}, 0.0
+${local.UPD}:
+  rdax ${reg.env}, 1.0               ; ACC = delta + env = new env
+  wrax ${reg.env}, 0.0
+
+  ; ======================================================
+  ; Stage 3: Compute Swept Frequency
+  ; freq = base_freq + env * sensitivity
+  ; ======================================================
+  rdax ${reg.env}, 1.0
+  mulx ${reg.sens_reg}               ; ACC = env * sensitivity
+  sof 1.0, ${param.base_freq}        ; ACC = base_freq + env * sensitivity
+  wrax ${reg.freq_reg}, 0.0
+
+  ; ======================================================
+  ; Stage 4: Chamberlin SVF — Bandpass output
+  ; HP = input - lp - damp*bp
+  ; bp_new = bp_old + F * HP
+  ; lp_new = lp_old + F * bp_new
+  ; ======================================================
+
+  ; Compute (input - lp_old) and save as temp
+  rdax ${input.in}, 1.0
+  rdax ${reg.lp}, -1.0
+  wrax ${reg.temp}, 0.0              ; temp = input - lp_old
+
+  ; Compute HP = (input - lp_old) - damp * bp_old
+  rdax ${reg.bp}, 1.0
+  mulx ${reg.damp_reg}               ; ACC = damp * bp_old
+  rdax ${reg.temp}, -1.0             ; ACC = damp*bp_old - (input - lp_old)
+  sof -1.0, 0.0                      ; ACC = HP = (input - lp_old) - damp*bp_old
+
+  ; bp_new = bp_old + F * HP
+  mulx ${reg.freq_reg}               ; ACC = F * HP
+  rdax ${reg.bp}, 1.0                ; ACC = bp_old + F * HP
+  wrax ${reg.bp}, 1.0                ; Save bp_new, keep in ACC
+
+  ; lp_new = lp_old + F * bp_new
+  mulx ${reg.freq_reg}               ; ACC = F * bp_new
+  rdax ${reg.lp}, 1.0                ; ACC = lp_old + F * bp_new
+  wrax ${reg.lp}, 0.0                ; Save lp_new
+
+  ; ======================================================
+  ; Stage 5: Dry/Wet Mix
+  ; out = dry + (wet - dry) * mix
+  ; ======================================================
+  rdax ${reg.bp}, 0.7                ; Bandpass: vowel/formant peak (dominant)
+  rdax ${reg.lp}, 0.3                ; Lowpass: adds fundamental body — pure BP sounds thin
+  rdax ${reg.dry_val}, -1.0          ; ACC = wet - dry
+  mulx ${reg.mix_reg}                ; ACC = (wet - dry) * mix
+  rdax ${reg.dry_val}, 1.0           ; ACC = dry + (wet - dry) * mix
+  wrax ${output.out}, 0.0
+
+@endif

@@ -8,8 +8,8 @@
   "color": "#6f24f2",
   "inputs": [
     { "id": "input", "name": "Audio In", "type": "audio" },
-    { "id": "sensCV", "name": "Sensitivity CV", "type": "control", "required": false, "parameter": "sens" },
-    { "id": "mixCV", "name": "Mix CV", "type": "control", "required": false, "parameter": "mix" }
+    { "id": "sensCV", "name": "Sensitivity", "type": "control", "required": false, "parameter": "sens" },
+    { "id": "mixCV", "name": "Mix", "type": "control", "required": false, "parameter": "mix" }
   ],
   "outputs": [
     { "id": "out", "name": "Audio Out", "type": "audio" }

@@ -109,7 +109,8 @@
     }
   ],
   "registers": [
-    "lpf_state"
+    "wow_temp",
+    "lpf_lp"
   ]
 }
 ---
@@ -159,22 +160,22 @@
   ; Instead, we just read from the buffer with Flutter and average the two reads!
   ; Multiply Wow read by 0.5
   sof 0.5, 0.0
-  wrax ${reg.lpf_state}, 0.0 ; Temporarily hold Wow audio
+  wrax ${reg.wow_temp}, 0.0 ; Hold Wow audio separately from LPF state
 
   ; Read Flutter Tape Head (SIN1)
   cho rda, SIN1, SIN | REG | COMPC, ${center}
   cho rda, SIN1, SIN, ${center} + 1
   sof 0.5, 0.0
-  
+
   ; Combine Wow and Flutter audio signals
-  rdax ${reg.lpf_state}, 1.0
-  
+  rdax ${reg.wow_temp}, 1.0
+
   ; Tape Age Degradation (1-Pole Lowpass: L_new = L_old + Age * (I - L_old))
-  ; ACC = Input (Composite Warble)
-  rdax ${reg.lpf_state}, -1.0       ; ACC = I - L_old
+  ; ACC = composite warble (wow*0.5 + flutter*0.5)
+  rdax ${reg.lpf_lp}, -1.0          ; ACC = I - L_old
   sof ${param.age}, 0.0             ; ACC = Age * (I - L_old)
-  rdax ${reg.lpf_state}, 1.0        ; ACC = L_old + Age * (I - L_old) = L_new
-  wrax ${reg.lpf_state}, 1.0        ; Save new state and keep L_new in ACC
+  rdax ${reg.lpf_lp}, 1.0           ; ACC = L_old + Age * (I - L_old) = L_new
+  wrax ${reg.lpf_lp}, 1.0           ; Save new state and keep L_new in ACC
 
   ; Export
   wrax ${output.out}, 0.0

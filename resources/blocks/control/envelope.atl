@@ -36,14 +36,13 @@
   "parameters": [
     {
       "id": "gain",
-      "name": "Gain",
+      "name": "Sensitivity",
       "type": "number",
-      "default": 12.0,
-      "min": -6.0,
-      "max": 48.0,
-      "step": 0.5,
-      "conversion": "DBLEVEL",
-      "description": "Pre-gain in dB applied to the audio signal before detection."
+      "default": 1.5,
+      "min": 0.5,
+      "max": 1.99,
+      "step": 0.01,
+      "description": "Pre-detection boost (up to ~4x with internal SOF stage). Higher values make the envelope respond to quieter signals."
     },
     {
       "id": "attack",
@@ -71,8 +70,7 @@
   "registers": [
     "AVG",
     "LAVG",
-    "TEMP",
-    "gainReg"
+    "TEMP"
   ]
 }
 ---
@@ -82,18 +80,14 @@
 @section main
 @if pinConnected(audio)
 
-; --- Pre-Detection Gain / Sensitivity ---
+; --- Pre-Detection Boost ---
+; RDAX coefficient (up to 1.99x) + fixed SOF 2x stage = up to ~4x total headroom boost.
+rdax ${input.audio}, ${param.gain}  ; Boost via RDAX coefficient (0.5–1.99x)
+sof 1.99, 0.0                       ; Additional 2x → env covers the full 0–1 range for normal playing levels
+absa                                 ; Full-wave rectify
 @if pinConnected(sens)
-@cv sens
-wrax ${reg.gainReg}, 0.0        ; Load linearized gain + pot into register
-@else
-sof 0.0, ${param.gain}
-wrax ${reg.gainReg}, 0.0        ; Use parameter gain as fallback
+mulx ${input.sens}                   ; Pot scales overall sensitivity (0 = off, 1.0 = full)
 @endif
-
-rdax ${input.audio}, 1.0        ; Read input audio signal
-mulx ${reg.gainReg}             ; ACC = audio * linearizedGain
-absa                            ; Full-wave rectify
 
 ; --- Single Slope (Average Follower) ---
 ; Computes a running average of the magnitude using a first-order low-pass filter.

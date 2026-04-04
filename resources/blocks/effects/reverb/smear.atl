@@ -4,7 +4,7 @@
   "name": "Spectral Smear",
   "category": "Effects",
   "subcategory": "Reverb",
-  "description": "Diffusion bank of prime-numbered all-pass filters. Fix: Unity Gain and stabilized unrolled structure.",
+  "description": "Diffusion bank of prime-numbered all-pass filters.",
   "color": "#6f24f2",
   "inputs": [
     { "id": "input", "name": "Audio In", "type": "audio" },
@@ -38,9 +38,8 @@
 
 @section main
 @if pinConnected(input)
-; Prep feedback register (capped at 0.65 for safety)
+; Load feedback (parameter JSON already caps max at 0.65 for stability)
 @cv density
-sof 0.65, 0.0 ; cap feedback range
 wrax ${reg.fb_reg}, 0.0
 
 rdax ${input.input}, 1.0
