@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.4.9]
+
+- Minor bugfixes
+- Fix broken deployment
+
 ## [1.4.8]
 
 - Minor block bugfixes
