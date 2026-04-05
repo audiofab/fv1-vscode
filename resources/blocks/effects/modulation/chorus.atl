@@ -88,7 +88,7 @@
   "memories": [
     {
       "id": "delayl",
-      "size": 2048
+      "size": "${baseDelay} * 2"
     }
   ],
   "registers": [
@@ -112,6 +112,10 @@ wlds ${lfoNum}, ${rate}, ${width}
 done_lfo:
 
 @section main
+@multiplyDouble lfo_depth_delay width 0.5
+@multiplyDouble delay_mem_size baseDelay 2.0
+@assert lfo_depth_delay < delay_mem_size, "Maximum LFO depth exceeds delay memory bounds. Increase base delay or decrease LFO depth."
+
 ; Chorus
 rdax ${input.in}, 1.0
 wra ${mem.delayl}, 0.0
