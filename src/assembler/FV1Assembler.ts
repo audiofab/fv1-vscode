@@ -95,14 +95,18 @@ export class FV1Assembler {
     this.initSymbols();       // Added this line
   }
 
+  private reservedSymbols = new Set<string>();
+
   private initSymbols() {
     // Load predefined symbols
     for (const [key, val] of Object.entries(this.PREDEFINED_SYMBOLS)) {
       this.symbols.set(key, val);
+      this.reservedSymbols.add(key);
     }
     // Load REG0-31
     for (let i = 0; i < this.options.regCount; i++) {
       this.symbols.set(`REG${i}`, 0x20 + i);
+      this.reservedSymbols.add(`REG${i}`);
     }
   }
 
@@ -152,11 +156,21 @@ export class FV1Assembler {
     for (const node of ast) {
       if (node.type === 'Directive') {
         if (node.name === 'EQU') {
-          const value = this.evaluateExpression(node.expression, node.line);
-          this.symbols.set(node.identifier, value);
-          this.userSymbols.add(node.identifier);
-          this.symbolLines.set(node.identifier, node.line);
+          if (this.reservedSymbols.has(node.identifier)) {
+            this.problems.push({ message: `Cannot redefine reserved symbol '${node.identifier}'`, isfatal: true, line: node.line });
+          } else if (this.userSymbols.has(node.identifier)) {
+            this.problems.push({ message: `Symbol '${node.identifier}' is already defined on line ${this.symbolLines.get(node.identifier)}`, isfatal: true, line: node.line });
+          } else {
+            const value = this.evaluateExpression(node.expression, node.line);
+            this.symbols.set(node.identifier, value);
+            this.userSymbols.add(node.identifier);
+            this.symbolLines.set(node.identifier, node.line);
+          }
         } else if (node.name === 'MEM') {
+          if (this.reservedSymbols.has(node.identifier)) {
+            this.problems.push({ message: `Cannot redefine reserved symbol '${node.identifier}'`, isfatal: true, line: node.line });
+            continue;
+          }
           const size = this.evaluateExpression(node.expression, node.line);
           const start = nextDelayAddr;
           const middle = start + (size % 2 ? (size - 1) / 2 - 1 : size / 2);

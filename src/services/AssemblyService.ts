@@ -82,7 +82,9 @@ export class AssemblyService {
                 delaySize: config.get<number>('hardware.delaySize') ?? 32768,
             });
             const result = assembler.assemble(assembly);
-            this.logAssemblyResult(result, path.basename(filePath), verbose);
+            if (this.logAssemblyResult(result, path.basename(filePath), verbose)) {
+                await vscode.commands.executeCommand('workbench.actions.view.problems');
+            }
             return result;
         }
 
@@ -108,11 +110,13 @@ export class AssemblyService {
 
         this.outputService.log(`[INFO] 🔧 Assembling ${path.basename(document.fileName)}...`);
         const result = this.fv1DocumentManager.getAssemblyResult(document);
-        this.logAssemblyResult(result, path.basename(document.fileName), verbose);
+        if (this.logAssemblyResult(result, path.basename(document.fileName), verbose)) {
+            await vscode.commands.executeCommand('workbench.actions.view.problems');
+        }
         return result;
     }
 
-    private logAssemblyResult(result: FV1AssemblerResult, fileName: string, verbose: boolean) {
+    private logAssemblyResult(result: FV1AssemblerResult, fileName: string, verbose: boolean): boolean {
         let hasErrors = false;
         result.problems.forEach((p: any) => {
             const prefix = p.isfatal ? '[ERROR]' : '[WARNING]';
@@ -135,6 +139,7 @@ export class AssemblyService {
         } else {
             this.outputService.log(`[ERROR] ❌ Assembly produced no machine code - ${fileName}`);
         }
+        return hasErrors;
     }
 
     public async assembleFile(fsPath: string): Promise<FV1AssemblerResult | undefined> {
