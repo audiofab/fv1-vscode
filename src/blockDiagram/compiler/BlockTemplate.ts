@@ -144,10 +144,11 @@ export class BlockTemplate {
                 const commaIdx = assertContent.indexOf(',');
 
                 if (commaIdx !== -1) {
-                    const conditionStr = assertContent.substring(0, commaIdx).trim();
+                    let conditionStr = assertContent.substring(0, commaIdx).trim();
                     let messageStr = assertContent.substring(commaIdx + 1).trim();
 
-                    // Allow parameter injections into the error message
+                    // Resolve ${...} tokens in both the condition and message
+                    conditionStr = this.performSubstitutions(conditionStr, params, inputs, outputs, internalRegs, memory, block, ctx);
                     messageStr = this.performSubstitutions(messageStr, params, inputs, outputs, internalRegs, memory, block, ctx);
 
                     if (messageStr.startsWith('"') && messageStr.endsWith('"')) {
@@ -333,40 +334,29 @@ export class BlockTemplate {
     }
 
     private evaluateCondition(condition: string, block: Block, ctx: CodeGenContext): boolean {
-        // Pre-evaluate condition parameters by replacing ${...} macros BEFORE parsing the logic!
-        const params = block.parameters;
-        // Simple regex replace for right-hand side constants evaluated in conditionals 
-        // Example: `@assert param.max > ${param.min}` -> `@assert param.max > 0.0`
-        condition = condition.replace(/\$\{param\.([^}]+)\}/g, (match, paramName) => {
-            const definedParam = this.definition.parameters?.find(p => p.id === paramName);
-            return (params[paramName] ?? definedParam?.default)?.toString() || '0';
-        });
-
-        // Evaluate OR clauses
+        // Handle OR clauses (split before variable resolution to support
+        // pinConnected() and SpinCAD macros on either side)
         const orClauses = condition.split('||');
         if (orClauses.length > 1) {
             return orClauses.some(clause => this.evaluateCondition(clause.trim(), block, ctx));
         }
 
-        // Evaluate AND clauses
+        // Handle AND clauses
         const andClauses = condition.split('&&');
         if (andClauses.length > 1) {
             return andClauses.every(clause => this.evaluateCondition(clause.trim(), block, ctx));
         }
 
-        // Example: pinConnected(freq_ctrl)
+        // Handle pinConnected(portId)
         const pinMatch = condition.match(/pinConnected\(([^)]+)\)/);
         if (pinMatch) {
             let rawPinName = pinMatch[1].trim();
 
-            // Handle post-processed IDs like ${input.adcl} or ${output.output1}
             const wrapperMatch = rawPinName.match(/\$\{(?:input|output)\.([^}]+)\}/);
             if (wrapperMatch) {
                 rawPinName = wrapperMatch[1];
             }
 
-            // The template might contain the label or the id.
-            // Try to find the exact pin by checking inputs and outputs matching this label/id.
             let pinId = rawPinName;
             const targetInput = this.definition.inputs.find(i => i.id === rawPinName || i.name === rawPinName);
             if (targetInput) pinId = targetInput.id;
@@ -375,12 +365,11 @@ export class BlockTemplate {
                 if (targetOutput) pinId = targetOutput.id;
             }
 
-            // Check if the pin is connected as an input OR as an output
             return ctx.getInputRegister(block.id, pinId) !== null ||
                 ctx.isOutputConnected(block.id, pinId);
         }
 
-        // Handle SpinCAD macros used as conditions
+        // Handle legacy SpinCAD macros used as conditions
         const parts = condition.split(/\s+/);
         const macro = parts[0].toLowerCase();
 
@@ -397,43 +386,106 @@ export class BlockTemplate {
             return v1 === expected || v2 === expected;
         }
 
-        // Example: my_param == 1 or my_param != 'foo'
-        const eqMatch = condition.match(/([^=!<>]+)\s*(==|!=|>=|<=|>|<)\s*([^=!<>]+)/);
-        if (eqMatch) {
-            let varName = eqMatch[1].trim();
-            if (varName.startsWith('${') && varName.endsWith('}')) {
-                varName = varName.substring(2, varName.length - 1);
-            }
-            const op = eqMatch[2];
-            const rhsRaw = eqMatch[3].trim().replace(/['"]/g, '');
-
-            // resolveValue checks: block params → local ctx vars → direct ctx vars → numeric literal
-            // This correctly handles macro-computed variables (e.g. from @minusDouble, @divideDouble)
-            // that the old inline block.parameters-only lookup missed.
-            const lhsResolved = this.resolveValue(varName, block, ctx);
-            const rhsResolved = this.resolveValue(rhsRaw, block, ctx);
-            const numLhs = typeof lhsResolved === 'number' ? lhsResolved : parseFloat(String(lhsResolved));
-            const numRhs = typeof rhsResolved === 'number' ? rhsResolved : parseFloat(String(rhsResolved));
-
-            // Numeric comparison when both sides parse as numbers
-            if (!isNaN(numLhs) && !isNaN(numRhs)) {
-                if (op === '==') return numLhs === numRhs;
-                if (op === '!=') return numLhs !== numRhs;
-                if (op === '>=') return numLhs >= numRhs;
-                if (op === '<=') return numLhs <= numRhs;
-                if (op === '>') return numLhs > numRhs;
-                if (op === '<') return numLhs < numRhs;
-            }
-
-            // Fallback: strict string comparison (for enum/select params)
-            const strLhs = String(lhsResolved);
-            const strRhs = String(rhsResolved);
-            if (op === '==') return strLhs === strRhs;
-            if (op === '!=') return strLhs !== strRhs;
+        // General expression evaluation:
+        // Resolve all variable references, then evaluate the resulting expression.
+        // This handles mixed variable types, arithmetic expressions, and comparisons
+        // like: ${param.depth} > width, (a * 2) > (b / 2), inRange > 0
+        const resolved = this.resolveConditionExpression(condition, block, ctx);
+        try {
+            return !!new Function(`return (${resolved});`)();
+        } catch {
             return false;
         }
+    }
 
-        return false;
+    /**
+     * Resolve all variable references in a condition expression to their numeric/string values.
+     * Handles ${param.X}, ${local.X}, param.X, and bare identifier lookups.
+     * The result is a plain JavaScript expression string ready for evaluation.
+     */
+    private resolveConditionExpression(expr: string, block: Block, ctx: CodeGenContext): string {
+        const params = this.evaluateParameters(block, ctx);
+
+        // 1. Replace ${param.X.max}, ${param.X.min} property access tokens
+        expr = expr.replace(/\$\{(?:param\.)?([^.}]+)\.(max|min)\}/g, (_, paramId, prop) => {
+            const paramDef = this.definition.parameters.find(p => p.id === paramId);
+            if (paramDef) {
+                let val = prop === 'max' ? paramDef.max : paramDef.min;
+                if (val !== undefined) {
+                    if (paramDef.conversion && ctx) {
+                        val = this.applyConversion(paramDef.conversion, val, ctx);
+                    }
+                    return String(val);
+                }
+            }
+            return '0';
+        });
+
+        // 2. Replace ${param.X} tokens (using evaluated params with conversions applied)
+        expr = expr.replace(/\$\{param\.([^}]+)\}/g, (_, paramName) => {
+            const val = params[paramName];
+            if (val === undefined) return '0';
+            if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+            return JSON.stringify(String(val));
+        });
+
+        // 3. Replace ${local.X} tokens
+        expr = expr.replace(/\$\{local\.([^}]+)\}/g, (_, varName) => {
+            const shortId = ctx.getShortId(block.id);
+            const val = ctx.getVariable(`${shortId}_${varName}`);
+            if (val === undefined) return '0';
+            const num = parseFloat(val);
+            return isNaN(num) ? JSON.stringify(val) : val;
+        });
+
+        // Helper: emit a resolved value as valid JS (numbers/booleans unquoted, strings quoted)
+        const toJS = (val: any): string => {
+            if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+            return JSON.stringify(String(val));
+        };
+
+        // 4. Replace remaining ${X} tokens
+        expr = expr.replace(/\$\{([^}]+)\}/g, (match, key) => {
+            const val = this.resolveValue(key, block, ctx);
+            if (val === key) return match; // unresolved
+            return toJS(val);
+        });
+
+        // 5. Replace bare identifiers (param names, context variables, param.X dotted refs)
+        //    Match word characters and dots, but not numbers at the start, and not inside quotes.
+        expr = expr.replace(/\b([a-zA-Z_][a-zA-Z0-9_.]*)\b/g, (match) => {
+            // Skip JS literals
+            if (['true', 'false', 'null', 'undefined', 'NaN', 'Infinity'].includes(match)) return match;
+
+            // Try param.X dotted syntax
+            if (match.startsWith('param.')) {
+                const paramName = match.substring(6);
+                // Check for .max/.min suffix
+                const propMatch = paramName.match(/^(.+)\.(max|min)$/);
+                if (propMatch) {
+                    const paramDef = this.definition.parameters.find(p => p.id === propMatch[1]);
+                    if (paramDef) {
+                        let val = propMatch[2] === 'max' ? paramDef.max : paramDef.min;
+                        if (val !== undefined) {
+                            if (paramDef.conversion && ctx) {
+                                val = this.applyConversion(paramDef.conversion, val, ctx);
+                            }
+                            return String(val);
+                        }
+                    }
+                }
+                const val = params[paramName];
+                if (val !== undefined) return toJS(val);
+            }
+
+            // Try resolveValue (checks params, local vars, context vars, numeric literal)
+            const val = this.resolveValue(match, block, ctx);
+            if (val !== match) return toJS(val);
+
+            return match;
+        });
+
+        return expr;
     }
 
     private expandMacro(line: string, section: IRSection, ir: IRNode[], ctx: CodeGenContext, block: Block) {
