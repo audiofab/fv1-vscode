@@ -15,7 +15,7 @@ export class FV1Simulator {
     private progSize: number = 128;
 
     private static readonly MAX_ACC = 1.0 - (1.0 / 8388608.0); // 24-bit S.23: 1 - 2^-23
-    private static readonly MIN_ACC = -1.0;
+    private static readonly MIN_ACC = -FV1Simulator.MAX_ACC; // Symmetrically bound to prevent limits bias
 
     // --- Float-based LFO state (from Expert Sleepers C port) ---
     private sin0: number = 0;
@@ -589,22 +589,27 @@ export class FV1Simulator {
         const freqRaw = (inst >>> 20) & 0x1FF;
         const ampRaw = (inst >>> 5) & 0x7FFF;
 
-        // C logic: rate = f/511.0, range = a/32767.0
-        // SpinCAD treats WLDS freq as an unsigned 9-bit value (0 to 511).
-        // Amp is also an unsigned 15-bit value (0 to 32767).
-        const f = freqRaw / 511.0;
-        const a = ampRaw / 32767.0;
+        // Freq is an unsigned 9-bit value (0 to 511), amp is unsigned 15-bit (0 to 32767).
+        // The FV-1 hardware uses power-of-2 fixed-point arithmetic (bit shifts),
+        // so amplitude is divided by 2^15=32768, not 32767. Using 32767 causes the
+        // computed delay address range to slightly exceed memory block boundaries.
+        const f = freqRaw / 512.0;
+        const a = ampRaw / 32768.0;
 
         if (lfoSelect === 0) {
             this.sin0_rate = f;
             this.sin0_range = a;
             this.registers[0] = f; // SIN0_RATE (reg0)
             this.registers[1] = a; // SIN0_RANGE (reg1)
+            this.cos0 = -1.0;
+            this.sin0 = 0.0;
         } else {
             this.sin1_rate = f;
             this.sin1_range = a;
             this.registers[2] = f; // SIN1_RATE (reg2)
             this.registers[3] = a; // SIN1_RANGE (reg3)
+            this.cos1 = -1.0;
+            this.sin1 = 0.0;
         }
     }
 
@@ -630,11 +635,13 @@ export class FV1Simulator {
             this.rmp0_range = a_val;
             this.registers[4] = f_val; // RMP0_RATE (reg4)
             this.registers[5] = a_val; // RMP0_RANGE (reg5)
+            this.rmp0 = 0.0;
         } else {
             this.rmp1_rate = f_val;
             this.rmp1_range = a_val;
             this.registers[6] = f_val; // RMP1_RATE (reg6)
             this.registers[7] = a_val; // RMP1_RANGE (reg7)
+            this.rmp1 = 0.0;
         }
     }
 
@@ -671,7 +678,7 @@ export class FV1Simulator {
     private opCHO_RDA(inst: number) {
         const flags = (inst >>> 24) & 0x3F;
         const lfoSelect = (inst >>> 21) & 0x3;
-        const offset = (inst >>> 5) & 0xFFFF;
+        const offset = (inst >>> 5) & 0x7FFF;
 
         const lfoIn = this.getLfoVal(flags, lfoSelect);
         let range = this.getLfoRange(lfoSelect);
@@ -699,12 +706,13 @@ export class FV1Simulator {
             c = Math.min(v, 1.0 - v);
             c = Math.max(0.0, Math.min(1.0, 4.0 * c - 0.5));
         } else {
-            const addr = v * range + offset;
-            index = Math.floor(addr);
-            c = addr - index;
+            const lfoVal = v * range;
+            const lfoInteger = Math.floor(lfoVal);
+            c = lfoVal - lfoInteger;
+            index = lfoInteger + offset;
         }
 
-        const readAddr = (this.delayPointer + index + this.delaySize) % this.delaySize;
+        const readAddr = (this.delayPointer + index) & this.delayMask;
         this.lr = this.delayRam[readAddr];
 
         if (flags & 4) { // cho_compc
@@ -945,18 +953,21 @@ export class FV1Simulator {
         while (this.rmp1 >= 1.0) this.rmp1 -= 1.0;
         while (this.rmp1 < 0.0) this.rmp1 += 1.0;
 
-        // C logic update_sin0/1
+        // SIN LFO update using coupled-form oscillator.
+        // The FV-1 hardware updates cos first, then uses the updated cos for sin.
+        // Clamp to [-1.0, MAX_ACC] to prevent float drift from exceeding the
+        // FV-1's 24-bit fixed-point register range.
         const x0 = this.sin0_rate * (1.0 / 256.0);
-        const s0 = this.sin0;
-        const c0 = this.cos0;
-        this.cos0 += x0 * s0;
-        this.sin0 -= x0 * c0;
+        this.cos0 += x0 * this.sin0;
+        this.sin0 -= x0 * this.cos0;
+        this.sin0 = Math.max(FV1Simulator.MIN_ACC, Math.min(FV1Simulator.MAX_ACC, this.sin0));
+        this.cos0 = Math.max(FV1Simulator.MIN_ACC, Math.min(FV1Simulator.MAX_ACC, this.cos0));
 
         const x1 = this.sin1_rate * (1.0 / 256.0);
-        const s1 = this.sin1;
-        const c1 = this.cos1;
-        this.cos1 += x1 * s1;
-        this.sin1 -= x1 * c1;
+        this.cos1 += x1 * this.sin1;
+        this.sin1 -= x1 * this.cos1;
+        this.sin1 = Math.max(FV1Simulator.MIN_ACC, Math.min(FV1Simulator.MAX_ACC, this.sin1));
+        this.cos1 = Math.max(FV1Simulator.MIN_ACC, Math.min(FV1Simulator.MAX_ACC, this.cos1));
     }
 
     private updateStateRegisters() {

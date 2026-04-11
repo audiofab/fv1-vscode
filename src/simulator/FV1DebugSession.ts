@@ -142,6 +142,9 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                         clearTimeout(this.timerHandle);
                         this.timerHandle = null;
                     }
+                    if (this.audioEngine) {
+                        this.audioEngine.stop();
+                    }
                     this.sendEvent('terminated');
                     break;
 

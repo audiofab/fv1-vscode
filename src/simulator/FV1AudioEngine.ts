@@ -774,7 +774,9 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     function initHistory() {
                         registerHistory = {};
                         selectedRegisters.forEach(reg => {
-                            registerHistory[reg] = new Float32Array(SCOPE_HISTORY_LEN);
+                            const arr = new Float32Array(SCOPE_HISTORY_LEN);
+                            arr.fill(NaN);
+                            registerHistory[reg] = arr;
                         });
                         registerPtr = 0;
                     }
@@ -882,6 +884,7 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             isBuffering = true;
                             bufferQueue = [];
                             startTime = 0;
+                            initHistory();
                             updateStatus('Ready');
                         } else if (message.type === 'config') {
                             // Restore state
@@ -968,13 +971,20 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             scopeCtx.strokeStyle = TRACE_COLORS[traceIdx % TRACE_COLORS.length];
                             scopeCtx.lineWidth = 1.2;
                             
+                            let firstPoint = true;
                             for (let i = 0; i < SCOPE_HISTORY_LEN; i++) {
                                 const idx = (registerPtr + i) % SCOPE_HISTORY_LEN;
                                 const val = data[idx];
+                                if (isNaN(val)) continue;
+
                                 const x = (i / SCOPE_HISTORY_LEN) * w;
                                 const y = (1 - (val + 1) / 2) * h;
-                                if (i === 0) scopeCtx.moveTo(x, y);
-                                else scopeCtx.lineTo(x, y);
+                                if (firstPoint) {
+                                    scopeCtx.moveTo(x, y);
+                                    firstPoint = false;
+                                } else {
+                                    scopeCtx.lineTo(x, y);
+                                }
                             }
                             scopeCtx.stroke();
                         });
