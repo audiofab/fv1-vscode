@@ -11,8 +11,8 @@
 
 ; Block Declarations
 ;--------------------------------------------------------------------------------
-equ	cv_b4_decayTimeCV	0.5
-equ	cv_b4_dampingCV	0.5
+equ	cv_b1_decayTimeCV	0.5
+equ	cv_b1_dampingCV	0.5
 
 ; Initialization
 ;--------------------------------------------------------------------------------
@@ -100,7 +100,7 @@ ldax	POT1
 wrax	pot1_out, 0.0
 ;	Calculate decay time
 clr
-sof	0.0, cv_b4_decayTimeCV	; CV range: decayTime
+sof	0.0, cv_b1_decayTimeCV	; CV range: decayTime
 mulx	pot1_out
 sof	0.8, 0.0
 wrax	platereverb_local_decay, 1.0
@@ -115,7 +115,7 @@ clr
 sof	1.0, 0.25
 wrax	platereverb_local_decay_diffusion_2, 0.0
 ;	Damping
-sof	0.0, cv_b4_dampingCV	; CV range: damping
+sof	0.0, cv_b1_dampingCV	; CV range: damping
 mulx	pot0_out
 sof	-1.0, 0.99
 wrax	platereverb_local_damping_reg, -1.0

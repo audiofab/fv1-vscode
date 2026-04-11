@@ -6,8 +6,8 @@
 
 ; Block Declarations
 ;--------------------------------------------------------------------------------
-equ	cv_b2_delay_time	16384
-equ	cv_b2_mix_ctrl	1
+equ	cv_b1_delay_time	16384
+equ	cv_b1_mix_ctrl	1
 
 ; Initialization
 ;--------------------------------------------------------------------------------
@@ -55,7 +55,7 @@ wrax	adc_out,	1.0	; Optimization: accumulator forwarded
 wrax	simple_local_dry, 1.0
 wra	mem0_delayl, 0.0
 ;	Calculate Delay Pointer (ADDR_PTR is an absolute address in delay RAM)
-sof	0.0, cv_b2_delay_time	; CV default: delayLength
+sof	0.0, cv_b1_delay_time	; CV default: delayLength
 ;	Control sweeps from [base] to [base + size]
 sof	16384/32768, (mem0_delayl + 1)/32768
 wrax	ADDR_PTR, 0.0
@@ -64,7 +64,7 @@ rmpa	1.0
 ;	Mixing logic: dry + mix * (wet - dry)
 rdax	simple_local_dry, -0.999	; ACC now equals (wet - dry)
 wrax	simple_local_wet, 0.0	; Store wet-dry in reg.wet temporarily
-sof	0.0, cv_b2_mix_ctrl	; CV default: mix
+sof	0.0, cv_b1_mix_ctrl	; CV default: mix
 mulx	simple_local_wet
 rdax	simple_local_dry, 1.0
 wrax	simple_audio_output, 0.0

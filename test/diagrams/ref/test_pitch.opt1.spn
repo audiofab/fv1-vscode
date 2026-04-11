@@ -6,8 +6,8 @@
 
 ; Block Declarations
 ;--------------------------------------------------------------------------------
-equ	cv_b3_pitch_ctrl	8164.263148
-equ	cv_b4_shift_ctrl	0.5
+equ	cv_b2_pitch_ctrl	8164.263148
+equ	cv_b3_shift_ctrl	0.5
 
 ; Initialization
 ;--------------------------------------------------------------------------------
@@ -79,7 +79,7 @@ wrax	octave_up_down_octave_up,	1.0	; Optimization: accumulator forwarded
 ; rdax	octave_up_down_octave_up, 1.0	; rdax not needed with accumulator forwarding optimization
 wra	mem2_buffer, 0.0
 ;	Update pitch shift rate via CV
-sof	0.0, cv_b3_pitch_ctrl	; CV default: semitones
+sof	0.0, cv_b2_pitch_ctrl	; CV default: semitones
 wrax	RMP0_RATE, 0.0
 ;	Perform pitch shift (dual-tap for crossfading)
 cho	rda, RMP0, REG | COMPC, mem2_buffer
@@ -91,7 +91,7 @@ cho	sof, RMP0, NA | COMPC, 0.0
 cho	rda, RMP0, NA, mem3_temp
 wrax	pitch_shift_out, 0.0
 ;	1. Process CV and smoothing
-sof	0.0, cv_b4_shift_ctrl	; CV default: shiftValue
+sof	0.0, cv_b3_shift_ctrl	; CV default: shiftValue
 ;	ACC = Shift position (0..1, defaults to 0.5)
 rdfx	pitch_offset_local_potfil, 0.001
 wrlx	pitch_offset_local_potfil, -1.0

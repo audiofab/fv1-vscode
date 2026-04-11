@@ -11,8 +11,8 @@
 
 ; Block Declarations
 ;--------------------------------------------------------------------------------
-equ	cv_b3_pitch_ctrl	16384.000000
-equ	cv_b5_f_cv	0.190575
+equ	cv_b1_pitch_ctrl	16384.000000
+equ	cv_b2_f_cv	0.190575
 ;	Resonance bounds: Calculate Damping (d = 1/Q)
 equ	d_target (1.414427)
 
@@ -60,7 +60,7 @@ sof	1.0, -0.02	; Subtract bypass threshold
 skp	GEZ, 1	; Skip if pot >= threshold
 sof	0.0, 0.480000	; Zero fallback
 sof	1.0, 0.02	; Re-add threshold
-sof	cv_b3_pitch_ctrl, 0.0	; Scale CV by semitones
+sof	cv_b1_pitch_ctrl, 0.0	; Scale CV by semitones
 wrax	RMP0_RATE, 0.0
 ;	Perform pitch shift (dual-tap for crossfading)
 cho	rda, RMP0, REG | COMPC, mem0_buffer
@@ -86,7 +86,7 @@ skp	GEZ, 1	; Skip if pot >= threshold
 sof	0.0, 0.230000	; Zero fallback
 sof	1.0, 0.02	; Re-add threshold
 mulx	REG31	; Scale saved signal by CV
-sof	cv_b5_f_cv, 0.0	; Scale by frequency
+sof	cv_b2_f_cv, 0.0	; Scale by frequency
 rdax	svf_2p_local_bp_state, 1.0	; ACC = F * H + B_old = B_new
 wrax	svf_2p_local_bp_state, 1.0	; REG_B = B_new, ACC = B_new
 ;	3. Calculate Low Pass update (L_new = L_old + F * B_new)
@@ -98,7 +98,7 @@ skp	GEZ, 1	; Skip if pot >= threshold
 sof	0.0, 0.230000	; Zero fallback
 sof	1.0, 0.02	; Re-add threshold
 mulx	REG30	; Scale saved signal by CV
-sof	cv_b5_f_cv, 0.0	; Scale by frequency
+sof	cv_b2_f_cv, 0.0	; Scale by frequency
 rdax	svf_2p_local_lp_state, 1.0	; ACC = F * B_new + L_old = L_new
 wrax	svf_2p_lp, 1.0	; EXPORT Low Pass
 wrax	svf_2p_local_lp_state, 0.0	; REG_L = L_new, ACC = 0
