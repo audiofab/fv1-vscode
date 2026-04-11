@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.5.0]
+
+- Add an organ synth block
+- Minor bugfixes
+
 ## [1.4.9]
 
 - Minor bugfixes
