@@ -55,6 +55,20 @@ export class FV1Simulator {
     private memories: any[] = [];
     private fv1AsmMemBug: boolean = false;
 
+    // --- Trace Logging ---
+    private traceEnabled: boolean = false;
+    private traceWriter: ((row: string) => void) | null = null; // Streaming callback
+    private cycleCount: number = 0;
+    private traceCycle: number = 0;
+    private traceMaxCycles: number = 0; // 0 = unlimited
+    private traceRowCount: number = 0;
+    private traceDelayAddr: number = -1; // computed physical address in delay RAM
+    private traceDelayOffset: number = -1; // raw offset from instruction (identifies MEM block)
+    private traceDelayOp: string = ''; // 'R' for read, 'W' for write
+    private traceDelayValue: number = 0; // value read/written
+    private traceInstructionPC: number = -1; // PC of currently executing instruction
+    private currentReadOffsets: Set<number> = new Set(); // Tracks read offsets in current sample cycle
+
     // Register aliases (Getters/Setters)
     // 0-7: Parameters
     // These are now handled by updateStateRegisters for debugger view
@@ -208,6 +222,8 @@ export class FV1Simulator {
     }
 
     public beginFrame(inL: number = 0, inR: number = 0, pot0: number = 0, pot1: number = 0, pot2: number = 0) {
+        this.cycleCount++;
+        this.currentReadOffsets.clear();
         // Saturate inputs (ADC is -1.0 to 0.999..., POT is 0 to 0.999...)
         // POT has 10-bit resolution (1024 levels)
         const sat = (v: number) => Math.max(-1.0, Math.min(FV1Simulator.MAX_ACC, v));
@@ -237,6 +253,7 @@ export class FV1Simulator {
         this.firstRun = false;
         this.updateLFOs();
         this.updateStateRegisters();
+        this.advanceTraceCycle();
 
         // Advance Delay Pointer (Circular Buffer)
         this.delayPointer = (this.delayPointer - 1 + this.delaySize) % this.delaySize;
@@ -256,7 +273,19 @@ export class FV1Simulator {
         const opcode = inst & 0x1F;
         const preOpAcc = this.acc;
 
+        // Reset per-instruction trace state
+        this.traceDelayAddr = -1;
+        this.traceDelayOffset = -1;
+        this.traceDelayOp = '';
+        this.traceDelayValue = 0;
+        this.traceInstructionPC = this.pc;
+
         const skip = this.executeInstruction(inst);
+
+        // Trace log AFTER instruction executes so ACC reflects the result
+        if (this.traceEnabled) {
+            this.logTrace(this.traceInstructionPC, opcode, inst, preOpAcc);
+        }
 
         if (opcode !== 0x11) { // Not SKP
             this.pacc = preOpAcc;
@@ -357,6 +386,12 @@ export class FV1Simulator {
         const readAddr = (this.delayPointer + addr) & this.delayMask;
         const val = this.delayRam[readAddr];
 
+        this.traceDelayAddr = readAddr;
+        this.traceDelayOffset = addr;
+        this.traceDelayOp = 'R';
+        this.traceDelayValue = val;
+        this.currentReadOffsets.add(addr);
+
         this.lr = val;
         this.acc += val * coeff;
         this.acc = this.saturate(this.acc);
@@ -370,6 +405,10 @@ export class FV1Simulator {
         const coeff = this.decodeS1_9((inst >>> 21) & 0x7FF);
 
         const writeAddr = (this.delayPointer + addr) & this.delayMask;
+        this.traceDelayAddr = writeAddr;
+        this.traceDelayOffset = addr;
+        this.traceDelayOp = 'W';
+        this.traceDelayValue = this.acc;
         this.delayRam[writeAddr] = this.acc;
 
         this.acc *= coeff;
@@ -385,6 +424,10 @@ export class FV1Simulator {
         const coeff = this.decodeS1_9((inst >>> 21) & 0x7FF);
 
         const writeAddr = (this.delayPointer + addr) & this.delayMask;
+        this.traceDelayAddr = writeAddr;
+        this.traceDelayOffset = addr;
+        this.traceDelayOp = 'W';
+        this.traceDelayValue = this.acc;
         this.delayRam[writeAddr] = this.acc;
 
         // ACC = ACC * coeff + LR
@@ -436,6 +479,11 @@ export class FV1Simulator {
 
         const readAddr = (this.delayPointer + ptr) % this.delaySize;
         const val = this.delayRam[readAddr];
+        this.traceDelayAddr = readAddr;
+        this.traceDelayOffset = ptr;
+        this.traceDelayOp = 'R';
+        this.traceDelayValue = val;
+        this.currentReadOffsets.add(ptr);
         this.lr = val;
         this.acc += val * coeff;
         this.acc = this.saturate(this.acc);
@@ -707,13 +755,18 @@ export class FV1Simulator {
             c = Math.max(0.0, Math.min(1.0, 4.0 * c - 0.5));
         } else {
             const lfoVal = v * range;
-            const lfoInteger = Math.floor(lfoVal);
+            const lfoInteger = Math.trunc(lfoVal);
             c = lfoVal - lfoInteger;
             index = lfoInteger + offset;
         }
 
         const readAddr = (this.delayPointer + index) & this.delayMask;
         this.lr = this.delayRam[readAddr];
+        this.traceDelayAddr = readAddr;
+        this.traceDelayOffset = index;
+        this.traceDelayOp = 'R';
+        this.traceDelayValue = this.lr;
+        this.currentReadOffsets.add(index);
 
         if (flags & 4) { // cho_compc
             c = 1.0 - c;
@@ -929,6 +982,14 @@ export class FV1Simulator {
         };
     }
 
+    public getCycleCount(): number {
+        return this.cycleCount;
+    }
+
+    public getReadOffsets(): number[] {
+        return Array.from(this.currentReadOffsets);
+    }
+
     public getRegisters(): Float32Array {
         return this.registers;
     }
@@ -1024,5 +1085,107 @@ export class FV1Simulator {
         if (val > FV1Simulator.MAX_ACC) return FV1Simulator.MAX_ACC;
         if (val < FV1Simulator.MIN_ACC) return FV1Simulator.MIN_ACC;
         return val;
+    }
+
+    // --- Trace Logging System ---
+
+    private static readonly OPCODE_NAMES: { [key: number]: string } = {
+        0x00: 'RDA', 0x01: 'RMPA', 0x02: 'WRA', 0x03: 'WRAP',
+        0x04: 'RDAX', 0x05: 'RDFX', 0x06: 'WRAX', 0x07: 'WRHX',
+        0x08: 'WRLX', 0x09: 'MAXX', 0x0A: 'MULX', 0x0B: 'LOG',
+        0x0C: 'EXP', 0x0D: 'SOF', 0x0E: 'AND', 0x0F: 'OR',
+        0x10: 'XOR', 0x11: 'SKP', 0x12: 'WLDx', 0x13: 'JAM',
+        0x14: 'CHO'
+    };
+
+    private traceOnComplete: (() => void) | null = null;
+
+    /**
+     * Enable trace logging with a streaming writer callback.
+     * Each row is emitted immediately via the writer — nothing is stored in memory.
+     * @param writer Callback that receives each CSV row (including header).
+     * @param maxCycles Maximum number of sample cycles to log (0 = unlimited).
+     * @param onComplete Optional callback when trace auto-completes.
+     */
+    public enableTrace(writer: (row: string) => void, maxCycles: number = 0, onComplete?: () => void) {
+        this.traceEnabled = true;
+        this.traceWriter = writer;
+        this.traceMaxCycles = maxCycles;
+        this.traceCycle = 0;
+        this.traceRowCount = 0;
+        this.traceOnComplete = onComplete || null;
+
+        // Emit CSV Header immediately (Reduced set for delay debugging)
+        writer(
+            `cycle,pc,opcode,delay_op,delay_offset,delay_addr,delay_ptr`
+        );
+        console.log(`[FV1 Trace] Logging enabled (maxCycles=${maxCycles || 'unlimited'})`);
+    }
+
+    /**
+     * Disable trace logging.
+     */
+    public disableTrace() {
+        this.traceEnabled = false;
+        this.traceWriter = null;
+        console.log(`[FV1 Trace] Logging disabled. ${this.traceRowCount} rows written.`);
+    }
+
+    /**
+     * Returns whether trace logging is currently active.
+     */
+    public isTraceEnabled(): boolean {
+        return this.traceEnabled;
+    }
+
+    /**
+     * Returns the number of trace rows emitted so far.
+     */
+    public getTraceRowCount(): number {
+        return this.traceRowCount;
+    }
+
+    /**
+     * Called at end-of-frame to advance the trace cycle counter.
+     * If maxCycles is reached, trace is automatically disabled.
+     */
+    public advanceTraceCycle() {
+        if (!this.traceEnabled) return;
+        this.traceCycle++;
+        if (this.traceMaxCycles > 0 && this.traceCycle >= this.traceMaxCycles) {
+            const onComplete = this.traceOnComplete;
+            this.disableTrace();
+            if (onComplete) onComplete();
+        }
+    }
+
+    private logTrace(pc: number, opcode: number, inst: number, accBefore: number) {
+        if (!this.traceWriter) return;
+
+        // FILTER: Only log delay memory operations
+        if (this.traceDelayOp === '') return;
+
+        const opName = FV1Simulator.OPCODE_NAMES[opcode] || `?${opcode.toString(16)}`;
+
+        // Resolve CHO sub-type
+        let fullOpName = opName;
+        if (opcode === 0x14) {
+            const mode = (inst >>> 30) & 0x3;
+            if (mode === 0) fullOpName = 'CHO_RDA';
+            else if (mode === 2) {
+                // CHO_SOF does not access delay RAM, so we filter it out
+                return;
+            }
+            else if (mode === 3) fullOpName = 'CHO_RDAL';
+        } else if (opcode === 0x12) {
+            // WLDS/WLDR do not access delay RAM directly in a way we track here
+            return;
+        }
+
+        const row = `${this.traceCycle},${pc},${fullOpName},` +
+            `${this.traceDelayOp},${this.traceDelayOp !== '' ? this.traceDelayOffset : ''},${this.traceDelayAddr >= 0 ? this.traceDelayAddr : ''},${this.delayPointer}`;
+
+        this.traceWriter(row);
+        this.traceRowCount++;
     }
 }

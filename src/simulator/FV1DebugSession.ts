@@ -45,6 +45,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
     private nextVarHandle = 1;
     private varHandles = new Map<number, { type: string, getter: () => any[] }>();
     private symbolsChanged: boolean = false;
+    private traceCommandDisposables: vscode.Disposable[] = [];
 
     constructor(context: vscode.ExtensionContext, private assemblyService: AssemblyService, audioEngine?: FV1AudioEngine) {
         this.context = context;
@@ -214,7 +215,132 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         }
     }
 
+    /**
+     * Register VS Code commands for trace control.
+     * Call once after launch.
+     */
+    private traceStream: fs.WriteStream | null = null;
+    private traceFilePath: string = '';
+
+    private registerTraceCommands() {
+        // Dispose previous ones if any
+        this.traceCommandDisposables.forEach(d => d.dispose());
+        this.traceCommandDisposables = [];
+
+        this.traceCommandDisposables.push(
+            vscode.commands.registerCommand('fv1.traceStart', async () => {
+                if (this.simulator.isTraceEnabled()) {
+                    vscode.window.showWarningMessage('FV-1 Trace: Already recording. Stop first.');
+                    return;
+                }
+
+                const input = await vscode.window.showInputBox({
+                    prompt: 'Number of sample cycles to trace (each cycle = one full program execution)',
+                    value: '1000',
+                    validateInput: v => {
+                        const n = parseInt(v);
+                        if (isNaN(n) || n < 1) return 'Enter a positive integer';
+                        return null;
+                    }
+                });
+                if (!input) return;
+                const cycles = parseInt(input);
+
+                // Determine save location
+                let defaultDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+                if (this.sourcePath) {
+                    try {
+                        if (this.sourcePath.startsWith('file:///')) {
+                            defaultDir = path.dirname(vscode.Uri.parse(this.sourcePath).fsPath);
+                        } else {
+                            defaultDir = path.dirname(this.sourcePath);
+                        }
+                    } catch { /* fallback to workspace */ }
+                }
+
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                const defaultName = `fv1-trace-${timestamp}.csv`;
+
+                const uri = await vscode.window.showSaveDialog({
+                    defaultUri: vscode.Uri.file(path.join(defaultDir, defaultName)),
+                    filters: { 'CSV Files': ['csv'], 'All Files': ['*'] },
+                    title: 'Save FV-1 Trace Log'
+                });
+                if (!uri) return;
+
+                this.traceFilePath = uri.fsPath;
+
+                // Open write stream — rows go straight to disk
+                this.traceStream = fs.createWriteStream(this.traceFilePath, { encoding: 'utf-8' });
+
+                const writer = (row: string) => {
+                    if (this.traceStream) {
+                        this.traceStream.write(row + '\n');
+                    }
+                };
+
+                const onComplete = () => {
+                    this.closeTraceStream();
+                    const count = this.simulator.getTraceRowCount();
+                    vscode.window.showInformationMessage(
+                        `FV-1 Trace: Complete. ${count} rows written to ${path.basename(this.traceFilePath)}`,
+                        'Open File'
+                    ).then(choice => {
+                        if (choice === 'Open File') {
+                            vscode.workspace.openTextDocument(vscode.Uri.file(this.traceFilePath))
+                                .then(doc => vscode.window.showTextDocument(doc, { preview: true }));
+                        }
+                    });
+                    this.sendEvent('output', { category: 'console', output: `[Trace] Complete. ${count} rows → ${this.traceFilePath}\n` });
+                };
+
+                this.simulator.enableTrace(writer, cycles, onComplete);
+                vscode.window.showInformationMessage(`FV-1 Trace: Recording ${cycles} cycles to ${path.basename(this.traceFilePath)}...`);
+                this.sendEvent('output', { category: 'console', output: `[Trace] Started recording ${cycles} cycles → ${this.traceFilePath}\n` });
+            }),
+
+            vscode.commands.registerCommand('fv1.traceStop', () => {
+                if (!this.simulator.isTraceEnabled()) {
+                    vscode.window.showWarningMessage('FV-1 Trace: No active recording.');
+                    return;
+                }
+                this.simulator.disableTrace();
+                this.closeTraceStream();
+                const count = this.simulator.getTraceRowCount();
+                vscode.window.showInformationMessage(
+                    `FV-1 Trace: Stopped. ${count} rows written to ${path.basename(this.traceFilePath)}`,
+                    'Open File'
+                ).then(choice => {
+                    if (choice === 'Open File') {
+                        vscode.workspace.openTextDocument(vscode.Uri.file(this.traceFilePath))
+                            .then(doc => vscode.window.showTextDocument(doc, { preview: true }));
+                    }
+                });
+                this.sendEvent('output', { category: 'console', output: `[Trace] Stopped. ${count} rows → ${this.traceFilePath}\n` });
+            }),
+
+            vscode.commands.registerCommand('fv1.traceSave', async () => {
+                if (this.traceFilePath && fs.existsSync(this.traceFilePath)) {
+                    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(this.traceFilePath));
+                    await vscode.window.showTextDocument(doc, { preview: true });
+                } else {
+                    vscode.window.showWarningMessage('FV-1 Trace: No trace file available. Start a trace first.');
+                }
+            })
+        );
+    }
+
+    private closeTraceStream() {
+        if (this.traceStream) {
+            this.traceStream.end();
+            this.traceStream = null;
+        }
+    }
+
     private async launch(args: any, response: any) {
+        if (this.audioEngine) {
+            this.audioEngine.reset();
+        }
         this.sendEvent('output', { category: 'console', output: `Starting FV-1 Debug Session...\n` });
 
         this.sourcePath = args.program;
@@ -382,6 +508,9 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             });
             this.symbolsChanged = false;
         }
+
+        // Register trace commands
+        this.registerTraceCommands();
     }
 
     private resolveWavPath(wavPath: string, cwd?: string): string | null {
@@ -845,7 +974,8 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                 loaded: this.audioStreamer.isLoaded(),
                 numSamples: this.audioStreamer.getNumSamples(),
                 currentField: this.audioStreamer.getCurrentSample(),
-                msPerSample: msPerSample
+                msPerSample: msPerSample,
+                cycle: this.simulator.getCycleCount()
             };
 
             // Only send expensive metadata if visualizations are enabled
@@ -855,6 +985,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                 metadata.delayPtr = snapshotDelayPtr;
                 metadata.delaySize = this.simulator.getDelaySize();
                 metadata.addrPtr = snapshotAddrPtr;
+                metadata.readOffsets = this.simulator.getReadOffsets();
                 metadata.memories = this.symbolsChanged ? this.memories : undefined;
                 metadata.symbols = this.symbolsChanged ? this.symbols : undefined;
             }
@@ -901,6 +1032,14 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             clearTimeout(this.timerHandle);
             this.timerHandle = null;
         }
+        // Close any active trace stream
+        if (this.simulator.isTraceEnabled()) {
+            this.simulator.disableTrace();
+        }
+        this.closeTraceStream();
+        // Dispose trace commands
+        this.traceCommandDisposables.forEach(d => d.dispose());
+        this.traceCommandDisposables = [];
     }
 
     private async handleStimulusChange(m: any) {

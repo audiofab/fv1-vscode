@@ -159,6 +159,12 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
         }
     }
 
+    public reset() {
+        if (this._view) {
+            this._view.webview.postMessage({ type: 'reset' });
+        }
+    }
+
     public getStimulus() {
         return this.currentStimulus;
     }
@@ -400,7 +406,7 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                                 <button id="zoomIn" title="Zoom In" style="padding: 1px 6px;">+</button>
                             </div>
                         </div>
-                        <canvas id="scope" width="400" height="120" class="scope-canvas"></canvas>
+                        <canvas id="scope" class="scope-canvas"></canvas>
                         
                         <div id="registerExplorer" class="register-explorer">
                             <div id="explorerHeader" class="explorer-header">
@@ -419,7 +425,7 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             <div class="viz-label">Spectrogram (L/R)</div>
                             <button id="toggleSpecBtn" style="padding: 1px 6px; font-size: 8px;">OFF</button>
                         </div>
-                        <canvas id="spectrogram" width="400" height="120" class="scope-canvas" style="display: none;"></canvas>
+                        <canvas id="spectrogram" class="scope-canvas" style="display: none;"></canvas>
                         <div id="specAxis" style="display: none; justify-content: space-between; font-size: 7px; opacity: 0.5; margin-top: 1px; font-family: monospace;">
                             <span>20 Hz</span>
                             <span>16 kHz</span>
@@ -429,12 +435,8 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                     <div id="memBox" class="viz-box">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
                             <div class="viz-label">Delay Memory Map</div>
-                            <div style="font-size: 8px; display: flex; gap: 4px; opacity: 0.8;">
-                                <span style="color: rgba(255, 255, 255, 0.8);">WRITE</span>
-                                <span style="color: #ff4444;">READ</span>
-                            </div>
                         </div>
-                        <canvas id="memMap" width="200" height="60" class="small-canvas"></canvas>
+                        <canvas id="memMap" class="small-canvas"></canvas>
                         <div style="display: flex; justify-content: space-between; font-size: 7px; opacity: 0.5; margin-top: 1px; font-family: monospace;">
                             <span>$7FFF</span>
                             <span>$0000</span>
@@ -858,13 +860,13 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                                 }
 
                                 if (m.delayPtr !== undefined) {
-                                    drawMemMap(m.delayPtr, m.delaySize, m.addrPtr, m.memories);
+                                    drawMemMap(m.delayPtr, m.delaySize, m.readOffsets, m.memories);
                                 }
 
                                 if (m.msPerSample !== undefined) {
-                                    perfStats.innerText = 'Sim Execution: ' + m.msPerSample.toFixed(4) + ' ms/sample';
+                                    perfStats.innerText = 'Sim Execution: ' + m.msPerSample.toFixed(4) + ' ms/sample | Cycle: ' + (m.cycle || 0);
                                 } else {
-                                    perfStats.innerText = 'Sim Execution: -- ms/sample';
+                                    perfStats.innerText = 'Sim Execution: -- ms/sample | Cycle: ' + (m.cycle || 0);
                                 }
                             }
 
@@ -886,6 +888,18 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             startTime = 0;
                             initHistory();
                             updateStatus('Ready');
+                        } else if (message.type === 'reset') {
+                            initHistory();
+                            drawTraces();
+                            lastMemories = [];
+                            if (memCanvas.width > 0) {
+                                memCtx.fillStyle = '#111';
+                                memCtx.fillRect(0, 0, memCanvas.width, memCanvas.height);
+                            }
+                            if (specCanvas.width > 0) {
+                                specCtx.clearRect(0, 0, specCanvas.width, specCanvas.height);
+                            }
+                            perfStats.innerText = 'Sim Execution: -- ms/sample | Cycle: 0';
                         } else if (message.type === 'config') {
                             // Restore state
                             if (message.oscilloscopeEnabled !== undefined) {
@@ -1123,7 +1137,7 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         memTooltip.style.display = 'none';
                     });
 
-                    function drawMemMap(ptr, size, addrPtr, memories) {
+                    function drawMemMap(ptr, size, readOffsets, memories) {
                         lastMemories = memories || [];
                         const w = memCanvas.width;
                         const h = memCanvas.height;
@@ -1138,38 +1152,30 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         // getXAbs: same mapping but for absolute memory-block addresses which
                         // must NOT wrap. When start+size == delaySize the modulo would
                         // incorrectly wrap to 0 and render the block off-screen to the right.
-                        const getXAbs = (p) => ((size - p) / size) * w;
+                        const getXAbs = (p) => Math.round(((size - p) / size) * w);
 
                         if (memories) {
                             memCtx.fillStyle = 'rgba(79, 172, 254, 0.4)';
                             memCtx.strokeStyle = '#4facfe';
-                            memCtx.lineWidth = 0.5;
+                            memCtx.lineWidth = 1.0;
                             memories.forEach(m => {
                                 const x = getXAbs(m.start + m.size); // left edge of block (right-to-left)
-                                const width = (m.size / size) * w;
+                                const width = Math.round((m.size / size) * w);
                                 memCtx.fillRect(x, 2, width, h - 4);
                                 memCtx.strokeRect(x, 2, width, h - 4);
                             });
                         }
 
-
-                        const writeX = getX(ptr);
-                        memCtx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-                        memCtx.lineWidth = 1;
-                        memCtx.beginPath();
-                        memCtx.moveTo(writeX, 0);
-                        memCtx.lineTo(writeX, h);
-                        memCtx.stroke();
-
-                        if (addrPtr !== undefined) {
-                            const readIdx = (ptr + Math.floor(addrPtr * size)) % size;
-                            const readX = getX(readIdx);
-                            memCtx.strokeStyle = '#ff4444';
-                            memCtx.lineWidth = 1.5;
-                            memCtx.beginPath();
-                            memCtx.moveTo(readX, 0);
-                            memCtx.lineTo(readX, h);
-                            memCtx.stroke();
+                        if (readOffsets && readOffsets.length > 0) {
+                            memCtx.strokeStyle = '#00ffff'; // Bright cyan for read accesses
+                            memCtx.lineWidth = 1.0;
+                            readOffsets.forEach(off => {
+                                const readX = getXAbs(off);
+                                memCtx.beginPath();
+                                memCtx.moveTo(readX, 0);
+                                memCtx.lineTo(readX, h);
+                                memCtx.stroke();
+                            });
                         }
                     }
 
@@ -1182,7 +1188,38 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         }
                     });
 
+                    function resizeCanvas(canvas) {
+                        const dpr = window.devicePixelRatio || 1;
+                        const rect = canvas.getBoundingClientRect();
+                        const width = Math.round(rect.width * dpr);
+                        const height = Math.round(rect.height * dpr);
+                        if (canvas.width !== width || canvas.height !== height) {
+                            canvas.width = width;
+                            canvas.height = height;
+                            return true;
+                        }
+                        return false;
+                    }
+
+                    function resizeAll() {
+                        const res = [
+                            resizeCanvas(scopeCanvas),
+                            resizeCanvas(memCanvas),
+                            resizeCanvas(specCanvas)
+                        ];
+                        
+                        // Redraw what we can immediately
+                        drawTraces();
+                        if (res[1]) { // memCanvas resized
+                             memCtx.fillStyle = '#111';
+                             memCtx.fillRect(0, 0, memCanvas.width, memCanvas.height);
+                        }
+                    }
+
+                    window.addEventListener('resize', resizeAll);
+
                     initHistory();
+                    resizeAll();
                     renderLegend();
                     vscode.postMessage({ type: 'ready' });
                     vscode.postMessage({ type: 'requestRegisterSelection' });

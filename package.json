@@ -2,7 +2,7 @@
   "name": "fv1-vscode",
   "displayName": "Audiofab FV-1 Programming",
   "description": "An extension providing development support for Spin Semiconductor's FV-1 chip and programming support for the Audiofab Easy Spin guitar pedal.",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "publisher": "ms-audiofab",
   "publisherDisplayName": "Audiofab Inc.",
   "icon": "resources/logo_600x493.png",
@@ -222,6 +222,21 @@
         "command": "fv1.refreshBlocks",
         "title": "Refresh Custom Blocks",
         "category": "FV-1"
+      },
+      {
+        "command": "fv1.traceStart",
+        "title": "Trace: Start Recording",
+        "category": "FV-1"
+      },
+      {
+        "command": "fv1.traceStop",
+        "title": "Trace: Stop Recording",
+        "category": "FV-1"
+      },
+      {
+        "command": "fv1.traceSave",
+        "title": "Trace: Save to CSV",
+        "category": "FV-1"
       }
     ],
     "keybindings": [
@@ -295,6 +310,18 @@
         {
           "command": "fv1.startSimulator",
           "when": "resourceExtname == .spn || resourceExtname == .spndiagram"
+        },
+        {
+          "command": "fv1.traceStart",
+          "when": "false"
+        },
+        {
+          "command": "fv1.traceStop",
+          "when": "false"
+        },
+        {
+          "command": "fv1.traceSave",
+          "when": "false"
         }
       ],
       "editor/context": [

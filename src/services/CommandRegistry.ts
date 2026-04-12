@@ -133,6 +133,12 @@ export class CommandRegistry {
                 return;
             }
 
+            // Check if a simulation is already running
+            if (vscode.debug.activeDebugSession?.type === 'fv1-debug') {
+                vscode.window.showWarningMessage('A simulation is already running. Please stop the current session before starting a new one.');
+                return;
+            }
+
             // Ensure Run/Debug view is visible to ensure debug session is properly initialized
             await vscode.commands.executeCommand('workbench.view.debug');
 

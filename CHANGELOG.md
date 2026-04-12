@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.5.1]
+
+- Fix LFO wrapping bug in the simulator
+- Add proper delay memory read visualization
+
 ## [1.5.0]
 
 - Add an organ synth block
