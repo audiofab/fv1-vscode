@@ -754,10 +754,13 @@ export class FV1Simulator {
             c = Math.min(v, 1.0 - v);
             c = Math.max(0.0, Math.min(1.0, 4.0 * c - 0.5));
         } else {
-            const lfoVal = v * range;
-            const lfoInteger = Math.trunc(lfoVal);
-            c = lfoVal - lfoInteger;
-            index = lfoInteger + offset;
+            // Match the FV-1 / reference C: combine v*range with offset BEFORE
+            // flooring. Separating them (e.g. trunc(v*range) + offset) gives the
+            // wrong integer index when v*range is negative, because Math.trunc
+            // rounds toward zero. Linear interpolation needs floor semantics.
+            const addr = v * range + offset;
+            index = Math.floor(addr);
+            c = addr - index;
         }
 
         const readAddr = (this.delayPointer + index) & this.delayMask;
