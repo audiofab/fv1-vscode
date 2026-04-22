@@ -8,7 +8,7 @@ import { FV1Assembler } from '@audiofab-io/fv1-core';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
-const blocksDir = path.join(rootDir, 'resources', 'blocks');
+const blocksDir = path.resolve(rootDir, '..', 'fv1-core', 'blocks');
 
 blockRegistry.loadManifest(BUILTIN_BLOCKS);
 

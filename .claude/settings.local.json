@@ -33,7 +33,10 @@
       "Bash(cp /d/Audiofab/programming/_git/fv1-vscode/src/blockDiagram/types/*.ts /d/Audiofab/programming/_git/fv1-core/src/blockDiagram/types/)",
       "Bash(cp /d/Audiofab/programming/_git/fv1-vscode/src/blockDiagram/utils/*.ts /d/Audiofab/programming/_git/fv1-core/src/blockDiagram/utils/)",
       "Bash(node scripts/build-manifest.mjs)",
-      "Bash(npm link *)"
+      "Bash(npm link *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts, null, 2\\)\\);\")",
+      "Bash(npm test *)",
+      "Bash(node test/test-atl-blocks.mjs)"
     ]
   }
 }
