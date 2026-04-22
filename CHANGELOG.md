@@ -1,6 +1,6 @@
 # Change Log
 
-## [1.5.3]
+## [1.5.2]
 
 - Move extension to use new fv1-core npm module
 
