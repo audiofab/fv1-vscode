@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.5.3]
+
+- Move extension to use new fv1-core npm module
+
 ## [1.5.1]
 
 - Fix LFO wrapping bug in the simulator
