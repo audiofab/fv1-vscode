@@ -7,7 +7,7 @@
  */
 
 import * as vscode from 'vscode';
-import { FV1Assembler, FV1AssemblerResult } from '../assembler/FV1Assembler.js';
+import { FV1Assembler, type FV1AssemblerResult } from '@audiofab-io/fv1-core';
 
 interface DocumentInfo {
     version: number;

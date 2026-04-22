@@ -4,10 +4,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Stage, Layer, Line } from 'react-konva';
-import { BlockGraph, createEmptyGraph } from '../../../types/Graph';
-import { Block } from '../../../types/Block';
-import { Connection } from '../../../types/Connection';
-import { BlockMetadata } from '../../../types/Block';
+import { createEmptyGraph, type BlockGraph, type Block, type Connection, type BlockMetadata } from '@audiofab-io/fv1-core/blockDiagram';
 import { BlockComponent } from './BlockComponent';
 import { ConnectionComponent } from './ConnectionComponent';
 import { BlockPalette } from './BlockPalette';

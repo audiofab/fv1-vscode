@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { FV1Simulator } from './FV1Simulator.js';
-import { FV1AssemblerResult } from '../assembler/FV1Assembler.js';
+import { FV1Simulator, type FV1AssemblerResult } from '@audiofab-io/fv1-core';
 import { FV1AudioStreamer } from './FV1AudioStreamer.js';
 import { FV1AudioEngine } from './FV1AudioEngine.js';
 import { AssemblyService } from '../services/AssemblyService.js';

@@ -4,8 +4,7 @@
 
 import React from 'react';
 import { Line } from 'react-konva';
-import { Connection } from '../../../../types/Connection';
-import { Block, BlockMetadata } from '../../../../types/Block';
+import type { Connection, Block, BlockMetadata } from '@audiofab-io/fv1-core/blockDiagram';
 
 interface ConnectionComponentProps {
     connection: Connection;

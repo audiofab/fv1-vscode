@@ -549,6 +549,7 @@
     "typescript": "^6.0.2"
   },
   "dependencies": {
+    "@audiofab-io/fv1-core": "^0.3.0",
     "@johntalton/eeprom": "^1.1.1",
     "@johntalton/i2c-bus-mcp2221": "^4.2.1",
     "@johntalton/mcp2221": "^4.0.4",

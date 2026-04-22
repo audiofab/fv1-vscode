@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { FV1Simulator } from './FV1Simulator.js';
+import { FV1Simulator } from '@audiofab-io/fv1-core';
 
 export class FV1AudioProcessor {
     private simulator: FV1Simulator;

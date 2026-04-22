@@ -10,7 +10,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { SpinCADConverter } from '../out/blockDiagram/utils/SpinCADConverter.js';
+import { SpinCADConverter } from '@audiofab-io/fv1-core/blockDiagram';
 import { parseMenu } from './parse-spincad-menu.js';
 import { parseJavaBlock, toATL as toJavaATL } from './convert-spincad-java.js';
 
@@ -21,7 +21,7 @@ const spincadDesignerDir = path.resolve(__dirname, '../../SpinCAD-Designer');
 const sourceDir = path.join(spincadDesignerDir, 'src/SpinCADBuilder');
 const javaSourceDir = path.join(spincadDesignerDir, 'src/com/holycityaudio/SpinCAD');
 const menuFile = path.join(sourceDir, 'standard.spincadmenu');
-const defaultTargetDir = path.resolve(__dirname, '../resources/blocks/spincad');
+const defaultTargetDir = path.resolve(__dirname, '../../fv1-core/blocks/spincad');
 
 const targetDir = process.argv[2] || defaultTargetDir;
 

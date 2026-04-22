@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { FV1Assembler, FV1AssemblerResult } from '../assembler/FV1Assembler.js';
+import { FV1Assembler, type FV1AssemblerResult } from '@audiofab-io/fv1-core';
 import { FV1DocumentManager } from '../core/fv1DocumentManager.js';
 import { BlockDiagramDocumentManager } from '../blockDiagram/BlockDiagramDocumentManager.js';
 import { OutputService } from './OutputService.js';

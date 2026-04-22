@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { BlockMetadata } from '../../../types/Block';
+import type { BlockMetadata } from '@audiofab-io/fv1-core/blockDiagram';
 
 // Define the preferred order of block categories here. 
 // Unknown categories not in this list will sort alphabetically at the bottom.

@@ -2,10 +2,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
-// Important: ensure imports map to the locally built `out/` JS paths, not `.ts` src 
-import { GraphCompiler } from '../out/blockDiagram/compiler/GraphCompiler.js';
-import { blockRegistry } from '../out/blockDiagram/blocks/BlockRegistry.js';
-import { OptimizationLevel } from '../out/blockDiagram/compiler/CodeOptimizer.js';
+import {
+    GraphCompiler,
+    blockRegistry,
+    BUILTIN_BLOCKS,
+    OptimizationLevel,
+} from '@audiofab-io/fv1-core/blockDiagram';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,8 +17,8 @@ const rootDir = path.resolve(__dirname, '..');
 const diagramsDir = path.join(__dirname, 'diagrams');
 const refDir = path.join(diagramsDir, 'ref');
 
-// Initialize the block registry using the compiled extension output paths natively
-blockRegistry.init(rootDir, []);
+// Load the built-in block manifest bundled with fv1-core
+blockRegistry.loadManifest(BUILTIN_BLOCKS);
 
 function assertEqual(actual, expected, message) {
     if (actual !== expected) {

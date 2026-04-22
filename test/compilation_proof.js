@@ -20,9 +20,8 @@ const __dirname = path.dirname(__filename);
 // If you run this and get ERR_MODULE_NOT_FOUND 'vscode', you may need to temporarily comment out 
 // the vscode import in out/blockDiagram/compiler/GraphCompiler.js
 
-import { GraphCompiler } from '../out/blockDiagram/compiler/GraphCompiler.js';
-import { FV1Assembler } from '../out/assembler/FV1Assembler.js';
-import { BlockRegistry } from '../out/blockDiagram/blocks/BlockRegistry.js';
+import { GraphCompiler, BlockRegistry, BUILTIN_BLOCKS } from '@audiofab-io/fv1-core/blockDiagram';
+import { FV1Assembler } from '@audiofab-io/fv1-core';
 
 async function proveIt() {
     console.log("Starting full conversion and assembly proof...");
@@ -30,9 +29,7 @@ async function proveIt() {
     // 1. Initialize Registry and load blocks
     console.log("Initializing Block Registry...");
     const registry = new BlockRegistry();
-    // Path relative to project root
-    const extensionPath = path.resolve(__dirname, '..');
-    registry.init(extensionPath);
+    registry.loadManifest(BUILTIN_BLOCKS);
 
     // 2. Define a simple graph: ADC -> Flanger -> DAC
     const graph = {

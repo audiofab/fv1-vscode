@@ -1,8 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { FV1Assembler } from '../out/FV1Assembler.js';
-import { FV1Simulator } from '../out/simulator/FV1Simulator.js';
+import { FV1Assembler, FV1Simulator } from '@audiofab-io/fv1-core';
 import { FV1AudioProcessor } from '../out/simulator/FV1AudioProcessor.js';
 
 const __filename = fileURLToPath(import.meta.url);

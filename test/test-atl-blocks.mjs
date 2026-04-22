@@ -2,16 +2,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
-import { GraphCompiler } from '../out/blockDiagram/compiler/GraphCompiler.js';
-import { blockRegistry } from '../out/blockDiagram/blocks/BlockRegistry.js';
-import { FV1Assembler } from '../out/assembler/FV1Assembler.js';
+import { GraphCompiler, blockRegistry, BUILTIN_BLOCKS } from '@audiofab-io/fv1-core/blockDiagram';
+import { FV1Assembler } from '@audiofab-io/fv1-core';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 const blocksDir = path.join(rootDir, 'resources', 'blocks');
 
-blockRegistry.init(rootDir, []);
+blockRegistry.loadManifest(BUILTIN_BLOCKS);
 
 function getAllAtlFiles(dir) {
     let results = [];

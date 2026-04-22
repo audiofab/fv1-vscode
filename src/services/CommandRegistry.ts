@@ -157,9 +157,14 @@ export class CommandRegistry {
             const config = vscode.workspace.getConfiguration('fv1');
             const customPaths = config.get<string[]>('customBlockPaths') || [];
 
-            // Re-initialize/refresh the block registry
-            const { blockRegistry } = await import('../blockDiagram/blocks/BlockRegistry.js');
-            blockRegistry.refresh(this.context.extensionPath, customPaths);
+            const { blockRegistry, BUILTIN_BLOCKS } = await import('@audiofab-io/fv1-core/blockDiagram');
+            const { loadBlocksFromDirectory } = await import('@audiofab-io/fv1-core/blockDiagram/node');
+            blockRegistry.clear();
+            blockRegistry.loadManifest(BUILTIN_BLOCKS);
+            for (const dir of customPaths) {
+                loadBlocksFromDirectory(blockRegistry, dir);
+            }
+            blockRegistry.fireChanged();
 
             // Refresh all active documents
             this.blockDiagramDocMgr.refreshAll();

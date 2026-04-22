@@ -3,7 +3,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Block, BlockMetadata } from '../../../../types/Block';
+import type { Block, BlockMetadata } from '@audiofab-io/fv1-core/blockDiagram';
 
 interface PropertyPanelProps {
     block: Block;

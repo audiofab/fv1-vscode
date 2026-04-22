@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { FV1Assembler } from '../out/assembler/FV1Assembler.js';
-import { BlockTemplate } from '../out/blockDiagram/compiler/BlockTemplate.js';
+import { FV1Assembler } from '@audiofab-io/fv1-core';
+import { BlockTemplate } from '@audiofab-io/fv1-core/blockDiagram';
 import { parseMenu } from './parse-spincad-menu.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -11,8 +11,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const spincadDesignerDir = path.resolve(rootDir, '../SpinCAD-Designer');
 const menuFile = path.join(spincadDesignerDir, 'src/SpinCADBuilder/standard.spincadmenu');
-const coreBlocksDir = path.join(rootDir, 'resources/blocks');
-const convertedBlocksDir = path.join(rootDir, 'resources/blocks/spincad');
+const fv1CoreRoot = path.resolve(rootDir, '../fv1-core');
+const coreBlocksDir = path.join(fv1CoreRoot, 'blocks');
+const convertedBlocksDir = path.join(fv1CoreRoot, 'blocks/spincad');
 
 async function run() {
     console.log('--- SpinCAD Block Verification ---');

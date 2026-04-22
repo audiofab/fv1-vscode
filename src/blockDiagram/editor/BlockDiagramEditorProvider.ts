@@ -5,9 +5,12 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { BlockGraph, createEmptyGraph } from '../types/Graph.js';
-import { GraphCompiler } from '../compiler/GraphCompiler.js';
-import { blockRegistry } from '../blocks/BlockRegistry.js';
+import {
+    type BlockGraph,
+    createEmptyGraph,
+    GraphCompiler,
+    blockRegistry,
+} from '@audiofab-io/fv1-core/blockDiagram';
 import { BlockDiagramDocumentManager } from '../BlockDiagramDocumentManager.js';
 
 export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvider {

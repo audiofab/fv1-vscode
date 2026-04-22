@@ -1,6 +1,9 @@
-import { blockRegistry } from '../out/blockDiagram/blocks/BlockRegistry.js';
-import { GraphCompiler } from '../out/blockDiagram/compiler/GraphCompiler.js';
-import { OptimizationLevel } from '../out/blockDiagram/compiler/CodeOptimizer.js';
+import {
+    blockRegistry,
+    BUILTIN_BLOCKS,
+    GraphCompiler,
+    OptimizationLevel,
+} from '@audiofab-io/fv1-core/blockDiagram';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -8,8 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function runTest() {
-    const extensionPath = path.resolve(__dirname, '..');
-    blockRegistry.init(extensionPath, []);
+    blockRegistry.loadManifest(BUILTIN_BLOCKS);
 
     const compiler = new GraphCompiler(blockRegistry);
 

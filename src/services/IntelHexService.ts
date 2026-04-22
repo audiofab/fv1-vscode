@@ -4,8 +4,7 @@ import * as path from 'path';
 import { OutputService } from './OutputService.js';
 import { ProgrammerService } from './ProgrammerService.js';
 import { AssemblyService } from './AssemblyService.js';
-import { IntelHexParser } from '../core/hexParser.js';
-import { FV1Assembler } from '../assembler/FV1Assembler.js';
+import { IntelHexParser, FV1Assembler } from '@audiofab-io/fv1-core';
 import { getActiveDocumentUri } from '../core/editor-utils.js';
 
 const FV1_EEPROM_SLOT_SIZE_BYTES = 512;

@@ -6,7 +6,8 @@ import { StatusBarService } from './services/StatusBarService.js';
 import { CommandRegistry } from './services/CommandRegistry.js';
 import { FV1DocumentManager } from './core/fv1DocumentManager.js';
 import { BlockDiagramDocumentManager } from './blockDiagram/BlockDiagramDocumentManager.js';
-import { blockRegistry } from './blockDiagram/blocks/BlockRegistry.js';
+import { blockRegistry, BUILTIN_BLOCKS } from '@audiofab-io/fv1-core/blockDiagram';
+import { loadBlocksFromDirectory } from '@audiofab-io/fv1-core/blockDiagram/node';
 import { FV1QuickActionsProvider } from './providers/FV1QuickActionsProvider.js';
 import { SpnBankEditorProvider } from './providers/SpnBankEditorProvider.js';
 import { BlockDiagramEditorProvider } from './blockDiagram/editor/BlockDiagramEditorProvider.js';
@@ -31,9 +32,9 @@ export function activate(context: vscode.ExtensionContext) {
     const blockDiagramDiagnostics = vscode.languages.createDiagnosticCollection('block-diagram');
     context.subscriptions.push(fv1Diagnostics, blockDiagramDiagnostics);
 
-    // Initialize the block registry with the extension path and any custom paths
+    // Initialize the block registry with the built-in manifest and any custom directories
     const customBlockPaths = vscode.workspace.getConfiguration('fv1').get<string[]>('customBlockPaths') || [];
-    blockRegistry.init(context.extensionPath, customBlockPaths);
+    loadBlocks(customBlockPaths);
 
     const fv1DocumentManager = new FV1DocumentManager(fv1Diagnostics);
     const blockDiagramDocumentManager = new BlockDiagramDocumentManager(blockDiagramDiagnostics, blockRegistry);
@@ -103,7 +104,7 @@ export function activate(context: vscode.ExtensionContext) {
         if (e.affectsConfiguration('fv1')) {
             if (e.affectsConfiguration('fv1.customBlockPaths')) {
                 const newPaths = vscode.workspace.getConfiguration('fv1').get<string[]>('customBlockPaths') || [];
-                blockRegistry.refresh(context.extensionPath, newPaths);
+                loadBlocks(newPaths);
                 blockDiagramDocumentManager.refreshAll();
             }
 
@@ -124,6 +125,15 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 export function deactivate() { }
+
+function loadBlocks(customPaths: string[]): void {
+    blockRegistry.clear();
+    blockRegistry.loadManifest(BUILTIN_BLOCKS);
+    for (const dir of customPaths) {
+        loadBlocksFromDirectory(blockRegistry, dir);
+    }
+    blockRegistry.fireChanged();
+}
 
 class AssemblyDocumentProvider implements vscode.TextDocumentContentProvider {
     private _onDidChange = new vscode.EventEmitter<vscode.Uri>();

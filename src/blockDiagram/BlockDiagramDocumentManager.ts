@@ -7,9 +7,12 @@
  */
 
 import * as vscode from 'vscode';
-import { BlockGraph } from './types/Graph.js';
-import { GraphCompiler, CompilationResult } from './compiler/GraphCompiler.js';
-import { BlockRegistry } from './blocks/BlockRegistry.js';
+import {
+    type BlockGraph,
+    GraphCompiler,
+    type CompilationResult,
+    BlockRegistry,
+} from '@audiofab-io/fv1-core/blockDiagram';
 
 interface DocumentInfo {
     version: number;

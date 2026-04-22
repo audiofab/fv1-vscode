@@ -4,7 +4,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Group, Rect, Text, Circle } from 'react-konva';
-import { Block, BlockMetadata } from '../../../types/Block';
+import type { Block, BlockMetadata } from '@audiofab-io/fv1-core/blockDiagram';
 
 /**
  * Calculate relative luminance of a color

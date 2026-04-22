@@ -13,7 +13,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Paths relative to the fv1-vscode root
 const spincadDesignerDir = path.resolve(__dirname, '../../SpinCAD-Designer');
 const spinCADSourceDir = path.join(spincadDesignerDir, 'src/com/holycityaudio/SpinCAD');
-const defaultTargetDir = path.resolve(__dirname, '../resources/blocks/spincad');
+const defaultTargetDir = path.resolve(__dirname, '../../fv1-core/blocks/spincad');
 const menuFile = path.join(spincadDesignerDir, 'src/SpinCADBuilder/standard.spincadmenu');
 
 const targetDir = process.argv[2] || defaultTargetDir;

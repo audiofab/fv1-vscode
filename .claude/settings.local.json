@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /d/Audiofab/programming/_git/fv1-vscode/src/**/*.ts)",
+      "WebSearch",
+      "WebFetch(domain:www.audiofab.com)",
+      "WebFetch(domain:audiofab.com)",
+      "WebFetch(domain:images.squarespace-cdn.com)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm create:*)",
+      "Bash(rm -f src/App.css src/assets/hero.png src/assets/react.svg src/assets/vite.svg public/favicon.svg public/icons.svg)",
+      "Bash(ls src/assets/)",
+      "Bash(ls public/)",
+      "Bash(npx vite:*)",
+      "Bash(ls \"d:/Audiofab/programming/_git/easy-spin-web/tsconfig\"*.json)",
+      "Bash(npm run:*)",
+      "Bash(git -C \"d:/Audiofab/programming/_git/fv1-vscode\" log --since=\"2026-04-14\" --oneline)",
+      "Bash(git -C \"d:/Audiofab/programming/_git/easy-spin-web\" log --oneline)",
+      "Bash(mkdir -p \"d:/Audiofab/programming/_git/easy-spin-web/public/clips\" \"d:/Audiofab/programming/_git/easy-spin-web/public/effects/room-reverb\" \"d:/Audiofab/programming/_git/easy-spin-web/public/effects/digital-delay\")",
+      "Bash(cp \"d:/Audiofab/programming/_git/fv1-vscode/src/simulator/wav/\"*.wav \"d:/Audiofab/programming/_git/easy-spin-web/public/clips/\")",
+      "Bash(cp \"D:/Audiofab/easy_spin/patches/reverb/1-Room-Reverb.spn\" \"d:/Audiofab/programming/_git/easy-spin-web/public/effects/room-reverb/program.spn\")",
+      "Bash(cp \"D:/Audiofab/easy_spin/patches/delay/Digital_Delay.spn\" \"d:/Audiofab/programming/_git/easy-spin-web/public/effects/digital-delay/program.spn\")",
+      "Bash(mkdir -p \"d:/Audiofab/programming/_git/easy-spin-web/public/pedal\")",
+      "Bash(cp \"C:/Users/marku/Downloads/easy_spin_outline.png\" \"d:/Audiofab/programming/_git/easy-spin-web/public/pedal/easy_spin_outline.png\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const b=fs.readFileSync\\('public/pedal/easy_spin_outline.png'\\);const w=b.readUInt32BE\\(16\\);const h=b.readUInt32BE\\(20\\);console.log\\('Dimensions:',w,'x',h\\);\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const b=fs.readFileSync\\('d:/Audiofab/programming/_git/easy-spin-web/public/pedal/easy_spin_outline.png'\\);console.log\\('Size:',b.length,'Dimensions:',b.readUInt32BE\\(16\\),'x',b.readUInt32BE\\(20\\)\\);\")",
+      "WebFetch(domain:docs.npmjs.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(gh api *)",
+      "Bash(tasklist //FI \"IMAGENAME eq node.exe\")",
+      "Bash(xargs grep *)",
+      "Bash(cp /d/Audiofab/programming/_git/fv1-vscode/src/blockDiagram/types/*.ts /d/Audiofab/programming/_git/fv1-core/src/blockDiagram/types/)",
+      "Bash(cp /d/Audiofab/programming/_git/fv1-vscode/src/blockDiagram/utils/*.ts /d/Audiofab/programming/_git/fv1-core/src/blockDiagram/utils/)",
+      "Bash(node scripts/build-manifest.mjs)",
+      "Bash(npm link *)"
+    ]
+  }
+}
