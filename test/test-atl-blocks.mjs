@@ -5,10 +5,26 @@ import { fileURLToPath } from 'url';
 import { GraphCompiler, blockRegistry, BUILTIN_BLOCKS } from '@audiofab-io/fv1-core/blockDiagram';
 import { FV1Assembler } from '@audiofab-io/fv1-core';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const rootDir = path.resolve(__dirname, '..');
-const blocksDir = path.resolve(rootDir, '..', 'fv1-core', 'blocks');
+// Resolve fv1-core's blocks directory from the installed package, not a sibling
+// clone. We resolve a known exported subpath and walk up until we find the
+// package root (the directory whose package.json has the fv1-core name).
+function findFv1CorePackageRoot() {
+    let dir = path.dirname(fileURLToPath(import.meta.resolve('@audiofab-io/fv1-core/blockDiagram')));
+    while (true) {
+        const pkgJson = path.join(dir, 'package.json');
+        if (fs.existsSync(pkgJson)) {
+            try {
+                const pkg = JSON.parse(fs.readFileSync(pkgJson, 'utf8'));
+                if (pkg.name === '@audiofab-io/fv1-core') return dir;
+            } catch { /* keep walking */ }
+        }
+        const parent = path.dirname(dir);
+        if (parent === dir) throw new Error('Could not locate @audiofab-io/fv1-core package root');
+        dir = parent;
+    }
+}
+
+const blocksDir = path.join(findFv1CorePackageRoot(), 'blocks');
 
 blockRegistry.loadManifest(BUILTIN_BLOCKS);
 
