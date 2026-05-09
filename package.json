@@ -47,6 +47,11 @@
           "icon": "resources/audiofab-icon.svg",
           "id": "fv1-quick-actions",
           "name": "Quick Actions"
+        },
+        {
+          "id": "fv1.pedalSimulator",
+          "name": "Pedal Simulator",
+          "type": "webview"
         }
       ],
       "debug": [
@@ -125,6 +130,11 @@
         "language": "fv1-atl",
         "scopeName": "source.fv1-atl",
         "path": "./syntaxes/fv1-atl.tmGrammar.json"
+      },
+      {
+        "language": "spnbank",
+        "scopeName": "source.spnbank",
+        "path": "./syntaxes/spnbank.tmLanguage.json"
       }
     ],
     "customEditors": [
@@ -134,16 +144,6 @@
         "selector": [
           {
             "filenamePattern": "*.spndiagram"
-          }
-        ],
-        "priority": "default"
-      },
-      {
-        "viewType": "audiofab.spnBankEditor",
-        "displayName": "FV-1 Program Bank",
-        "selector": [
-          {
-            "filenamePattern": "*.spnbank"
           }
         ],
         "priority": "default"
@@ -166,15 +166,6 @@
         "category": "FV-1"
       },
       {
-        "command": "fv1.createSpnBank",
-        "title": "Create new program bank (.spnbank)",
-        "category": "FV-1",
-        "icon": {
-          "light": "./resources/light/spnbank-file.svg",
-          "dark": "./resources/dark/spnbank-file.svg"
-        }
-      },
-      {
         "command": "fv1.createBlockDiagram",
         "title": "Create new block diagram program (.spndiagram)",
         "category": "FV-1",
@@ -182,26 +173,6 @@
           "light": "./resources/light/spndiagram-file.svg",
           "dark": "./resources/dark/spndiagram-file.svg"
         }
-      },
-      {
-        "command": "fv1.programSpnBank",
-        "title": "Program Bank",
-        "category": "FV-1"
-      },
-      {
-        "command": "fv1.programThisSlot",
-        "title": "Program this slot",
-        "category": "FV-1"
-      },
-      {
-        "command": "fv1.unassignSlot",
-        "title": "Unassign slot",
-        "category": "FV-1"
-      },
-      {
-        "command": "fv1.exportBankToHex",
-        "title": "Export to .hex",
-        "category": "FV-1"
       },
       {
         "command": "fv1.loadHexToEeprom",
@@ -214,8 +185,13 @@
         "category": "FV-1"
       },
       {
-        "command": "fv1.startSimulator",
-        "title": "Run In Simulator",
+        "command": "fv1.openSimulator",
+        "title": "Open Pedal Simulator",
+        "category": "FV-1"
+      },
+      {
+        "command": "fv1.launchDebugger",
+        "title": "Launch Debugger",
         "category": "FV-1"
       },
       {
@@ -267,30 +243,9 @@
           "command": "fv1.createBlockDiagram",
           "when": "view == fv1-quick-actions",
           "group": "navigation@1"
-        },
-        {
-          "command": "fv1.createSpnBank",
-          "when": "view == fv1-quick-actions",
-          "group": "navigation@2"
         }
       ],
       "commandPalette": [
-        {
-          "command": "fv1.programSpnBank",
-          "when": "false"
-        },
-        {
-          "command": "fv1.programThisSlot",
-          "when": "false"
-        },
-        {
-          "command": "fv1.unassignSlot",
-          "when": "false"
-        },
-        {
-          "command": "fv1.exportBankToHex",
-          "when": "false"
-        },
         {
           "command": "fv1.assemble",
           "when": "resourceExtname == .spn"
@@ -308,7 +263,10 @@
           "when": "resourceExtname == .hex"
         },
         {
-          "command": "fv1.startSimulator",
+          "command": "fv1.openSimulator"
+        },
+        {
+          "command": "fv1.launchDebugger",
           "when": "resourceExtname == .spn || resourceExtname == .spndiagram"
         },
         {
@@ -325,11 +283,6 @@
         }
       ],
       "editor/context": [
-        {
-          "when": "resourceExtname == .spn || resourceExtname == .spndiagram",
-          "command": "fv1.startSimulator",
-          "group": "fv1@0"
-        },
         {
           "when": "resourceExtname == .spn",
           "command": "fv1.assemble",
@@ -549,7 +502,8 @@
     "typescript": "^6.0.2"
   },
   "dependencies": {
-    "@audiofab-io/fv1-core": "^0.4.0",
+    "@audiofab-io/easy-spin-ui": "^0.2.2",
+    "@audiofab-io/fv1-core": "^0.6.0",
     "@johntalton/eeprom": "^1.1.1",
     "@johntalton/i2c-bus-mcp2221": "^4.2.1",
     "@johntalton/mcp2221": "^4.0.4",

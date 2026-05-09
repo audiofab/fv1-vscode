@@ -34,19 +34,9 @@ export class FV1QuickActionsProvider implements vscode.TreeDataProvider<QuickAct
                     dark: vscode.Uri.file(path.join(this.context.extensionPath, 'resources', 'dark', 'spndiagram-file.svg'))
                 }
             ),
-            new QuickAction(
-                'New Program Bank',
-                'Create a new program bank (.spnbank)',
-                vscode.TreeItemCollapsibleState.None,
-                {
-                    command: 'fv1.createSpnBank',
-                    title: 'Create Program Bank'
-                },
-                {
-                    light: vscode.Uri.file(path.join(this.context.extensionPath, 'resources', 'light', 'spnbank-file.svg')),
-                    dark: vscode.Uri.file(path.join(this.context.extensionPath, 'resources', 'dark', 'spnbank-file.svg'))
-                }
-            ),
+            // Bank creation now lives in the Pedal Simulator view's
+            // "New Bank…" toolbar button, which keeps everything bank-
+            // related in one place.
             new QuickAction(
                 'Backup Pedal',
                 'Backup your Easy Spin pedal',

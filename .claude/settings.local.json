@@ -41,7 +41,39 @@
       "Bash(node ../easy-spin-effects/scripts/build-test-hex.mjs)",
       "Bash(node scripts/build-test-hex.mjs)",
       "Bash(curl -sI 'https://raw.githubusercontent.com/audiofab/easy-spin-effects/main/effects/index.json')",
-      "Bash(curl -s 'https://raw.githubusercontent.com/audiofab/easy-spin-effects/main/effects/index.json')"
+      "Bash(curl -s 'https://raw.githubusercontent.com/audiofab/easy-spin-effects/main/effects/index.json')",
+      "Bash(cp \"C:/Users/marku/Downloads/20251020-Audiofab-Test-Programs/basic-tremolo.spn\" \"d:/Audiofab/programming/_git/easy-spin-effects/effects/modulation/basic-tremolo.spn\")",
+      "Bash(cp \"C:/Users/marku/Downloads/20251020-Audiofab-Test-Programs/harmonic_tremolo.spn\" \"d:/Audiofab/programming/_git/easy-spin-effects/effects/modulation/harmonic-tremolo.spn\")",
+      "Bash(cp \"C:/Users/marku/Downloads/20251020-Audiofab-Test-Programs/flanger.spn\" \"d:/Audiofab/programming/_git/easy-spin-effects/effects/modulation/flanger.spn\")",
+      "WebFetch(domain:shields.io)",
+      "WebFetch(domain:img.shields.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:vsmarketplacebadges.dev)",
+      "WebFetch(domain:marketplace.visualstudio.com)",
+      "Bash(mkdir -p \"d:/Audiofab/programming/_git/easy-spin-ui/src/components\" \"d:/Audiofab/programming/_git/easy-spin-ui/src/simulator\" \"d:/Audiofab/programming/_git/easy-spin-ui/src/audio\" \"d:/Audiofab/programming/_git/easy-spin-ui/src/worklet\" \"d:/Audiofab/programming/_git/easy-spin-ui/src/styles\" \"d:/Audiofab/programming/_git/easy-spin-ui/assets\")",
+      "Read(//d/Audiofab/programming/_git/**)",
+      "Bash(git add *)",
+      "Bash(git reset *)",
+      "Bash(git commit *)",
+      "Bash(git tag *)",
+      "Bash(git push *)",
+      "Bash(npm view *)",
+      "Bash(python3 -c \"import sys, json; [print\\(item['name'], '-', item['type']\\) for item in json.load\\(sys.stdin\\)]\")",
+      "Bash(cp \"d:/Audiofab/programming/_git/easy-spin-lv2/modgui/icon.html\" \"d:/Audiofab/programming/_git/easy-spin-lv2/bin/EasySpin.lv2/modgui/icon.html\")",
+      "Bash(cp \"d:/Audiofab/programming/_git/easy-spin-lv2/modgui/style.css\" \"d:/Audiofab/programming/_git/easy-spin-lv2/bin/EasySpin.lv2/modgui/style.css\")",
+      "Bash(cp \"d:/Audiofab/programming/_git/easy-spin-lv2/modgui/modgui.ttl\" \"d:/Audiofab/programming/_git/easy-spin-lv2/bin/EasySpin.lv2/modgui/modgui.ttl\")",
+      "Bash(cp \"d:/Audiofab/programming/_git/easy-spin-lv2/modgui/modgui.ttl\" \"d:/Audiofab/programming/_git/easy-spin-lv2/bin/EasySpin.lv2/modgui.ttl\")",
+      "Bash(rm \"d:/Audiofab/programming/_git/easy-spin-lv2/bin/EasySpin.lv2/modgui/modgui.ttl\" && ls \"d:/Audiofab/programming/_git/easy-spin-lv2/bin/EasySpin.lv2/modgui/\" && echo \"---\" && ls \"d:/Audiofab/programming/_git/easy-spin-lv2/bin/EasySpin.lv2/\")",
+      "Bash(cp \"d:/Audiofab/programming/_git/easy-spin-lv2/programs/\"*.bin \"d:/Audiofab/programming/_git/easy-spin-lv2/bin/EasySpin.lv2/programs/\" && ls \"d:/Audiofab/programming/_git/easy-spin-lv2/bin/EasySpin.lv2/programs/\" | wc -l && wc -l \"d:/Audiofab/programming/_git/easy-spin-lv2/bin/EasySpin.lv2/manifest.ttl\" \"d:/Audiofab/programming/_git/easy-spin-lv2/bin/EasySpin.lv2/presets.ttl\")",
+      "Bash(git -C dpf diff utils/generate-ttl.sh)",
+      "Read(//c/Users/marku/Downloads/**)",
+      "Bash(cp \"C:/Users/marku/Downloads/easy_spin_graphic.png\" \"d:/Audiofab/programming/_git/easy-spin-lv2/modgui/pedal.png\")",
+      "Bash(cp \"C:/Users/marku/Downloads/easy_spin_graphic.png\" \"d:/Audiofab/programming/_git/easy-spin-lv2/bin/EasySpin.lv2/modgui/pedal.png\")",
+      "Bash(node /tmp/measure3.mjs)"
+    ],
+    "additionalDirectories": [
+      "d:\\Audiofab\\programming\\_git\\easy-spin-lv2\\bin\\EasySpin.lv2\\modgui",
+      "d:\\Audiofab\\programming\\_git\\easy-spin-lv2\\programs"
     ]
   }
 }

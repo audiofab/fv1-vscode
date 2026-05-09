@@ -285,11 +285,6 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                     await this.showAssemblyEditor(document);
                     return;
 
-                case 'simulate':
-                    // Trigger simulation using the diagram's URI to keep focus here
-                    await vscode.commands.executeCommand('fv1.startSimulator', document.uri);
-                    return;
-
                 case 'error':
                     vscode.window.showErrorMessage(e.message);
                     return;

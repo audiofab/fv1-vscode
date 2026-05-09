@@ -9,13 +9,13 @@ import { BlockDiagramDocumentManager } from './blockDiagram/BlockDiagramDocument
 import { blockRegistry, BUILTIN_BLOCKS } from '@audiofab-io/fv1-core/blockDiagram';
 import { loadBlocksFromDirectory } from '@audiofab-io/fv1-core/blockDiagram/node';
 import { FV1QuickActionsProvider } from './providers/FV1QuickActionsProvider.js';
-import { SpnBankEditorProvider } from './providers/SpnBankEditorProvider.js';
 import { BlockDiagramEditorProvider } from './blockDiagram/editor/BlockDiagramEditorProvider.js';
 import { FV1HoverProvider } from './providers/fv1HoverProvider.js';
 import { FV1DefinitionProvider } from './providers/fv1DefinitionProvider.js';
 import { IntelHexService } from './services/IntelHexService.js';
 import { FV1DebugSession } from './simulator/FV1DebugSession.js';
 import { FV1AudioEngine } from './simulator/FV1AudioEngine.js';
+import { PedalSimulatorView } from './simulator/PedalSimulator/PedalSimulatorView.js';
 import { FV1DebugConfigurationProvider } from './providers/FV1DebugConfigurationProvider.js';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -50,6 +50,18 @@ export function activate(context: vscode.ExtensionContext) {
     const fv1AudioEngine = new FV1AudioEngine();
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider('fv1Monitor', fv1AudioEngine)
+    );
+
+    // Pedal-shaped real-time simulator, mounted in the Audiofab Easy Spin
+    // activity-bar container. retainContextWhenHidden keeps the AudioContext
+    // alive so playback survives collapsing the view.
+    const pedalSimulator = new PedalSimulatorView(context, blockDiagramDocumentManager, programmerService);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(
+            PedalSimulatorView.viewType,
+            pedalSimulator,
+            { webviewOptions: { retainContextWhenHidden: true } },
+        ),
     );
 
     context.subscriptions.push(
@@ -92,7 +104,6 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.languages.registerDefinitionProvider(assemblerSelector, new FV1DefinitionProvider(fv1DocumentManager))
     );
 
-    context.subscriptions.push(SpnBankEditorProvider.register(context));
     context.subscriptions.push(BlockDiagramEditorProvider.register(context, blockDiagramDocumentManager));
 
     // 5. Register Commands

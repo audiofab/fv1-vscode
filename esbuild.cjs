@@ -41,9 +41,9 @@ async function main() {
     plugins: [esbuildProblemMatcherPlugin]
   });
 
-  // Build spnbank editor webview
-  const spnbankCtx = await esbuild.context({
-    entryPoints: ['src/spnBank/SpinBankWebView.ts'],
+  // Build pedal simulator webview (the new pedal-shaped, real-time simulator)
+  const pedalSimCtx = await esbuild.context({
+    entryPoints: ['src/simulator/PedalSimulator/webview/index.tsx'],
     bundle: true,
     format: 'iife',
     minify: production,
@@ -51,7 +51,9 @@ async function main() {
     sourcesContent: false,
     platform: 'browser',
     target: 'es2020',
-    outfile: 'dist/SpinBankWebView.js',
+    outfile: 'dist/PedalSimulator.js',
+    jsx: 'automatic',
+    jsxDev: !production,
     logLevel: 'warning',
     plugins: [esbuildProblemMatcherPlugin]
   });
@@ -60,18 +62,18 @@ async function main() {
     await Promise.all([
       extensionCtx.watch(),
       blockDiagramCtx.watch(),
-      spnbankCtx.watch()
+      pedalSimCtx.watch()
     ]);
   } else {
     await Promise.all([
       extensionCtx.rebuild(),
       blockDiagramCtx.rebuild(),
-      spnbankCtx.rebuild()
+      pedalSimCtx.rebuild()
     ]);
     await Promise.all([
       extensionCtx.dispose(),
       blockDiagramCtx.dispose(),
-      spnbankCtx.dispose()
+      pedalSimCtx.dispose()
     ]);
   }
 
@@ -86,6 +88,30 @@ async function main() {
     }
   } catch (err) {
     console.warn('Failed to copy WAV assets:', err.message);
+  }
+
+  // Copy easy-spin-ui assets into dist/ so the pedal-simulator webview can
+  // load the precompiled stylesheet, the audio worklet, and the pedal image
+  // via webview.asWebviewUri(). Worklets in particular cannot be bundled
+  // into the webview JS — they need to live at a fetchable URL.
+  try {
+    const uiPkg = path.dirname(require.resolve('@audiofab-io/easy-spin-ui/package.json'));
+    const uiDest = path.join(__dirname, 'dist/easy-spin-ui');
+    fs.mkdirSync(uiDest, { recursive: true });
+    fs.copyFileSync(path.join(uiPkg, 'dist/styles.css'), path.join(uiDest, 'styles.css'));
+    fs.mkdirSync(path.join(uiDest, 'worklet'), { recursive: true });
+    fs.copyFileSync(
+      path.join(uiPkg, 'dist/worklet/fv1-processor.js'),
+      path.join(uiDest, 'worklet/fv1-processor.js'),
+    );
+    fs.mkdirSync(path.join(uiDest, 'assets'), { recursive: true });
+    fs.copyFileSync(
+      path.join(uiPkg, 'dist/assets/pedal.png'),
+      path.join(uiDest, 'assets/pedal.png'),
+    );
+    console.log('Copied easy-spin-ui assets to dist/easy-spin-ui/');
+  } catch (err) {
+    console.warn('Failed to copy easy-spin-ui assets:', err.message);
   }
 }
 

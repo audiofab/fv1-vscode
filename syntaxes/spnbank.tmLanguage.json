@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Easy Spin Bank",
+  "scopeName": "source.spnbank",
+  "comment": "Delegates to VS Code's bundled JSON grammar so .spnbank files get JSON highlighting while keeping our custom file icon.",
+  "patterns": [
+    { "include": "source.json" }
+  ]
+}

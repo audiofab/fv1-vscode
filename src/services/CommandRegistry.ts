@@ -7,6 +7,7 @@ import { ProgrammerService } from '../services/ProgrammerService.js';
 import { BlockDiagramDocumentManager } from '../blockDiagram/BlockDiagramDocumentManager.js';
 import { IntelHexService } from './IntelHexService.js';
 import { getActiveDocumentUri, resolveToUri } from '../core/editor-utils.js';
+import { PedalSimulatorView } from '../simulator/PedalSimulator/PedalSimulatorView.js';
 
 export class CommandRegistry {
     constructor(
@@ -49,14 +50,6 @@ export class CommandRegistry {
             }
         });
 
-        this.register('fv1.createSpnBank', async () => {
-            const uris = await vscode.window.showSaveDialog({ filters: { 'Easy Spin Bank': ['spnbank'] }, defaultUri: vscode.Uri.file(path.join(vscode.workspace.workspaceFolders?.[0].uri.fsPath || '.', 'new.spnbank')) });
-            if (!uris) return;
-            const content = JSON.stringify({ slots: Array.from({ length: 8 }, (_, i) => ({ slot: i + 1, path: '' })) }, null, 2);
-            await vscode.workspace.fs.writeFile(uris, Buffer.from(content, 'utf8'));
-            await vscode.commands.executeCommand('vscode.open', uris);
-        });
-
         this.register('fv1.createBlockDiagram', async () => {
             const saveUri = await vscode.window.showSaveDialog({
                 filters: { 'FV-1 Block Diagram': ['spndiagram'] },
@@ -82,41 +75,20 @@ export class CommandRegistry {
             }
         });
 
-        this.register('fv1.programSpnBank', async (item?: any) => {
-            await this.programmerService.programBank(item);
-        });
-
-        this.register('fv1.unassignSlot', async (item?: vscode.TreeItem) => {
-            try {
-                let bankUri: vscode.Uri | undefined;
-                let slotNum: number | undefined;
-                if (item && (item as any).bankUri) { bankUri = (item as any).bankUri; slotNum = (item as any).slot; }
-                if (!bankUri || !slotNum) { vscode.window.showErrorMessage('No slot selected to unassign'); return; }
-
-                const doc = await vscode.workspace.openTextDocument(bankUri);
-                const json = doc.getText() ? JSON.parse(doc.getText()) : {};
-                json.slots = json.slots || new Array(8).fill(null).map((_, i) => ({ slot: i + 1, path: '' }));
-                json.slots[slotNum - 1] = { slot: slotNum, path: '' };
-                const newContent = Buffer.from(JSON.stringify(json, null, 2), 'utf8');
-                await vscode.workspace.fs.writeFile(bankUri, newContent);
-            } catch (e) {
-                vscode.window.showErrorMessage(`Failed to unassign slot: ${e}`);
-            }
-        });
-
-        this.register('fv1.programThisSlot', async (item?: vscode.TreeItem) => {
-            await this.programmerService.programSlotFromBank(item);
-        });
-
-        this.register('fv1.exportBankToHex', async (item?: any) => {
-            await this.intelHexService.exportBankToHex(item);
-        });
+        // Bank programming / hex export commands were tied to the old
+        // .spnbank custom editor's tree-item context menu. The pedal
+        // simulator view will dispatch these directly via ProgrammerService
+        // and IntelHexService when its Program Pedal / Export buttons land.
 
         this.register('fv1.loadHexToEeprom', async () => {
             await this.programmerService.loadHexToEeprom();
         });
 
-        this.register('fv1.startSimulator', async (uriOrString?: vscode.Uri | string, options?: { stopOnEntry?: boolean }) => {
+        // The pedal simulator handles live, real-time playback of the active
+        // editor with no command needed. This DAP-based path is now reserved
+        // for stepping through assembly with breakpoints and inspecting
+        // registers — palette-only so we don't clutter the editor UI.
+        this.register('fv1.launchDebugger', async (uriOrString?: vscode.Uri | string, options?: { stopOnEntry?: boolean }) => {
             let programUri: vscode.Uri | undefined;
             if (typeof uriOrString === 'string') {
                 programUri = resolveToUri(uriOrString);
@@ -151,6 +123,14 @@ export class CommandRegistry {
                 program: programUri.toString(),
                 stopOnEntry: stopOnEntry
             });
+        });
+
+        this.register('fv1.openSimulator', async () => {
+            // Reveal the pedal-simulator webview view in the activity bar.
+            // VS Code auto-generates a `<viewId>.focus` command for every
+            // registered view, which both reveals the view container and
+            // gives the view focus.
+            await vscode.commands.executeCommand(`${PedalSimulatorView.viewType}.focus`);
         });
 
         this.register('fv1.refreshBlocks', async () => {

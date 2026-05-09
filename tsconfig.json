@@ -20,9 +20,10 @@
   },
   "include": ["src/**/*", "types/**/*"],
   "exclude": [
-    "node_modules", 
+    "node_modules",
     ".vscode-test",
     "src/blockDiagram/editor/webview/**/*",
+    "src/simulator/PedalSimulator/webview/**/*",
     "src/spnBank/**/*",
     "test/**/*"
   ]
