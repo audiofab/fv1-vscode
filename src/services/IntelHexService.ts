@@ -16,6 +16,51 @@ export class IntelHexService {
         private assemblyService: AssemblyService
     ) { }
 
+    /**
+     * Write the assembled program out as a raw 512-byte FV-1 binary
+     * (`.bin`).  This is the format consumed by the Easy Spin LV2
+     * plugin's "Program File" picker (and any other tool that wants
+     * the raw EEPROM-slot contents — no Intel HEX wrapper, no offset).
+     * Programs shorter than 128 instructions are zero-padded to 512
+     * bytes so the output is always a single full slot.
+     */
+    public async outputBinFile(machineCode: number[]): Promise<void> {
+        const fileUri = getActiveDocumentUri();
+        if (!fileUri) {
+            vscode.window.showErrorMessage('No active editor');
+            return;
+        }
+
+        const sourceFile = fileUri.fsPath;
+        if (!sourceFile.endsWith('.spn') && !sourceFile.endsWith('.spndiagram')) {
+            vscode.window.showErrorMessage('Active file is not an FV-1 assembly file (.spn) or block diagram (.spndiagram)');
+            return;
+        }
+
+        const outputFile = sourceFile.replace(/\.(spn|spndiagram)$/, '.bin');
+
+        try {
+            this.outputService.log(`[INFO] 📄 Generating .bin file...`);
+
+            const bytes  = FV1Assembler.toUint8Array(machineCode);
+            const padded = Buffer.alloc(FV1_EEPROM_SLOT_SIZE_BYTES, 0);
+            bytes.subarray(0, Math.min(bytes.length, FV1_EEPROM_SLOT_SIZE_BYTES)).forEach((v, i) => {
+                padded[i] = v;
+            });
+
+            fs.writeFileSync(outputFile, padded);
+            if (fs.existsSync(outputFile)) {
+                this.outputService.log(`[SUCCESS] ✅ Binary saved: ${path.basename(outputFile)} (${padded.length} bytes)`);
+                return;
+            }
+            this.outputService.log(`[ERROR] ❌ Failed to save binary file: ${path.basename(outputFile)}`);
+            vscode.window.showErrorMessage('Failed to save .bin file');
+        } catch (error) {
+            this.outputService.log(`[ERROR] ❌ Error creating .bin file: ${error}`);
+            vscode.window.showErrorMessage(`Error creating .bin file: ${error}`);
+        }
+    }
+
     public async outputIntelHexFile(machineCode: number[]): Promise<void> {
         const fileUri = getActiveDocumentUri();
         if (!fileUri) {

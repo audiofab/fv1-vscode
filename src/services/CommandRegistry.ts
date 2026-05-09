@@ -50,6 +50,17 @@ export class CommandRegistry {
             }
         });
 
+        this.register('fv1.assembleToBin', async () => {
+            const result = await this.assemblyService.assembleActiveDocument();
+            if (result && result.machineCode.length > 0) {
+                if (result.problems.some(p => p.isfatal)) {
+                    vscode.window.showErrorMessage('Cannot export to .bin: Program has errors');
+                } else {
+                    await this.intelHexService.outputBinFile(result.machineCode);
+                }
+            }
+        });
+
         this.register('fv1.createBlockDiagram', async () => {
             const saveUri = await vscode.window.showSaveDialog({
                 filters: { 'FV-1 Block Diagram': ['spndiagram'] },
