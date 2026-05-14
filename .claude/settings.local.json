@@ -72,7 +72,8 @@
       "Bash(node /tmp/measure3.mjs)",
       "Bash(git diff *)",
       "Bash(grep -rn \"compileEffect\\\\|compileBlockDiagram\\\\|registerCommand\\\\|\\\\\\\\.bin\\\\\\\\|hex2bin\\\\|\\\\\\\\.hex\\\\b\" \"d:/Audiofab/programming/_git/fv1-vscode/src\")",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(grep -nE \"defaultSettingsTemplate|defaultIconTemplate|new GUI|GUI\\\\\\\\\\(\")"
     ],
     "additionalDirectories": [
       "d:\\Audiofab\\programming\\_git\\easy-spin-lv2\\bin\\EasySpin.lv2\\modgui",

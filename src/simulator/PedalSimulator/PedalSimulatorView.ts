@@ -849,6 +849,24 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
             text-decoration-color: var(--color-gold-dim);
             cursor: pointer;
         }
+        /* Static hint below the slot grid about the Shift-to-drop
+           requirement (VS Code platform limitation, #256444). */
+        .shift-drop-hint {
+            text-align: center;
+            font-size: 11px;
+            color: var(--color-text-muted, #888);
+            padding: 4px 0 0;
+        }
+        .shift-drop-hint kbd {
+            display: inline-block;
+            padding: 0 4px;
+            margin: 0 1px;
+            border-radius: 3px;
+            border: 1px solid var(--color-border, #555);
+            background: rgba(255, 255, 255, 0.06);
+            font-family: inherit;
+            font-size: 10px;
+        }
     </style>
 </head>
 <body>

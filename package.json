@@ -516,7 +516,7 @@
     "typescript": "^6.0.2"
   },
   "dependencies": {
-    "@audiofab-io/easy-spin-ui": "^0.2.2",
+    "@audiofab-io/easy-spin-ui": "^0.3.0",
     "@audiofab-io/fv1-core": "^0.6.0",
     "@johntalton/eeprom": "^1.1.1",
     "@johntalton/i2c-bus-mcp2221": "^4.2.1",

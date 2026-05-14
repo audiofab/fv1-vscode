@@ -303,6 +303,9 @@ export function SimulatorRoot({ workletUrl, pedalImageUrl }: SimulatorRootProps)
                 zoom={zoom}
                 sampleRate={simulator.sampleRate}
             />
+            <div className="shift-drop-hint">
+                Hold <kbd>Shift</kbd> to drag &amp; drop files into slots
+            </div>
             {/* transform: scale (not CSS zoom) so the Knob's pointer math works. */}
             <div style={{
                 transform: `scale(${zoom})`,

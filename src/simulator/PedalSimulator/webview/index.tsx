@@ -47,6 +47,11 @@ window.addEventListener('blur',    () => setCtrl(false))
 // preventDefault on dragenter / dragover makes the webview a drop target.
 // We do NOT set dropEffect at the window level — that interferes with
 // the slot-level pickDropEffect when both run.
+//
+// NOTE: VS Code's security overlay (microsoft/vscode#256444) blocks ALL
+// drag events from reaching this webview until the user presses Shift.
+// We cannot detect or react to a drag-in-progress before that point.
+// A static hint in the slot-grid UI tells users about the Shift key.
 window.addEventListener('dragenter', e => { e.preventDefault() })
 window.addEventListener('dragover',  e => { e.preventDefault() })
 
