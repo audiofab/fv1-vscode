@@ -18,11 +18,11 @@ A: Open the ``.spndiagram`` file and click the "View Assembly" button.
 
 **Q: How do I debug my effects?**
 
-A: Use the integrated simulator (``Ctrl+Shift+P`` and then select "FV-1: Run In Simulator" from the .spn assembly file). Set breakpoints, step through instructions, inspect registers, and visualize signals on the oscilloscope.
+A: Use the **Pedal Simulator** (``Ctrl+Shift+P`` and select "FV-1: Open Pedal Simulator") to test your effect interactively. For deeper troubleshooting, use the **Debugger** ("FV-1: Launch Debugger") to set breakpoints, step through instructions, inspect registers, and visualize signals on the oscilloscope.
 
 **Q: Can I export my programs to use with other FV-1 programmers?**
 
-A: Yes! Use ``Ctrl+Alt+P`` followed by "FV-1: Assemble current file to an Intel HEX file" to export to Intel HEX format. This works with any FV-1 programmer that supports HEX files.
+A: Yes! Use ``Ctrl+Alt+P`` followed by "FV-1: Assemble current file to an Intel HEX file" to export to Intel HEX format. This works with any FV-1 programmer that supports HEX files. You can also export to raw binary (.bin).
 
 Assembly Programming Questions
 --------------------------------
@@ -108,7 +108,7 @@ A: Use the **"FV-1: Backup pedal"** command to save all 8 program slots to an In
 
 **Q: Can I program multiple slots at once?**
 
-A: Yes! Create a program bank (`.spnbank`) with different programs in each slot, then use the **"Program Bank"** button to deploy all slots at once.
+A: Yes! Open the **Pedal Simulator** to manage your program bank (`.spnbank`). You can add programs to each slot, then use the deployment controls to program all slots at once.
 
 **Q: The programmer isn't detected. What should I do?**
 
@@ -125,12 +125,12 @@ A:
 
 A: The Audiofab extension specifically requires the Audiofab programmer. Other FV-1 boards may have different programming methods.
 
-Simulator Questions
---------------------
+Simulator & Debugger Questions
+------------------------------
 
 **Q: Why am I hearing no audio output?**
 
-A: The simulator needs an audio input stimulus - check that you have selected one. The simulator also will not produce audio when breakpoints are active or if the program is paused. Ensure you remove all breakpoints and that the simulator is running. If none of this helps, you may have a problem with your custom block. Try a simple pass-through block to confirm the simulator is working, then debug your custom block separately.
+A: The simulator needs an audio input stimulus - check that you have selected one. The simulator also will not produce audio when breakpoints are active in the Debugger or if the program is paused. Ensure you remove all breakpoints and that the simulator is running. If none of this helps, you may have a problem with your custom block. Try a simple pass-through block to confirm the simulator is working, then debug your custom block separately.
 
 **Q: Why is the simulator showing "No Audio Input"?**
 
@@ -142,11 +142,11 @@ A: The simulator needs an audio input stimulus. You can:
 
 **Q: Can I save simulator states or traces?**
 
-A: Currently, no. But you can take screenshots of the oscilloscope for documentation.
+A: Currently, no. But you can take screenshots of the oscilloscope in the Debugger for documentation.
 
-**Q: How do I step through my code in the simulator?**
+**Q: How do I step through my code?**
 
-A: Set a breakpoint by clicking on a line in the assembly view, then use the step controls in the simulator panel.
+A: Launch the **Debugger**, set a breakpoint by clicking on a line in the assembly view, then use the step controls in the debug panel.
 
 **Q: Can I use the simulator for real-time effects processing?**
 

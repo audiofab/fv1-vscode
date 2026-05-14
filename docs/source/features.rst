@@ -54,84 +54,57 @@ Create FV-1 programs visually without writing assembly code:
    Program your diagram directly to a pedal slot with one keystroke
 
 
-Integrated Real-time Simulator and Debugger
--------------------------------------------
+Pedal Simulator and Bank Management
+-----------------------------------
 
-Debug assembly files:
+.. image:: _static/images/pedal_simulator.png
+   :alt: Pedal Simulator
+   :align: center
+
+The integrated Pedal Simulator provides a highly interactive, 3D pedal UI for testing your code and managing your Easy Spin pedal's program bank:
+
+🎧 **Audio Monitor**
+   Listen to your effect in real-time with built-in or custom stimulus files.
+
+🎚️ **Interactive Controls**
+   Real-time control of your pedal's knobs and bypass switch via a highly user-friendly interface.
+
+📂 **Visual Bank Editor**
+   Manage all 8 program slots with an intuitive drag-and-drop interface.
+
+🎯 **Drag-and-Drop Assignment**
+   Drag ``.spn`` or ``.spndiagram`` files directly into bank slots.
+
+🔄 **Mix and Match**
+   Combine assembly and block diagram programs in a single bank.
+
+⚙️ **Batch Programming**
+   Program individual slots or the entire bank at once to your Easy Spin hardware.
+
+💾 **Export to HEX**
+   Save your bank as Intel HEX for archival or use with other programmers.
+
+Low-Level Debugging
+-------------------
 
 .. image:: _static/images/debug1.png
    :alt: Debugger
    :align: center
 
- 
-Or simulate with realtime audio:
-
 .. image:: _static/images/simulator.png
    :alt: Simulator
    :align: center
 
-Test your programs without hardware:
-
-🎧 **Audio Monitor**
-   Listen to your effect in real-time with built-in or custom stimulus files
+For advanced troubleshooting, the low-level Debugger provides full access to internal state:
 
 📈 **Multi-trace Oscilloscope**
-   Visualize any register or symbol with logarithmic zoom (1ms to 1s)
+   Visualize any register or symbol with logarithmic zoom (1ms to 1s).
 
 💾 **Delay Memory Map**
-   Visual representation of delay RAM usage and pointer movement
+   Visual representation of delay RAM usage and pointer movement.
 
 🔴 **Live Debugging**
-   Set breakpoints, step through instructions, and inspect variables live
-
-🎚️ **Interactive Controls**
-   Real-time control of POT0, POT1, POT2 and Bypass during simulation
-
-Resource Usage Tracking
------------------------
-
-.. image:: _static/images/resource_usage.png
-   :alt: Resource Usage Tracking
-   :align: center
-
-Monitor your program's resource consumption in real-time:
-
-📌 **Instructions**
-   Visual indicator showing usage out of 128 instructions
-
-📌 **Registers**
-   Track usage of 32 available registers
-
-📌 **Delay Memory**
-   Monitor usage out of 32,768 words of delay RAM
-
-
-Program Bank Management
------------------------
-
-.. image:: _static/images/bank_editor.png
-   :alt: Bank Editor
-   :align: center
-
-Organize and deploy multiple programs to your Easy Spin pedal:
-
-📂 **Visual Bank Editor**
-   Manage all 8 program slots with an intuitive interface
-
-🎯 **Drag-and-Drop Assignment**
-   Drag ``.spn`` or ``.spndiagram`` files directly into bank slots
-
-🔄 **Mix and Match**
-   Combine assembly and block diagram programs in a single bank
-
-⚙️ **Batch Programming**
-   Program individual slots or the entire bank at once
-
-🔄 **Automatic Compilation**
-   All files compile/assemble automatically during programming
-
-💾 **Export to HEX**
-   Save your bank as Intel HEX for archival or use with other programmers
+   Set breakpoints, step through instructions, and inspect variables live.
 
 
 Quick Actions Sidebar

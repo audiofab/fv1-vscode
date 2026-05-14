@@ -1,67 +1,95 @@
-Integrated Simulator & Debugger
-===============================
+Simulator & Debugger
+====================
 
-The Integrated Simulator & Debugger allows you to test your DSP logic in real-time without needing hardware connected. The built-in simulator represents an accurate emulation of the FV-1 hardware.
+The extension provides two distinct ways to test your DSP logic without needing hardware connected: the highly interactive **Pedal Simulator**, and the low-level **Debugger**.
 
-Overview
---------
+Pedal Simulator
+---------------
 
-The simulator enables rapid prototyping and debugging of both assembly-based projects and visual block diagrams. By providing a virtual environment that mirrors the FV-1 hardware, you can verify your effects' behavior, monitor signal levels, and inspect internal states before programming physical EEPROMs.
+The Pedal Simulator provides a user-friendly, interactive 3D pedal interface based on the `easy-spin-ui` framework. This allows you to test your effects with the exact look and feel of the physical Easy Spin hardware.
 
-.. image:: _static/images/simulator.png
-   :alt: FV-1 Simulator Overview
+.. image:: _static/images/pedal_simulator.png
+   :alt: Pedal Simulator
    :align: center
 
 Key Features
-------------
+^^^^^^^^^^^^
 
 Real-time Audio Monitor
-^^^^^^^^^^^^^^^^^^^^^^^
+"""""""""""""""""""""""
 
-Hear your effect in real-time. Use the **FV-1 Audio Monitor**  panel to select your input source. You can choose from built-in test audio files optimized for different testing scenarios.
+Hear your effect in real-time. Use the **Audio Monitor** panel to select your input source. You can choose from built-in test audio files optimized for different testing scenarios, or supply your own WAV files.
 
-Alternatively, you can supply your own WAV files as stimulus. The processed output is monitored live, allowing for immediate auditory feedback on your DSP logic.
+Interactive Controls
+""""""""""""""""""""
+
+The simulator provides real-time, drag-and-drop control of **POT0**, **POT1**, and **POT2** right on the virtual pedal. You can also click the footswitch to toggle the **Bypass** state, ensuring your effect behaves correctly across its full parameter range.
+
+Program Bank Management
+"""""""""""""""""""""""
+
+The Pedal Simulator also serves as your visual bank editor. You can drag and drop ``.spn`` or ``.spndiagram`` files into any of the 8 slots to build out a program bank (``.spnbank`` file), then program them all to the pedal in one go.
+
+How to Use the Simulator
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+1. Open the Command Palette (``Ctrl+Shift+P``) and select **"FV-1: Open Pedal Simulator"**.
+2. Select an audio source and click the pedal footswitch to enable the effect.
+
+Low-Level Debugging
+-------------------
+
+For advanced troubleshooting, the old simulator interface is preserved as the **Debugger**. It integrates with the VS Code debug infrastructure and provides deep access to internal variables and signals.
+
+.. image:: _static/images/debug1.png
+   :alt: Debugger
+   :align: center
+
+Key Features
+^^^^^^^^^^^^
 
 Multi-trace Oscilloscope & Visualizations
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+"""""""""""""""""""""""""""""""""""""""""
 
-Visualize any register or symbol with logarithmic zoom (ranging from 1ms to 1s). The oscilloscope allows you to inspect the accumulator, hardware POTs, and internal registers simultaneously, making it easy to track signal flow and identify clipping or logic errors.
+Visualize any register or symbol with logarithmic zoom (ranging from 1ms to 1s). The oscilloscope allows you to inspect the accumulator, hardware POTs, and internal registers simultaneously.
 
 .. image:: _static/images/visualizations.png
    :alt: Simulator Visualizations
    :align: center
 
-Additionally, the **Spectrogram** view provides a frequency-domain representation of your signal, which is invaluable for tuning filters and analyzing the harmonic content of your effects.
+Additionally, the **Spectrogram** view provides a frequency-domain representation of your signal.
 
 .. image:: _static/images/spectrogram.png
    :alt: Simulator Spectrogram
    :align: center
 
 Memory Visualization
-^^^^^^^^^^^^^^^^^^^^
+""""""""""""""""""""
 
-The **Delay Memory** view provides a live map of the 32k-word delay RAM. You can see exactly how your delay lines are positioned, how they move over time, and identify any potential memory overlaps or addressing issues.
+The **Delay Memory** view provides a live map of the 32k-word delay RAM.
 
 .. image:: _static/images/delay_memory.png
    :alt: Delay Memory Visualization
    :align: center
 
+It shows the current read/write pointers and how your program is utilizing delay memory in real-time.
+
 Step-through Debugging
-^^^^^^^^^^^^^^^^^^^^^^
+""""""""""""""""""""""
 
 Set breakpoints in your assembly code or visual diagram and step through your program instruction-by-instruction. While paused, you can inspect the exact state of all 32 registers, the accumulator, and the LFOs.
 
 Interactive Controls
 ^^^^^^^^^^^^^^^^^^^^
 
-The simulator provides real-time control of **POT0**, **POT1**, and **POT2** via sliders in the UI. You can also toggle the **Bypass** state to compare your processed signal with the dry input, ensuring your effect behaves correctly across its full parameter range.
+The debugger provides real-time control of **POT0**, **POT1**, and **POT2** via sliders in the UI. You can also toggle the **Bypass** state to compare your processed signal with the dry input, ensuring your effect behaves correctly across its full parameter range.
 
-How to Use
-----------
+How to Use the Debugger
+^^^^^^^^^^^^^^^^^^^^^^^
 
 1. Open a block diagram (``.spndiagram``) or assembly file (``.spn``).
-2. Click the **"Simulate"** button in the block diagram editor, or press ``Ctrl+Shift+P`` and select "FV-1: Run In Simulator".
-3. The VS Code debug view will open and the program will be stopped on the first instruction. The "FV-1 Audio Monitor" panel provides access to the oscilloscope, memory map, and other visualizations. 
+2. Press ``Ctrl+Shift+P`` and select **"FV-1: Launch Debugger"** (or press ``F5``).
+3. The VS Code debug view will open and the program will be stopped on the first instruction.
 
 Click the panel to enable audio monitoring and visualizations...
 
@@ -69,11 +97,11 @@ Click the panel to enable audio monitoring and visualizations...
    :alt: Enable Audio Monitoring
    :align: center
 
-...then click the "Continue (F5)" button to begin the simulation.
+...then click the "Continue (F5)" button to begin debugging.
 
 .. image:: _static/images/debug_continue.png
    :alt: Continue Debugging
    :align: center
 
 .. tip::
-   Always test your designs in the simulator before programming to hardware to ensure logic correctness and avoid unexpected behavior.
+   Always test your designs using both the Pedal Simulator and the Debugger before programming to hardware to ensure logic correctness and avoid unexpected behavior.

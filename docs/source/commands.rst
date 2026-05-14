@@ -6,8 +6,11 @@ Open the Command Palette with ``Ctrl+Shift+P`` (Windows/Linux) or ``Cmd+Shift+P`
 Assembly File Commands (.spn)
 -----------------------------
 
-**FV-1: Run In Simulator**
-   Compile your assembly and run it in the simulator. Full source-level debugging of the assembly is also available.
+**FV-1: Open Pedal Simulator**
+   Open the interactive Pedal Simulator and visual bank editor. From here you can test your code using the interactive 3D pedal UI, as well as manage all 8 program slots on your Easy Spin pedal.
+
+**FV-1: Launch Debugger**
+   Compile your assembly and run it in the low-level debug view. Full source-level debugging, oscilloscope, and delay memory visualization are available.
 
 **FV-1: Assemble current file**
    Compile and check for errors. Errors are displayed in the Problems panel.
@@ -25,6 +28,8 @@ Assembly File Commands (.spn)
    
    Keyboard shortcut: ``Ctrl+Alt+F5``
 
+**FV-1: Assemble current file to a raw FV-1 binary (.bin)**
+   Compile your assembly and export it directly to a raw binary file.
 
 Block Diagram Commands (.spndiagram)
 -------------------------------------
@@ -32,8 +37,11 @@ Block Diagram Commands (.spndiagram)
 **FV-1: Refresh Custom Blocks**
    Reload any discovered custom blocks and refresh the block diagram editor.
 
-**FV-1: Run In Simulator**
-   Compile the block diagram to assembly and run it in the simulator.
+**FV-1: Open Pedal Simulator**
+   Open the interactive Pedal Simulator. You can test your compiled block diagram here.
+
+**FV-1: Launch Debugger**
+   Compile the block diagram to assembly and run it in the low-level debug view.
 
 **FV-1: Assemble current file and load to EEPROM**
    Compile your diagram to assembly, assemble it, and program to your pedal.
@@ -45,6 +53,10 @@ Block Diagram Commands (.spndiagram)
    
    Keyboard shortcut: ``Ctrl+Alt+F5``
 
+**FV-1: Assemble current file to a raw FV-1 binary (.bin)**
+   Compile and export your block diagram to a raw binary file.
+   
+   Keyboard shortcut: ``Ctrl+Alt+B``
 
 Intel HEX Commands (.hex)
 --------------------------
@@ -61,9 +73,6 @@ Utility Commands
 **FV-1: Backup pedal**
    Save the entire EEPROM contents of your Easy Spin pedal (all 8 program slots) to an Intel HEX file.
    This creates a complete backup of all your programs on the hardware.
-
-**FV-1: Create `.spnbank`**
-   Create a new program bank file to organize multiple programs into the 8 available slots.
 
 **FV-1: Create new block diagram**
    Create a new visual block diagram file (`.spndiagram`).
