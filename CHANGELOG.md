@@ -1,5 +1,11 @@
 # Change Log
 
+## [1.6.0]
+
+- Update simulator to mirror easy-spin.audiofab.com
+  (old simulator workflow is now "debugging")
+- Move creation of .spnbank files into the simulator panel
+
 ## [1.5.2]
 
 - Move extension to use new fv1-core npm module
