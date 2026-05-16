@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.6.1]
+
+- Bump fv1-core to pick up unconnected output bugfix
+
 ## [1.6.0]
 
 - Update simulator to mirror easy-spin.audiofab.com
