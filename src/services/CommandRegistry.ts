@@ -6,6 +6,7 @@ import { AssemblyService } from '../services/AssemblyService.js';
 import { ProgrammerService } from '../services/ProgrammerService.js';
 import { BlockDiagramDocumentManager } from '../blockDiagram/BlockDiagramDocumentManager.js';
 import { IntelHexService } from './IntelHexService.js';
+import { EffectExportService } from './EffectExportService.js';
 import { getActiveDocumentUri, resolveToUri } from '../core/editor-utils.js';
 import { PedalSimulatorView } from '../simulator/PedalSimulator/PedalSimulatorView.js';
 
@@ -16,6 +17,7 @@ export class CommandRegistry {
         private assemblyService: AssemblyService,
         private programmerService: ProgrammerService,
         private intelHexService: IntelHexService,
+        private effectExportService: EffectExportService,
         private blockDiagramDocMgr: BlockDiagramDocumentManager
     ) { }
 
@@ -50,15 +52,8 @@ export class CommandRegistry {
             }
         });
 
-        this.register('fv1.assembleToBin', async () => {
-            const result = await this.assemblyService.assembleActiveDocument();
-            if (result && result.machineCode.length > 0) {
-                if (result.problems.some(p => p.isfatal)) {
-                    vscode.window.showErrorMessage('Cannot export to .bin: Program has errors');
-                } else {
-                    await this.intelHexService.outputBinFile(result.machineCode);
-                }
-            }
+        this.register('fv1.exportEffectJson', async () => {
+            await this.effectExportService.exportActiveEffect();
         });
 
         this.register('fv1.createBlockDiagram', async () => {

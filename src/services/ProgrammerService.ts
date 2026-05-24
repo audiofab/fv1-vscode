@@ -54,6 +54,7 @@ export class ProgrammerService {
             const mcp2221Devices = devices.filter(d => d.vendorId === vendorId && d.productId === productId);
 
             if (mcp2221Devices.length === 0) {
+                this.outputService.log(`[ERROR] ❌ No MCP2221 programmer detected. Connect the USB programmer and try again.`);
                 vscode.window.showWarningMessage('No MCP2221 devices found');
                 return undefined;
             }
@@ -364,6 +365,14 @@ export class ProgrammerService {
             }
 
             this.outputService.log(`[SUCCESS] ✅ Assembly phase completed successfully. Programming ${programsToDownload.length} program(s)...`);
+
+            // Verify a programmer is connected before attempting to write any slots,
+            // so we fail once with a clear error instead of looping through every slot.
+            const detectedDevice = await this.detectMCP2221();
+            if (!detectedDevice) {
+                this.outputService.log(`[ERROR] ❌ Programming aborted: no MCP2221 programmer detected.`);
+                return;
+            }
 
             for (const program of programsToDownload) {
                 try {

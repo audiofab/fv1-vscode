@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.6.2]
+
+- Add an export to JSON for easy-spin-web and MOD plugin purposes
+- Make error more obvious when no programmer is detected
+
 ## [1.6.1]
 
 - Bump fv1-core to pick up unconnected output bugfix

@@ -2,7 +2,7 @@
   "name": "fv1-vscode",
   "displayName": "Audiofab FV-1 Programming",
   "description": "An extension providing development support for Spin Semiconductor's FV-1 chip and programming support for the Audiofab Easy Spin guitar pedal.",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "publisher": "ms-audiofab",
   "publisherDisplayName": "Audiofab Inc.",
   "icon": "resources/logo_600x493.png",
@@ -166,8 +166,8 @@
         "category": "FV-1"
       },
       {
-        "command": "fv1.assembleToBin",
-        "title": "Assemble current file to a raw FV-1 binary (.bin)",
+        "command": "fv1.exportEffectJson",
+        "title": "Export Effect to JSON…",
         "category": "FV-1"
       },
       {
@@ -237,7 +237,7 @@
         "when": "editorTextFocus && resourceExtname == .spn"
       },
       {
-        "command": "fv1.assembleToBin",
+        "command": "fv1.exportEffectJson",
         "key": "ctrl+alt+b",
         "when": "editorTextFocus && (resourceExtname == .spn || resourceExtname == .spndiagram)"
       },
@@ -269,7 +269,7 @@
           "when": "resourceExtname == .spn || resourceExtname == .spndiagram"
         },
         {
-          "command": "fv1.assembleToBin",
+          "command": "fv1.exportEffectJson",
           "when": "resourceExtname == .spn || resourceExtname == .spndiagram"
         },
         {

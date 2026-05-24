@@ -13,6 +13,7 @@ import { BlockDiagramEditorProvider } from './blockDiagram/editor/BlockDiagramEd
 import { FV1HoverProvider } from './providers/fv1HoverProvider.js';
 import { FV1DefinitionProvider } from './providers/fv1DefinitionProvider.js';
 import { IntelHexService } from './services/IntelHexService.js';
+import { EffectExportService } from './services/EffectExportService.js';
 import { FV1DebugSession } from './simulator/FV1DebugSession.js';
 import { FV1AudioEngine } from './simulator/FV1AudioEngine.js';
 import { PedalSimulatorView } from './simulator/PedalSimulator/PedalSimulatorView.js';
@@ -44,6 +45,7 @@ export function activate(context: vscode.ExtensionContext) {
     const assemblyService = new AssemblyService(outputService, fv1DocumentManager, blockDiagramDocumentManager);
     const programmerService = new ProgrammerService(outputService, assemblyService);
     const intelHexService = new IntelHexService(outputService, programmerService, assemblyService);
+    const effectExportService = new EffectExportService(outputService, assemblyService);
     const statusBarService = new StatusBarService(fv1DocumentManager, blockDiagramDocumentManager);
     context.subscriptions.push(statusBarService);
 
@@ -107,7 +109,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(BlockDiagramEditorProvider.register(context, blockDiagramDocumentManager));
 
     // 5. Register Commands
-    const commandRegistry = new CommandRegistry(context, outputService, assemblyService, programmerService, intelHexService, blockDiagramDocumentManager);
+    const commandRegistry = new CommandRegistry(context, outputService, assemblyService, programmerService, intelHexService, effectExportService, blockDiagramDocumentManager);
     commandRegistry.registerCommands();
 
     // 6. Handle Configuration Changes
