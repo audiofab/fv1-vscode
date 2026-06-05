@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.6.3]
+
+- Update simulator to fix a bug in RMPA instruction
+
 ## [1.6.2]
 
 - Add an export to JSON for easy-spin-web and MOD plugin purposes

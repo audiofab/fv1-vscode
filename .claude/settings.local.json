@@ -137,7 +137,14 @@
       "Bash(git -C \"d:/Audiofab/programming/_git/easy-spin-lv2/dpf\" checkout distrho/src/DistrhoPluginLV2.cpp)",
       "Bash(git -C \"d:/Audiofab/programming/_git/easy-spin-lv2\" diff src/EasySpinPlugin.cpp)",
       "Bash(git -C \"d:/Audiofab/programming/_git/easy-spin-lv2\" checkout -- scripts/build-presets.ts)",
-      "Bash(wsl -- bash -c 'head -30 /mnt/d/Audiofab/programming/_git/easy-spin-lv2/bin/EasySpin.lv2/modgui/script.js')"
+      "Bash(wsl -- bash -c 'head -30 /mnt/d/Audiofab/programming/_git/easy-spin-lv2/bin/EasySpin.lv2/modgui/script.js')",
+      "PowerShell(Get-ChildItem -Path 'd:\\\\Audiofab\\\\programming\\\\_git\\\\fv1-core' -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in '.atl','.ts' } | Select-Object -First 100 FullName)",
+      "Bash(find /c/Users/marku -name 'modulated-delay*' -mtime -1 2>/dev/null; ls -la /c/Users/marku/Downloads/modulated-delay*)",
+      "Read(//c/Users/marku/**)",
+      "Bash(node -e ' *)",
+      "Bash(make)",
+      "Bash(grep -o 'setPotSmoothing[^;,{}]*' /d/Audiofab/programming/_git/fv1-vscode/dist/easy-spin-ui/worklet/fv1-processor.js)",
+      "Bash(echo \"tsc exit: $?\")"
     ],
     "additionalDirectories": [
       "d:\\Audiofab\\programming\\_git\\easy-spin-lv2\\bin\\EasySpin.lv2\\modgui",
