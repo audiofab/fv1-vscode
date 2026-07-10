@@ -1049,7 +1049,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             this.audioStreamer.unload();
             this.audioStreamer.setNoiseEnabled(true);
             this.sendEvent('output', { category: 'console', output: `Input stimulus: White Noise\n` });
-        } else if (['minor-chords', 'picky', 'rock-out', 'you-three', 'not-midnight', 'new-minor', 'breathy', 'breakdown'].includes(m.value)) {
+        } else if (['picky', 'rock-out', 'you-three', 'not-midnight', 'new-minor', 'breathy', 'breakdown'].includes(m.value)) {
             this.audioStreamer.unload();
             const wavFile = `src/simulator/wav/${m.value}-32kHz.wav`;
             const resolved = this.resolveWavPath(wavFile, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);

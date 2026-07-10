@@ -386,7 +386,6 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             <option value="white-noise">White Noise</option>
                             <option value="breakdown">Breakdown</option>
                             <option value="breathy">Breathy</option>
-                            <option value="minor-chords">Minor Chords</option>
                             <option value="new-minor">New Minor</option>
                             <option value="not-midnight">Not Midnight</option>
                             <option value="picky">Picky</option>
