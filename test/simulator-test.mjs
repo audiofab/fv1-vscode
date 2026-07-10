@@ -8,16 +8,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function main() {
-    const refDir = path.join(__dirname, 'ref');
     const wavDir = path.join(__dirname, 'wav');
     const spnFileName = 'test.spn';
     const spnPath = path.join(wavDir, spnFileName);
 
     // Check directories
-    if (!fs.existsSync(refDir)) {
-        console.error(`Reference directory not found: ${refDir}`);
-        process.exit(1);
-    }
     if (!fs.existsSync(wavDir)) {
         console.error(`Wav directory not found: ${wavDir}`);
         process.exit(1);
