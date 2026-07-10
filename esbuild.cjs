@@ -82,7 +82,12 @@ async function main() {
     const wavSrc = path.join(__dirname, 'src/simulator/wav');
     const wavDest = path.join(__dirname, 'dist/simulator/wav');
     if (fs.existsSync(wavSrc)) {
-      if (!fs.existsSync(path.dirname(wavDest))) fs.mkdirSync(path.dirname(wavDest), { recursive: true });
+      // Mirror src -> dist. Clear the destination first so clips removed from
+      // src don't linger in dist (the runtime builds the simulator's clip list
+      // by scanning this directory, and a stale file would otherwise reappear
+      // in the dropdown and ship in the packaged .vsix).
+      fs.rmSync(wavDest, { recursive: true, force: true });
+      fs.mkdirSync(wavDest, { recursive: true });
       fs.cpSync(wavSrc, wavDest, { recursive: true, force: true });
       console.log('Copied simulator WAV assets to dist/');
     }
