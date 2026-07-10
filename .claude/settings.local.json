@@ -204,7 +204,8 @@
       "Bash(grep -rn \"npm@latest\\\\|node-version\\\\|setup-node\\\\|npm publish\\\\|npm install -g\" .github/)",
       "Bash(git --no-pager diff package.json)",
       "Bash(node esbuild.cjs)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(git ls-tree *)"
     ],
     "additionalDirectories": [
       "d:\\Audiofab\\programming\\_git\\easy-spin-lv2\\bin\\EasySpin.lv2\\modgui",
