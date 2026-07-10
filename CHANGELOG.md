@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.6.4]
+
+- Update assembler to fix a bug in CHO RDA
+
 ## [1.6.3]
 
 - Update simulator to fix a bug in RMPA instruction

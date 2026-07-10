@@ -737,6 +737,11 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
 
                 {selectedBlock && (
                     <PropertyPanel
+                        // Key by block id so switching between two blocks of the
+                        // same type remounts the panel with fresh internal state
+                        // (displayValues / rawInputValues), instead of showing the
+                        // previously-selected block's values.
+                        key={selectedBlock.id}
                         block={selectedBlock}
                         metadata={blockMetadata.find(m => m.type === selectedBlock.type)}
                         onUpdate={(updates) => {
