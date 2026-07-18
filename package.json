@@ -517,7 +517,7 @@
     "@johntalton/eeprom": "^1.1.1",
     "@johntalton/i2c-bus-mcp2221": "^4.2.1",
     "@johntalton/mcp2221": "^4.0.4",
-    "konva": "^10.2.3",
+    "konva": "^10.3.0",
     "node-hid": "^3.3.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.4",
