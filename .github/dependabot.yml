@@ -16,6 +16,15 @@ updates:
       vscode-types:
         patterns:
           - "@types/vscode"
+      # react and react-dom must always be the exact same version, or the
+      # webviews crash at init with "Incompatible React versions". Group them
+      # (with their type packages) so they can never split across PRs.
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
 
     # Ignore major and minor updates for @types/vscode
     # so you only get patch-level fixes if needed
