@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.6.5]
+
+- Update dependabot dependencies
+- Move to new Azure deployment workflow
+
 ## [1.6.4]
 
 - Update assembler to fix a bug in CHO RDA

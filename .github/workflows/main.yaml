@@ -76,7 +76,11 @@ jobs:
       - build
     if: github.event_name == 'release' || github.event.inputs.publish == 'true'
     runs-on: ubuntu-latest
+    environment: release   # stable OIDC subject: repo:audiofab/fv1-vscode:environment:release
     timeout-minutes: 10
+    permissions:
+      id-token: write   # required to request the GitHub OIDC token for Entra ID federation
+      contents: read
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
@@ -90,9 +94,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ubuntu-latest
-      - name: Publish to Visual Studio Marketplace
-        uses: HaaLeo/publish-vscode-extension@v2
+      - name: Azure Login (workload identity federation)
+        uses: azure/login@v2
         with:
-          pat: ${{ secrets.VSCE_PAT }}
-          extensionFile: ${{ needs.build.outputs.vsixPath }}
-          registryUrl: https://marketplace.visualstudio.com
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+      - name: Publish to Visual Studio Marketplace
+        run: npx --yes @vscode/vsce publish --azure-credential --packagePath "${{ needs.build.outputs.vsixPath }}"

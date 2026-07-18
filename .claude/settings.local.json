@@ -205,7 +205,16 @@
       "Bash(git --no-pager diff package.json)",
       "Bash(node esbuild.cjs)",
       "Bash(git check-ignore *)",
-      "Bash(git ls-tree *)"
+      "Bash(git ls-tree *)",
+      "Bash(grep -iv \"//\\\\|comment\")",
+      "WebFetch(domain:devblogs.microsoft.com)",
+      "WebFetch(domain:code.visualstudio.com)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('publisher:', p.publisher\\); console.log\\('name:', p.name\\); console.log\\('vsce dep:', \\(p.devDependencies&&p.devDependencies['@vscode/vsce']\\)||\\(p.dependencies&&p.dependencies['@vscode/vsce']\\)||'not a dep'\\);\")",
+      "Bash(git remote *)",
+      "Bash(node -e \"for \\(const p of ['react','react-dom','react-konva','konva','uuid','esbuild']\\) { try { console.log\\(p, require\\(p+'/package.json'\\).version\\); } catch\\(e\\){ console.log\\(p, 'ERR', e.message\\);} }\")",
+      "Bash(npm ls *)",
+      "Bash(npm install *)",
+      "Bash(node -e \"for \\(const p of ['react','react-dom']\\) console.log\\(p, require\\(p+'/package.json'\\).version\\)\")"
     ],
     "additionalDirectories": [
       "d:\\Audiofab\\programming\\_git\\easy-spin-lv2\\bin\\EasySpin.lv2\\modgui",
