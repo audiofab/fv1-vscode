@@ -12,6 +12,7 @@ Welcome to the documentation for the **Audiofab FV-1 VS Code Extension** — a c
    features
    commands
    visual-editor
+   ai-patch-builder
    simulator
 
 
