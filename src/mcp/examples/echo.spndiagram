@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "Echo / Delay",
+    "description": "Mono delay: input → delay line with feedback and dry/wet mix → output. The simplest time-based effect and a good template for any echo."
+  },
+  "canvas": { "zoom": 1, "panX": 0, "panY": 0 },
+  "blocks": [
+    { "id": "adc", "type": "input.adc", "position": { "x": 0, "y": 0 }, "parameters": { "adcNumber": 0, "gain": 1 } },
+    { "id": "delay", "type": "effects.delay.simple", "position": { "x": 240, "y": 0 }, "parameters": { "delayLength": 500, "time": 1, "feedback": 0.4, "mix": 0.5 } },
+    { "id": "dac", "type": "output.dac", "position": { "x": 480, "y": 0 }, "parameters": { "dacNumber": 0, "gain": 1 } }
+  ],
+  "connections": [
+    { "id": "c1", "from": { "blockId": "adc", "portId": "out" }, "to": { "blockId": "delay", "portId": "audio_input" } },
+    { "id": "c2", "from": { "blockId": "delay", "portId": "audio_output" }, "to": { "blockId": "dac", "portId": "in" } }
+  ]
+}

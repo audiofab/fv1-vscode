@@ -24,6 +24,26 @@ async function main() {
     plugins: [esbuildProblemMatcherPlugin]
   });
 
+  // Build the standalone stdio MCP server (launched by VS Code's MCP host for Copilot,
+  // and by Claude Code via .mcp.json). Pure Node/CJS, no `vscode` import — the MCP SDK,
+  // zod, and fv1-core are all bundled in so the single .cjs is self-contained.
+  const mcpServerCtx = await esbuild.context({
+    entryPoints: ['src/mcp/server.ts'],
+    bundle: true,
+    format: 'cjs',
+    minify: production,
+    sourcemap: !production,
+    sourcesContent: false,
+    platform: 'node',
+    outfile: 'dist/mcp-server.cjs',
+    external: ['node-hid', 'pkg-prebuilds'],  // native modules must be external (transitive-safe)
+    logLevel: 'warning',
+    logOverride: {
+      'empty-import-meta': 'silent'
+    },
+    plugins: [esbuildProblemMatcherPlugin]
+  });
+
   // Build block diagram editor webview
   const blockDiagramCtx = await esbuild.context({
     entryPoints: ['src/blockDiagram/editor/webview/index.tsx'],
@@ -61,17 +81,20 @@ async function main() {
   if (watch) {
     await Promise.all([
       extensionCtx.watch(),
+      mcpServerCtx.watch(),
       blockDiagramCtx.watch(),
       pedalSimCtx.watch()
     ]);
   } else {
     await Promise.all([
       extensionCtx.rebuild(),
+      mcpServerCtx.rebuild(),
       blockDiagramCtx.rebuild(),
       pedalSimCtx.rebuild()
     ]);
     await Promise.all([
       extensionCtx.dispose(),
+      mcpServerCtx.dispose(),
       blockDiagramCtx.dispose(),
       pedalSimCtx.dispose()
     ]);
@@ -117,6 +140,34 @@ async function main() {
     console.log('Copied easy-spin-ui assets to dist/easy-spin-ui/');
   } catch (err) {
     console.warn('Failed to copy easy-spin-ui assets:', err.message);
+  }
+
+  // Copy the ATL developer reference next to the MCP server bundle so its get_atl_reference tool
+  // can read it at runtime. node_modules is excluded from the .vsix (see .vscodeignore), so the
+  // doc must be copied into dist/, which ships.
+  try {
+    const corePkg = path.dirname(require.resolve('@audiofab-io/fv1-core/package.json'));
+    fs.copyFileSync(
+      path.join(corePkg, 'blocks/ATL_DEVELOPER_REFERENCE.md'),
+      path.join(__dirname, 'dist/atl-reference.md'),
+    );
+    console.log('Copied ATL developer reference to dist/atl-reference.md');
+  } catch (err) {
+    console.warn('Failed to copy ATL reference:', err.message);
+  }
+
+  // Copy the curated example diagrams next to the MCP server bundle for its get_example tool.
+  try {
+    const exSrc = path.join(__dirname, 'src/mcp/examples');
+    const exDest = path.join(__dirname, 'dist/mcp-examples');
+    if (fs.existsSync(exSrc)) {
+      fs.rmSync(exDest, { recursive: true, force: true });
+      fs.mkdirSync(exDest, { recursive: true });
+      fs.cpSync(exSrc, exDest, { recursive: true, force: true });
+      console.log('Copied MCP example diagrams to dist/mcp-examples/');
+    }
+  } catch (err) {
+    console.warn('Failed to copy MCP example diagrams:', err.message);
   }
 }
 

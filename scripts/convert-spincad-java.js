@@ -234,7 +234,6 @@ export function parseJavaBlock(content, filename, menuInfo) {
         const managedMemo = [];
 
         templateLines.push(`@section header`);
-        templateLines.push(`@comment "Generated from spincad source file ${filename}"`);
         templateLines.push(`\n@section main`);
 
         let currentVarMap = { ...extraVars };

@@ -140,17 +140,8 @@ export class CommandRegistry {
         });
 
         this.register('fv1.refreshBlocks', async () => {
-            const config = vscode.workspace.getConfiguration('fv1');
-            const customPaths = config.get<string[]>('customBlockPaths') || [];
-
-            const { blockRegistry, BUILTIN_BLOCKS } = await import('@audiofab-io/fv1-core/blockDiagram');
-            const { loadBlocksFromDirectory } = await import('@audiofab-io/fv1-core/blockDiagram/node');
-            blockRegistry.clear();
-            blockRegistry.loadManifest(BUILTIN_BLOCKS);
-            for (const dir of customPaths) {
-                loadBlocksFromDirectory(blockRegistry, dir);
-            }
-            blockRegistry.fireChanged();
+            const { reloadBlocks } = await import('../blockDiagram/blockLoading.js');
+            reloadBlocks();
 
             // Refresh all active documents
             this.blockDiagramDocMgr.refreshAll();

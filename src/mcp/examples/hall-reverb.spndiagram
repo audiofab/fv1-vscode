@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "Hall Reverb (stereo out)",
+    "description": "Mono input into a hall reverb with two audio outputs wired to the left and right DACs. Shows how a stereo-output block drives DAC 0 and DAC 1."
+  },
+  "canvas": { "zoom": 1, "panX": 0, "panY": 0 },
+  "blocks": [
+    { "id": "adc", "type": "input.adc", "position": { "x": 0, "y": 80 }, "parameters": { "adcNumber": 0, "gain": 1 } },
+    { "id": "reverb", "type": "effects.reverb.room", "position": { "x": 240, "y": 80 }, "parameters": { "inputGain": -6, "preDelay": 25, "reverbTime": 0.6, "hfDamping": 100 } },
+    { "id": "dacL", "type": "output.dac", "position": { "x": 500, "y": 0 }, "parameters": { "dacNumber": 0, "gain": 1 } },
+    { "id": "dacR", "type": "output.dac", "position": { "x": 500, "y": 160 }, "parameters": { "dacNumber": 1, "gain": 1 } }
+  ],
+  "connections": [
+    { "id": "c1", "from": { "blockId": "adc", "portId": "out" }, "to": { "blockId": "reverb", "portId": "input" } },
+    { "id": "c2", "from": { "blockId": "reverb", "portId": "outputL" }, "to": { "blockId": "dacL", "portId": "in" } },
+    { "id": "c3", "from": { "blockId": "reverb", "portId": "outputR" }, "to": { "blockId": "dacR", "portId": "in" } }
+  ]
+}

@@ -1,5 +1,11 @@
 # Change Log
 
+## [1.6.6]
+
+- Pick up latest fv1-core
+  - Fix SIN/COS LFO block. Add Eight Tap Delay block.
+- Add MCP server for AI-assisted block diagram generation!
+
 ## [1.6.5]
 
 - Update dependabot dependencies

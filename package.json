@@ -2,7 +2,7 @@
   "name": "fv1-vscode",
   "displayName": "Audiofab FV-1 Programming",
   "description": "An extension providing development support for Spin Semiconductor's FV-1 chip and programming support for the Audiofab Easy Spin guitar pedal.",
-  "version": "1.6.5",
+  "version": "1.6.6",
   "publisher": "ms-audiofab",
   "publisherDisplayName": "Audiofab Inc.",
   "icon": "resources/logo_600x493.png",
@@ -16,7 +16,7 @@
   },
   "type": "module",
   "engines": {
-    "vscode": "^1.75.0"
+    "vscode": "^1.101.0"
   },
   "categories": [
     "Programming Languages",
@@ -32,6 +32,12 @@
   "activationEvents": [],
   "main": "./dist/extension.cjs",
   "contributes": {
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "audiofab-fv1",
+        "label": "Audiofab FV-1 Patch Builder"
+      }
+    ],
     "viewsContainers": {
       "activitybar": [
         {
@@ -202,6 +208,11 @@
       {
         "command": "fv1.refreshBlocks",
         "title": "Refresh Custom Blocks",
+        "category": "FV-1"
+      },
+      {
+        "command": "fv1.setupClaudeCodeMcp",
+        "title": "Enable AI Patch Builder for Claude Code",
         "category": "FV-1"
       },
       {
@@ -506,22 +517,24 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@types/uuid": "^11.0.0",
-    "@types/vscode": "^1.75.0",
+    "@types/vscode": "^1.101.0",
     "esbuild": "^0.28.1",
     "npm-run-all": "^4.1.5",
     "typescript": "^7.0.2"
   },
   "dependencies": {
     "@audiofab-io/easy-spin-ui": "^0.3.7",
-    "@audiofab-io/fv1-core": "^0.6.10",
+    "@audiofab-io/fv1-core": "^0.6.11",
     "@johntalton/eeprom": "^1.1.1",
     "@johntalton/i2c-bus-mcp2221": "^4.2.1",
     "@johntalton/mcp2221": "^4.0.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "konva": "^10.3.0",
     "node-hid": "^3.4.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-konva": "^19.2.5",
-    "uuid": "^14.0.1"
+    "uuid": "^14.0.1",
+    "zod": "^4.4.3"
   }
 }

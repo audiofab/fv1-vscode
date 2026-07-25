@@ -1,0 +1,98 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "LFO-Swept Filter (auto-wah)",
+    "description": "Input → low-pass filter → output, with a sine LFO wired into the filter's cutoff CV so the cutoff sweeps automatically. Demonstrates control-signal (CV) wiring: an LFO's control output drives a control input that backs a block parameter."
+  },
+  "canvas": {
+    "zoom": 1,
+    "panX": 31,
+    "panY": 210
+  },
+  "blocks": [
+    {
+      "id": "adc",
+      "type": "input.adc",
+      "position": {
+        "x": 3.000016699001037,
+        "y": -80.00144209148803
+      },
+      "parameters": {
+        "adcNumber": 0,
+        "gain": 1
+      }
+    },
+    {
+      "id": "lfo",
+      "type": "control.sincos_lfo",
+      "position": {
+        "x": -19.00164061559701,
+        "y": 98.99878623966418
+      },
+      "parameters": {
+        "lfoSel": 1,
+        "speed": 2,
+        "width": 1,
+        "outputRange": "unipolar"
+      }
+    },
+    {
+      "id": "lpf",
+      "type": "filter.lpf_1p",
+      "position": {
+        "x": 238.9998831069928,
+        "y": -30.000841220034715
+      },
+      "parameters": {
+        "freq": 800
+      }
+    },
+    {
+      "id": "dac",
+      "type": "output.dac",
+      "position": {
+        "x": 500,
+        "y": 40
+      },
+      "parameters": {
+        "dacNumber": 0,
+        "gain": 1
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "from": {
+        "blockId": "adc",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "lpf",
+        "portId": "input"
+      }
+    },
+    {
+      "id": "c3",
+      "from": {
+        "blockId": "lpf",
+        "portId": "lpf1"
+      },
+      "to": {
+        "blockId": "dac",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "conn_ec7c0cf0-dd07-4cee-a53d-c8933d96c5ce",
+      "from": {
+        "blockId": "lfo",
+        "portId": "cosine"
+      },
+      "to": {
+        "blockId": "lpf",
+        "portId": "freqControl"
+      }
+    }
+  ]
+}

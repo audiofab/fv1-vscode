@@ -1,0 +1,110 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "Parallel Dry + Delay Mix",
+    "description": "Splits the input into two parallel paths — a dry path and a delayed path — and recombines them with a 2-input mixer. Demonstrates fan-out (one output feeding two blocks) and using a mixer to blend parallel signals."
+  },
+  "canvas": {
+    "zoom": 1,
+    "panX": 0,
+    "panY": 0
+  },
+  "blocks": [
+    {
+      "id": "adc",
+      "type": "input.adc",
+      "position": {
+        "x": 0,
+        "y": 80
+      },
+      "parameters": {
+        "adcNumber": 0,
+        "gain": 1
+      }
+    },
+    {
+      "id": "delay",
+      "type": "effects.delay.simple",
+      "position": {
+        "x": 226.999872418915,
+        "y": 253.00111762090322
+      },
+      "parameters": {
+        "delayLength": 400,
+        "time": 1,
+        "feedback": 0.3,
+        "mix": 1
+      }
+    },
+    {
+      "id": "mixer",
+      "type": "math.mixer2",
+      "position": {
+        "x": 480,
+        "y": 80
+      },
+      "parameters": {
+        "gain1": 0,
+        "gain2": -6
+      }
+    },
+    {
+      "id": "dac",
+      "type": "output.dac",
+      "position": {
+        "x": 720,
+        "y": 80
+      },
+      "parameters": {
+        "dacNumber": 0,
+        "gain": 1
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "from": {
+        "blockId": "adc",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "mixer",
+        "portId": "input1"
+      }
+    },
+    {
+      "id": "c2",
+      "from": {
+        "blockId": "adc",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "delay",
+        "portId": "audio_input"
+      }
+    },
+    {
+      "id": "c3",
+      "from": {
+        "blockId": "delay",
+        "portId": "audio_output"
+      },
+      "to": {
+        "blockId": "mixer",
+        "portId": "input2"
+      }
+    },
+    {
+      "id": "c4",
+      "from": {
+        "blockId": "mixer",
+        "portId": "output"
+      },
+      "to": {
+        "blockId": "dac",
+        "portId": "in"
+      }
+    }
+  ]
+}

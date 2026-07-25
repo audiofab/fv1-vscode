@@ -6,8 +6,8 @@ import { StatusBarService } from './services/StatusBarService.js';
 import { CommandRegistry } from './services/CommandRegistry.js';
 import { FV1DocumentManager } from './core/fv1DocumentManager.js';
 import { BlockDiagramDocumentManager } from './blockDiagram/BlockDiagramDocumentManager.js';
-import { blockRegistry, BUILTIN_BLOCKS } from '@audiofab-io/fv1-core/blockDiagram';
-import { loadBlocksFromDirectory } from '@audiofab-io/fv1-core/blockDiagram/node';
+import { blockRegistry } from '@audiofab-io/fv1-core/blockDiagram';
+import { reloadBlocks, getAgentWriteDir } from './blockDiagram/blockLoading.js';
 import { FV1QuickActionsProvider } from './providers/FV1QuickActionsProvider.js';
 import { BlockDiagramEditorProvider } from './blockDiagram/editor/BlockDiagramEditorProvider.js';
 import { FV1HoverProvider } from './providers/fv1HoverProvider.js';
@@ -18,6 +18,7 @@ import { FV1DebugSession } from './simulator/FV1DebugSession.js';
 import { FV1AudioEngine } from './simulator/FV1AudioEngine.js';
 import { PedalSimulatorView } from './simulator/PedalSimulator/PedalSimulatorView.js';
 import { FV1DebugConfigurationProvider } from './providers/FV1DebugConfigurationProvider.js';
+import { registerMcpIntegration } from './mcp/mcpIntegration.js';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Audiofab FV-1 Extension is now active!');
@@ -33,12 +34,16 @@ export function activate(context: vscode.ExtensionContext) {
     const blockDiagramDiagnostics = vscode.languages.createDiagnosticCollection('block-diagram');
     context.subscriptions.push(fv1Diagnostics, blockDiagramDiagnostics);
 
-    // Initialize the block registry with the built-in manifest and any custom directories
-    const customBlockPaths = vscode.workspace.getConfiguration('fv1').get<string[]>('customBlockPaths') || [];
-    loadBlocks(customBlockPaths);
+    // Initialize the block registry with the built-in manifest, the user's custom directories,
+    // and the managed agent-block dir (see blockLoading.ts).
+    reloadBlocks();
 
     const fv1DocumentManager = new FV1DocumentManager(fv1Diagnostics);
     const blockDiagramDocumentManager = new BlockDiagramDocumentManager(blockDiagramDiagnostics, blockRegistry);
+
+    // Expose the block catalog + graph compiler to AI agents (Copilot via VS Code's MCP host,
+    // Claude Code via .mcp.json) so they can author and validate .spndiagram patches.
+    registerMcpIntegration(context);
 
     // 3. Initialize Domain Services
     // Services encapsulate business logic and use the singletons above
@@ -116,8 +121,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.workspace.onDidChangeConfiguration(e => {
         if (e.affectsConfiguration('fv1')) {
             if (e.affectsConfiguration('fv1.customBlockPaths')) {
-                const newPaths = vscode.workspace.getConfiguration('fv1').get<string[]>('customBlockPaths') || [];
-                loadBlocks(newPaths);
+                reloadBlocks();
                 blockDiagramDocumentManager.refreshAll();
             }
 
@@ -125,6 +129,24 @@ export function activate(context: vscode.ExtensionContext) {
             statusBarService.update(vscode.window.activeTextEditor?.document);
         }
     });
+
+    // 6b. Watch the agent-block write dir so blocks the MCP server authors on the fly appear in
+    // the registry (and open diagrams) live — the server is a separate process, so a file watcher
+    // is how the extension host learns about them.
+    const agentWriteDir = getAgentWriteDir();
+    if (agentWriteDir) {
+        const watcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(vscode.Uri.file(agentWriteDir), '**/*.atl'),
+        );
+        const onAgentBlocksChanged = () => {
+            reloadBlocks();
+            blockDiagramDocumentManager.refreshAll();
+        };
+        watcher.onDidCreate(onAgentBlocksChanged);
+        watcher.onDidChange(onAgentBlocksChanged);
+        watcher.onDidDelete(onAgentBlocksChanged);
+        context.subscriptions.push(watcher);
+    }
 
     // 7. Handle Document Lifecycle
     vscode.workspace.onDidOpenTextDocument(doc => fv1DocumentManager.onDocumentOpen(doc));
@@ -138,15 +160,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 export function deactivate() { }
-
-function loadBlocks(customPaths: string[]): void {
-    blockRegistry.clear();
-    blockRegistry.loadManifest(BUILTIN_BLOCKS);
-    for (const dir of customPaths) {
-        loadBlocksFromDirectory(blockRegistry, dir);
-    }
-    blockRegistry.fireChanged();
-}
 
 class AssemblyDocumentProvider implements vscode.TextDocumentContentProvider {
     private _onDidChange = new vscode.EventEmitter<vscode.Uri>();

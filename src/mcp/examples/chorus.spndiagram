@@ -1,0 +1,76 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "Chorus",
+    "description": "Input → LFO-modulated chorus → output. A modulation effect whose LFO is internal (rate/width are parameters), so no control wiring is needed."
+  },
+  "canvas": {
+    "zoom": 0.7350918906249998,
+    "panX": 45.681223316297064,
+    "panY": 239.21891914401817
+  },
+  "blocks": [
+    {
+      "id": "adc",
+      "type": "input.adc",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "parameters": {
+        "adcNumber": 0,
+        "gain": 1
+      }
+    },
+    {
+      "id": "chorus",
+      "type": "fx.chorus",
+      "position": {
+        "x": 240,
+        "y": 0
+      },
+      "parameters": {
+        "baseDelay": 15,
+        "rate": 1,
+        "width": 3.9,
+        "lfoSel": 0
+      }
+    },
+    {
+      "id": "dac",
+      "type": "output.dac",
+      "position": {
+        "x": 480,
+        "y": 0
+      },
+      "parameters": {
+        "dacNumber": 0,
+        "gain": 1
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "from": {
+        "blockId": "adc",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "chorus",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "c2",
+      "from": {
+        "blockId": "chorus",
+        "portId": "out"
+      },
+      "to": {
+        "blockId": "dac",
+        "portId": "in"
+      }
+    }
+  ]
+}
