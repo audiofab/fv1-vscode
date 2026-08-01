@@ -512,7 +512,7 @@
     "package": "npm run check-types && node esbuild.cjs --production"
   },
   "devDependencies": {
-    "@types/node": "25.x",
+    "@types/node": "26.x",
     "@types/node-hid": "^3.0.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
