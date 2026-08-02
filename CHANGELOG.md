@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.6.7]
+
+- Pick up latest fv1-core
+  - Improve simple reverb and fix a few other block issues.
+
 ## [1.6.6]
 
 - Pick up latest fv1-core
