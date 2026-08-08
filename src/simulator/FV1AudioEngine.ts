@@ -564,6 +564,11 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             if (specActive) {
                                 specCanvas.style.display = 'block';
                                 specAxis.style.display = 'flex';
+                                // The canvas was display:none at startup, so resizeAll()
+                                // measured it as 0x0. Re-measure now that it has a layout
+                                // box, otherwise we'd draw into a zero-pixel backing store
+                                // until the next window resize.
+                                resizeCanvas(specCanvas);
                                 drawSpectrogramLoop();
                             } else {
                                 specCanvas.style.display = 'none';
@@ -855,7 +860,7 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                                             registerPtr = (registerPtr + 1) % SCOPE_HISTORY_LEN;
                                         }
                                     }
-                                    drawTraces();
+                                    requestDrawTraces();
                                 }
 
                                 if (m.delayPtr !== undefined) {
@@ -964,17 +969,37 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         }
                     }
 
+                    // Coalesce draws onto animation frames. Blocks arrive every 50 ms,
+                    // but a burst (or a resize mid-block) must never queue up more than
+                    // one repaint.
+                    let drawPending = false;
+                    function requestDrawTraces() {
+                        if (drawPending) return;
+                        drawPending = true;
+                        requestAnimationFrame(() => {
+                            drawPending = false;
+                            drawTraces();
+                        });
+                    }
+
                     function drawTraces() {
                         const w = scopeCanvas.width;
                         const h = scopeCanvas.height;
                         scopeCtx.clearRect(0, 0, w, h);
-                        
+                        if (w === 0 || h === 0) return;
+
                         // Draw grid lines
                         scopeCtx.strokeStyle = '#222';
                         scopeCtx.lineWidth = 1;
                         scopeCtx.beginPath();
                         scopeCtx.moveTo(0, h/2); scopeCtx.lineTo(w, h/2);
                         scopeCtx.stroke();
+
+                        // At the 1 s zoom the history is 8192 points against a canvas a
+                        // few hundred pixels wide — ~25 line segments stacked per pixel
+                        // column. Collapse each column to a single min/max segment: the
+                        // waveform envelope is identical, at a fraction of the path cost.
+                        const decimate = SCOPE_HISTORY_LEN > w * 2;
 
                         selectedRegisters.forEach((reg, traceIdx) => {
                             const data = registerHistory[reg];
@@ -983,20 +1008,51 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                             scopeCtx.beginPath();
                             scopeCtx.strokeStyle = TRACE_COLORS[traceIdx % TRACE_COLORS.length];
                             scopeCtx.lineWidth = 1.2;
-                            
-                            let firstPoint = true;
-                            for (let i = 0; i < SCOPE_HISTORY_LEN; i++) {
-                                const idx = (registerPtr + i) % SCOPE_HISTORY_LEN;
-                                const val = data[idx];
-                                if (isNaN(val)) continue;
 
-                                const x = (i / SCOPE_HISTORY_LEN) * w;
-                                const y = (1 - (val + 1) / 2) * h;
-                                if (firstPoint) {
-                                    scopeCtx.moveTo(x, y);
-                                    firstPoint = false;
-                                } else {
-                                    scopeCtx.lineTo(x, y);
+                            if (decimate) {
+                                // One min/max span per pixel column. Kept as a single
+                                // continuous path — entering each column at its top and
+                                // leaving at its bottom means the connecting segment to
+                                // the next column is drawn too, so the trace stays joined
+                                // exactly as the full-resolution polyline would be.
+                                const perCol = SCOPE_HISTORY_LEN / w;
+                                let firstPoint = true;
+                                for (let c = 0; c < w; c++) {
+                                    const start = Math.floor(c * perCol);
+                                    const end = Math.min(SCOPE_HISTORY_LEN, Math.floor((c + 1) * perCol));
+                                    let mn = Infinity, mx = -Infinity;
+                                    for (let i = start; i < end; i++) {
+                                        const val = data[(registerPtr + i) % SCOPE_HISTORY_LEN];
+                                        if (isNaN(val)) continue;
+                                        if (val < mn) mn = val;
+                                        if (val > mx) mx = val;
+                                    }
+                                    if (mn === Infinity) continue; // column was all NaN
+                                    const yTop = (1 - (mx + 1) / 2) * h;
+                                    const yBot = (1 - (mn + 1) / 2) * h;
+                                    if (firstPoint) {
+                                        scopeCtx.moveTo(c, yTop);
+                                        firstPoint = false;
+                                    } else {
+                                        scopeCtx.lineTo(c, yTop);
+                                    }
+                                    scopeCtx.lineTo(c, yBot);
+                                }
+                            } else {
+                                let firstPoint = true;
+                                for (let i = 0; i < SCOPE_HISTORY_LEN; i++) {
+                                    const idx = (registerPtr + i) % SCOPE_HISTORY_LEN;
+                                    const val = data[idx];
+                                    if (isNaN(val)) continue;
+
+                                    const x = (i / SCOPE_HISTORY_LEN) * w;
+                                    const y = (1 - (val + 1) / 2) * h;
+                                    if (firstPoint) {
+                                        scopeCtx.moveTo(x, y);
+                                        firstPoint = false;
+                                    } else {
+                                        scopeCtx.lineTo(x, y);
+                                    }
                                 }
                             }
                             scopeCtx.stroke();
@@ -1208,7 +1264,7 @@ export class FV1AudioEngine implements vscode.WebviewViewProvider {
                         ];
                         
                         // Redraw what we can immediately
-                        drawTraces();
+                        requestDrawTraces();
                         if (res[1]) { // memCanvas resized
                              memCtx.fillStyle = '#111';
                              memCtx.fillRect(0, 0, memCanvas.width, memCanvas.height);

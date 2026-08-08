@@ -4,6 +4,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Group, Rect, Text, Circle } from 'react-konva';
+import { PORT_RADIUS, PORT_SPACING, PORT_HIT_RADIUS, PORT_Y_OFFSET } from './portGeometry.js';
 import type { Block, BlockMetadata } from '@audiofab-io/fv1-core/blockDiagram';
 
 /**
@@ -48,6 +49,8 @@ interface BlockComponentProps {
     onDragEnd?: () => void;
     onPortClick: (blockId: string, portId: string, isOutput: boolean) => void;
     onContextMenu?: (e: any) => void;
+    /** Port a dragged wire is currently snapped to, so it can be highlighted. */
+    snapPort?: { blockId: string; portId: string } | null;
     vscode: any;
 }
 
@@ -61,6 +64,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
     onDragEnd,
     onPortClick,
     onContextMenu,
+    snapPort,
     vscode
 }) => {
     if (!metadata) return null;
@@ -71,8 +75,10 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
     const height = metadata.height || 100;
     const color = metadata.color || '#607D8B';
     const textColor = getTextColor(color);
-    const portRadius = 6;
-    const portSpacing = 20;
+    const portRadius = PORT_RADIUS;
+    const portSpacing = PORT_SPACING;
+    const isSnapped = (portId: string) =>
+        !!snapPort && snapPort.blockId === block.id && snapPort.portId === portId;
 
     const dragStateRef = useRef({
         isDragging: false,
@@ -217,17 +223,18 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
 
             {/* Input ports */}
             {metadata.inputs.map((input, index) => {
-                const y = 40 + index * portSpacing;
+                const y = PORT_Y_OFFSET + index * portSpacing;
                 const portColor = input.type === 'control' ? '#FF9800' : '#4CAF50';
                 return (
                     <Group key={input.id}>
+                        {/* Invisible, larger grab target. Sits under the visible
+                            dot and carries the handlers so the port can be hit
+                            without pixel-hunting. */}
                         <Circle
                             x={0}
                             y={y}
-                            radius={portRadius}
-                            fill={portColor}
-                            stroke="white"
-                            strokeWidth={2}
+                            radius={PORT_HIT_RADIUS}
+                            fill="transparent"
                             onMouseUp={(e) => {
                                 e.cancelBubble = true;
                                 onPortClick(block.id, input.id, false);
@@ -236,6 +243,25 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                                 e.cancelBubble = true;
                                 onPortClick(block.id, input.id, false);
                             }}
+                        />
+                        {isSnapped(input.id) && (
+                            <Circle
+                                x={0}
+                                y={y}
+                                radius={portRadius + 5}
+                                stroke="#FFD54F"
+                                strokeWidth={2.5}
+                                listening={false}
+                            />
+                        )}
+                        <Circle
+                            x={0}
+                            y={y}
+                            radius={isSnapped(input.id) ? portRadius + 1.5 : portRadius}
+                            fill={portColor}
+                            stroke="white"
+                            strokeWidth={2}
+                            listening={false}
                         />
                         <Text
                             text={input.name}
@@ -250,16 +276,14 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
 
             {/* Output ports */}
             {metadata.outputs.map((output, index) => {
-                const y = 40 + index * portSpacing;
+                const y = PORT_Y_OFFSET + index * portSpacing;
                 return (
                     <Group key={output.id}>
                         <Circle
                             x={width}
                             y={y}
-                            radius={portRadius}
-                            fill="#2196F3"
-                            stroke="white"
-                            strokeWidth={2}
+                            radius={PORT_HIT_RADIUS}
+                            fill="transparent"
                             onMouseDown={(e) => {
                                 e.cancelBubble = true;
                                 onPortClick(block.id, output.id, true);
@@ -268,6 +292,25 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                                 e.cancelBubble = true;
                                 onPortClick(block.id, output.id, true);
                             }}
+                        />
+                        {isSnapped(output.id) && (
+                            <Circle
+                                x={width}
+                                y={y}
+                                radius={portRadius + 5}
+                                stroke="#FFD54F"
+                                strokeWidth={2.5}
+                                listening={false}
+                            />
+                        )}
+                        <Circle
+                            x={width}
+                            y={y}
+                            radius={isSnapped(output.id) ? portRadius + 1.5 : portRadius}
+                            fill="#2196F3"
+                            stroke="white"
+                            strokeWidth={2}
+                            listening={false}
                         />
                         <Text
                             text={output.name}

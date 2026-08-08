@@ -84,6 +84,29 @@ Interactive Controls
 
 The debugger provides real-time control of **POT0**, **POT1**, and **POT2** via sliders in the UI. You can also toggle the **Bypass** state to compare your processed signal with the dry input, ensuring your effect behaves correctly across its full parameter range.
 
+Live Reload
+^^^^^^^^^^^
+
+You do not need to stop and restart the debugger to try a change. While a session
+is running, editing the program under debug recompiles it and swaps it into the
+running simulator:
+
+- **Assembly (**\ ``.spn``\ **)** — edits are picked up as you type, about 200 ms
+  after you stop. You do not have to save the file first.
+- **Block diagrams (**\ ``.spndiagram``\ **)** — changing a block parameter
+  recompiles the graph and reloads it, so you can hear a parameter sweep while
+  the effect is running.
+
+Breakpoints are re-resolved against the new code, so a breakpoint follows its
+line as instructions shift above it. If the edit does not compile, the message is
+written to the Debug Console and the **previously loaded program keeps running** —
+a half-typed line will not drop your session or interrupt the audio.
+
+.. note::
+   Reloading resets the simulator state, so delay lines and reverb tails restart
+   from silence at each reload. Set ``fv1.simulation.liveReload`` to ``false`` to
+   turn this off and return to reloading only on an explicit restart.
+
 How to Use the Debugger
 ^^^^^^^^^^^^^^^^^^^^^^^
 

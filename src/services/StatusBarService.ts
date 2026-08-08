@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { FV1DocumentManager } from '../core/fv1DocumentManager.js';
 import { BlockDiagramDocumentManager } from '../blockDiagram/BlockDiagramDocumentManager.js';
 import { getActiveDocumentUri } from '../core/editor-utils.js';
+import { FV1_REG_COUNT, FV1_DELAY_SIZE } from '../core/hardwareLimits.js';
 
 export class StatusBarService implements vscode.Disposable {
     private instructionsStatusBar: vscode.StatusBarItem;
@@ -84,8 +85,8 @@ export class StatusBarService implements vscode.Disposable {
 
         const config = vscode.workspace.getConfiguration('fv1');
         const maxInstructions = config.get<number>('hardware.progSize') ?? 128;
-        const maxRegisters = config.get<number>('hardware.regCount') ?? 32;
-        const maxMemory = config.get<number>('hardware.delaySize') ?? 32768;
+        const maxRegisters = FV1_REG_COUNT;
+        const maxMemory = FV1_DELAY_SIZE;
 
         this.updateItem(this.instructionsStatusBar, stats.instructionsUsed, maxInstructions, '$(circuit-board)');
 

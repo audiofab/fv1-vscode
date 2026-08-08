@@ -1,5 +1,33 @@
 # Change Log
 
+## [1.7.0]
+
+- Pick up latest fv1-core (0.6.14) with a major block audit
+  - **Unified Mix behaviour**: all Mix controls now use a constant-power
+    crossfade, holding level flat across the sweep instead of dipping ~3 dB
+    in the middle (Bit-Mangler, Chiptune, Guitar Synth, Organ Synth, Auto Wah)
+  - **Headroom fixes**: Organ Synth drawbars are now normalised (previously
+    distorted at every usable input level), Spring Reverb and 2-Pole SVF no
+    longer clip internally, Room Reverb output level matched to the other reverbs
+  - **Blocks that were partly or wholly inert now work**: Chiptune's noise
+    channel and ring modulator, the Ramp LFO, and Ducking Reverb's Sensitivity
+    control
+  - **CV controls now consistent**: a connected CV scales *within* the
+    parameter's value rather than replacing it. Note: patches driving the
+    Sin/Cos LFO Speed from a pot will run faster at the same knob position
+  - Room Reverb decay roughly doubles at the same Reverb Time; Allpass controls
+    capped at 0.7 and Micro-Stutter Wet Level at 1.0, above which they distorted
+  - Compiler/assembler: fixed dead-store elimination deleting live state at
+    optimization level 2, `@if` conditions silently dropping guarded code,
+    out-of-range branches encoding silently, and duplicate labels colliding
+- Debugger: live reload — edit assembly or block parameters while running
+- Debugger: fixed a session leak and large performance improvements in the scope
+- Fixed the spectrogram not drawing until the panel was resized
+- Block diagram editor: ports snap when wiring, and each modified parameter
+  has a "Reset to Default" button
+- Removed `fv1.hardware.regCount` and `fv1.hardware.delaySize` settings — both
+  are fixed by the FV-1 instruction encoding and were never adjustable in practice
+
 ## [1.6.7]
 
 - Pick up latest fv1-core

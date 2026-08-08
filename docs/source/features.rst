@@ -159,7 +159,10 @@ The block diagram compiler features a configurable three-level optimization syst
    - **Register Renumbering**: After all passes complete, surviving register declarations are compacted sequentially from ``REG0`` upward, eliminating gaps
 
 .. note::
-   Register and memory limits are enforced **after** optimization, not before. The compiler can temporarily exceed hardware limits during code generation and still succeed if the optimizer brings totals back within bounds. All hardware limits (registers, program size, delay memory) are pulled from your VS Code settings, not hardcoded.
+   Register and memory limits are enforced **after** optimization, not before. The compiler can temporarily exceed hardware limits during code generation and still succeed if the optimizer brings totals back within bounds. The register count (32) and delay memory size (32,768 words) are fixed by the FV-1 instruction encoding; only program size is configurable, via ``fv1.hardware.progSize``.
+
+.. note::
+   Optimization levels are required to be *functionally identical* — level 1 and level 2 must produce the same audio as level 0, only with fewer instructions. This is enforced automatically across every block and parameter setting, so a higher level can never change how a patch sounds.
 
 Configure optimization level in VS Code settings under ``fv1.optimizationLevel`` to experiment with different tradeoffs between code size and readability.
 

@@ -7,6 +7,7 @@ import { Stage, Layer, Line } from 'react-konva';
 import { createEmptyGraph, type BlockGraph, type Block, type Connection, type BlockMetadata } from '@audiofab-io/fv1-core/blockDiagram';
 import { BlockComponent } from './BlockComponent';
 import { ConnectionComponent } from './ConnectionComponent';
+import { collectPorts, findSnapPort, type PortHandle } from './portGeometry.js';
 import { BlockPalette } from './BlockPalette';
 import { PropertyPanel } from './PropertyPanel';
 import { v4 as uuidv4 } from 'uuid';
@@ -49,6 +50,14 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
 
     // Connection drawing state
     const [connectingFrom, setConnectingFrom] = useState<{ blockId: string; portId: string } | null>(null);
+    /** Port the in-flight wire is currently snapped to, if any. */
+    const [snapPort, setSnapPort] = useState<PortHandle | null>(null);
+    /** Flattened port list, rebuilt only when blocks move or change. */
+    const portsRef = useRef<PortHandle[]>([]);
+    portsRef.current = React.useMemo(
+        () => collectPorts(graph.blocks, blockMetadata),
+        [graph.blocks, blockMetadata],
+    );
     const [connectionPreview, setConnectionPreview] = useState<{ x: number; y: number } | null>(null);
 
     // Resource statistics state
@@ -443,13 +452,28 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             const pointerPos = stage.getPointerPosition();
             if (pointerPos) {
                 // Convert screen coordinates to canvas coordinates
-                setConnectionPreview({
-                    x: (pointerPos.x - pan.x) / zoom,
-                    y: (pointerPos.y - pan.y) / zoom
-                });
+                const cx = (pointerPos.x - pan.x) / zoom;
+                const cy = (pointerPos.y - pan.y) / zoom;
+
+                // Snap to the nearest port that would make a LEGAL connection.
+                // Filtering by validity here means the wire never leads the user
+                // onto a target that is about to be rejected.
+                const target = findSnapPort(
+                    portsRef.current,
+                    cx, cy,
+                    (p) => !p.isOutput && validateConnection(
+                        connectingFrom, { blockId: p.blockId, portId: p.portId },
+                    ).valid,
+                );
+
+                setSnapPort(target);
+                // Pull the wire's loose end onto the port so the user sees the
+                // connection it is about to make.
+                setConnectionPreview(target ? { x: target.x, y: target.y } : { x: cx, y: cy });
             }
         }
-    }, [isDragging, dragStart, connectingFrom, pan, zoom, isLassoSelecting, lassoStart]);
+    }, [isDragging, dragStart, connectingFrom, pan, zoom, isLassoSelecting, lassoStart,
+        graph.blocks, blockMetadata, validateConnection]);
 
     const handleCanvasMouseUp = useCallback(() => {
         setIsDragging(false);
@@ -488,8 +512,21 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             setLassoEnd(null);
         }
 
+        // Releasing anywhere while snapped completes the connection - the user
+        // does not have to land on the port dot itself. Releasing on the port
+        // is handled by the port's own onMouseUp, which stops propagation, so
+        // the two paths never both fire.
+        if (connectingFrom && snapPort) {
+            addConnection(connectingFrom, { blockId: snapPort.blockId, portId: snapPort.portId });
+            setConnectingFrom(null);
+            setConnectionPreview(null);
+            setSnapPort(null);
+            return;
+        }
+
         // Don't clear connecting state here - let it be cancelled by Escape or completing connection
-    }, [isLassoSelecting, lassoStart, lassoEnd, graph.blocks, blockMetadata]);
+    }, [isLassoSelecting, lassoStart, lassoEnd, graph.blocks, blockMetadata,
+        connectingFrom, snapPort, addConnection]);
 
     // Handle block selection
     const handleBlockSelect = useCallback((blockId: string, ctrlKey: boolean) => {
@@ -552,6 +589,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                 addConnection(connectingFrom, { blockId, portId });
                 setConnectingFrom(null);
                 setConnectionPreview(null);
+                setSnapPort(null);
             }
         }
     }, [connectingFrom, addConnection]);
@@ -584,6 +622,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                 setContextMenu(null);
                 setConnectingFrom(null);
                 setConnectionPreview(null);
+                setSnapPort(null);
                 setIsLassoSelecting(false);
                 setLassoStart(null);
                 setLassoEnd(null);
@@ -728,6 +767,7 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                                     vscode.postMessage({ type: 'dragEnd' });
                                 }}
                                 onPortClick={handlePortClick}
+                                snapPort={snapPort}
                                 onContextMenu={(e) => handleBlockContextMenu(e, block.id, block.type)}
                                 vscode={vscode}
                             />

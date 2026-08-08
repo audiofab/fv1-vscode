@@ -5,6 +5,7 @@ import { FV1DocumentManager } from '../core/fv1DocumentManager.js';
 import { BlockDiagramDocumentManager } from '../blockDiagram/BlockDiagramDocumentManager.js';
 import { OutputService } from './OutputService.js';
 import { getActiveDocumentUri, resolveToUri } from '../core/editor-utils.js';
+import { FV1_REG_COUNT, FV1_DELAY_SIZE } from '../core/hardwareLimits.js';
 
 export class AssemblyService {
     constructor(
@@ -29,8 +30,8 @@ export class AssemblyService {
                 const stats = result.statistics!;
                 const config = vscode.workspace.getConfiguration('fv1');
                 const maxInstructions = config.get<number>('hardware.progSize') ?? 128;
-                const maxRegisters = config.get<number>('hardware.regCount') ?? 32;
-                const maxMemory = config.get<number>('hardware.delaySize') ?? 32768;
+                const maxRegisters = FV1_REG_COUNT;
+                const maxMemory = FV1_DELAY_SIZE;
 
                 this.outputService.log(
                     `[SUCCESS] ✅ Block diagram compiled successfully - ` +
@@ -77,9 +78,9 @@ export class AssemblyService {
             const assembler = new FV1Assembler({
                 fv1AsmMemBug: config.get<boolean>('spinAsmMemBug') ?? true,
                 clampReals: config.get<boolean>('clampReals') ?? true,
-                regCount: config.get<number>('hardware.regCount') ?? 32,
+                regCount: FV1_REG_COUNT,
                 progSize: config.get<number>('hardware.progSize') ?? 128,
-                delaySize: config.get<number>('hardware.delaySize') ?? 32768,
+                delaySize: FV1_DELAY_SIZE,
             });
             const result = assembler.assemble(assembly);
             if (this.logAssemblyResult(result, path.basename(filePath), verbose)) {
@@ -132,7 +133,7 @@ export class AssemblyService {
             const lfoCount = result.usedLFOs ? result.usedLFOs.length : 0;
             const lfoNames = result.usedLFOs && result.usedLFOs.length > 0 ? ` (${result.usedLFOs.join(', ')})` : '';
             const config = vscode.workspace.getConfiguration('fv1');
-            const maxRegisters = config.get<number>('hardware.regCount') ?? 32;
+            const maxRegisters = FV1_REG_COUNT;
             this.outputService.log(`[SUCCESS] ✅ Assembly completed successfully - ${fileName} (${result.machineCode.length} instructions, ${regCount}/${maxRegisters} registers used, ${lfoCount}/4 LFOs used${lfoNames})`);
         } else if (hasErrors) {
             this.outputService.log(`[ERROR] ❌ Assembly failed with errors - ${fileName}`);
@@ -152,9 +153,9 @@ export class AssemblyService {
                 const assembler = new FV1Assembler({
                     fv1AsmMemBug: config.get<boolean>('spinAsmMemBug') ?? true,
                     clampReals: config.get<boolean>('clampReals') ?? true,
-                    regCount: config.get<number>('hardware.regCount') ?? 32,
+                    regCount: FV1_REG_COUNT,
                     progSize: config.get<number>('hardware.progSize') ?? 128,
-                    delaySize: config.get<number>('hardware.delaySize') ?? 32768,
+                    delaySize: FV1_DELAY_SIZE,
                 });
                 return assembler.assemble(assembly);
             } else {

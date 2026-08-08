@@ -34,10 +34,19 @@ Creating Blocks and Connections
    Drag a block from the palette on the left onto the canvas.
 
 2. **Connect Blocks**
-   
+
    a. Click an **output port** (right side of a block)
    b. Drag to an **input port** (left side) of another block
    c. Release to create the connection
+
+   You don't need to hit the ports precisely. Each port has a generous invisible
+   grab area, and while you drag a wire it snaps to the nearest compatible input
+   within about 30 pixels — the wire jumps onto that port and the port is
+   highlighted, so you can release anywhere nearby to complete the connection.
+
+   Snapping only ever targets a **valid** connection: it skips outputs, type
+   mismatches (audio to control), and inputs that are already connected. If a
+   port refuses to snap, that connection would have been rejected anyway.
 
 3. **Configure Parameters**
    
@@ -88,6 +97,18 @@ Each block type has specific parameters that you can adjust:
    Toggle switches for on/off options (e.g., invert).
 
 Parameter values can often be connected to control inputs for real-time modulation. Check individual block documentation for details.
+
+.. note::
+   When a control input is connected, the parameter acts as that CV's **range
+   ceiling** rather than being replaced by it. A pot at full scale reaches the
+   value you set in the parameter, and a pot at zero reaches zero. Set the
+   parameter first to define the range, then use the CV to sweep within it.
+
+**Resetting a Parameter**
+   Any parameter you have changed from its default shows a small ``↺`` button
+   next to its name. Click it to restore the block's default value. The button
+   only appears on parameters that have been modified, so it doubles as an
+   at-a-glance indicator of what you've customised on a block.
 
 Resource Indicators
 -------------------

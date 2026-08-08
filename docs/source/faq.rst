@@ -64,7 +64,9 @@ A: Theoretically unlimited, but you're constrained by:
 The extension tracks these in real-time and warns you when limits are approached.
 
 .. note::
-    You can increase the limits beyond the default values the hardware supports in the extension settings, but this will only execute within the simulator. The actual Easy Spin hardware will still enforce the original limits.
+    The register count and delay memory size are fixed by the FV-1 instruction encoding and cannot be changed. The register field in each instruction is 6 bits wide, which addresses 64 slots — 32 reserved for system registers and 32 for your own — so 32 is every register the instruction set can express. Delay memory is limited by the 32,768 words of RAM on the part itself.
+
+    Program size *is* adjustable via ``fv1.hardware.progSize``, because nothing in the instruction encoding fixes it. Raising it lets you explore longer programs in the simulator, but the Easy Spin hardware still executes only 128 instructions per sample.
 
 **Q: Can I create custom blocks?**
 

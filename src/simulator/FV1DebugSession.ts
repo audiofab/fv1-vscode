@@ -6,6 +6,8 @@ import { FV1AudioStreamer } from './FV1AudioStreamer.js';
 import { FV1AudioEngine } from './FV1AudioEngine.js';
 import { AssemblyService } from '../services/AssemblyService.js';
 import { resolveToUri, isUri } from '../core/editor-utils.js';
+import type { BlockDiagramDocumentManager } from '../blockDiagram/BlockDiagramDocumentManager.js';
+import { FV1_REG_COUNT, FV1_DELAY_SIZE } from '../core/hardwareLimits.js';
 
 export class FV1DebugSession implements vscode.DebugAdapter {
     private simulator: FV1Simulator;
@@ -46,7 +48,30 @@ export class FV1DebugSession implements vscode.DebugAdapter {
     private symbolsChanged: boolean = false;
     private traceCommandDisposables: vscode.Disposable[] = [];
 
-    constructor(context: vscode.ExtensionContext, private assemblyService: AssemblyService, audioEngine?: FV1AudioEngine) {
+    // Live reload — recompile + hot-swap the running program on source edits
+    private liveReloadDisposables: vscode.Disposable[] = [];
+    private reloadTimer: NodeJS.Timeout | null = null;
+    private reloadInFlight: boolean = false;
+    private reloadQueued: boolean = false;
+
+    /**
+     * Everything owned by this session that must be torn down on dispose().
+     * The audio engine is a singleton shared by every session, so a listener
+     * left attached here keeps the whole session (including its simulator and
+     * 32k-word delay RAM) alive forever and keeps firing on pot moves.
+     */
+    private sessionDisposables: vscode.Disposable[] = [];
+
+    /** Registers the scope is currently plotting. Only these are sampled and
+     *  shipped to the webview — the other ~62 would be discarded on arrival. */
+    private selectedRegisters: number[] = [22, 23];
+
+    constructor(
+        context: vscode.ExtensionContext,
+        private assemblyService: AssemblyService,
+        private blockDiagramDocMgr: BlockDiagramDocumentManager,
+        audioEngine?: FV1AudioEngine
+    ) {
         this.context = context;
         this.simulator = new FV1Simulator();
         this.audioStreamer = new FV1AudioStreamer();
@@ -60,16 +85,19 @@ export class FV1DebugSession implements vscode.DebugAdapter {
 
         // Initialize session-specific state
         this.zoomLevel = this.context.workspaceState.get<number>('fv1.zoomLevel') ?? 1;
+        this.selectedRegisters = this.context.workspaceState.get<number[]>('fv1.registerSelection') || [22, 23];
 
         // Listen for configuration changes
-        vscode.workspace.onDidChangeConfiguration(e => {
-            if (e.affectsConfiguration('fv1.simulation')) {
-                const updatedConfig = vscode.workspace.getConfiguration('fv1.simulation');
-                this.oscilloscopeEnabled = updatedConfig.get<boolean>('visualizationsEnabled') ?? true;
-                this.oscilloscopeRefreshRate = updatedConfig.get<number>('oscilloscopeRefreshRate') ?? 1;
-                this.pushConfig();
-            }
-        });
+        this.sessionDisposables.push(
+            vscode.workspace.onDidChangeConfiguration(e => {
+                if (e.affectsConfiguration('fv1.simulation')) {
+                    const updatedConfig = vscode.workspace.getConfiguration('fv1.simulation');
+                    this.oscilloscopeEnabled = updatedConfig.get<boolean>('visualizationsEnabled') ?? true;
+                    this.oscilloscopeRefreshRate = updatedConfig.get<number>('oscilloscopeRefreshRate') ?? 1;
+                    this.pushConfig();
+                }
+            })
+        );
     }
 
     private pushConfig() {
@@ -138,6 +166,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                 case 'terminate':
                     console.log(`Debugger received stop request: ${request.command}`);
                     this.isRunning = false;
+                    this.disposeLiveReload();
                     if (this.timerHandle) {
                         clearTimeout(this.timerHandle);
                         this.timerHandle = null;
@@ -367,7 +396,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                 this.handleStimulusChange(currentStimulus);
             }
 
-            this.audioEngine.onMessage(m => {
+            this.sessionDisposables.push(this.audioEngine.onMessage(m => {
                 switch (m.type) {
                     case 'bypassChange':
                         this.bypassActive = !!m.active;
@@ -384,15 +413,15 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                         break;
                     case 'registerSelectionChange':
                         if (m.selection) {
+                            this.selectedRegisters = m.selection;
                             this.context.workspaceState.update('fv1.registerSelection', m.selection);
                         }
                         break;
                     case 'requestRegisterSelection':
-                        const saved = this.context.workspaceState.get<number[]>('fv1.registerSelection') || [22, 23];
                         if (this.audioEngine) {
                             this.audioEngine.playBuffer(new Float32Array(0), new Float32Array(0), 0, 0, {
                                 type: 'registerSelection',
-                                selection: saved
+                                selection: this.selectedRegisters
                             });
                         }
                         break;
@@ -407,7 +436,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
                         this.pushConfig();
                         break;
                 }
-            });
+            }));
 
             // Immediately push current config on launch
             this.pushConfig();
@@ -415,9 +444,9 @@ export class FV1DebugSession implements vscode.DebugAdapter {
 
         // Apply hardware limits to simulator
         const config = vscode.workspace.getConfiguration('fv1');
-        const regCount = config.get<number>('hardware.regCount') ?? 32;
+        const regCount = FV1_REG_COUNT;
         const progSize = config.get<number>('hardware.progSize') ?? 128;
-        const delaySize = config.get<number>('hardware.delaySize') ?? 32768;
+        const delaySize = FV1_DELAY_SIZE;
         this.simulator.setCapabilities(delaySize, regCount, progSize);
 
         // Load Input WAV if specified
@@ -466,6 +495,43 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             return;
         }
 
+        // Initialize from persistent state in audioEngine (applyProgram re-applies
+        // the pot values to the simulator after the load resets it)
+        if (this.audioEngine) {
+            this.potValues = this.audioEngine.getPotValues();
+            this.bypassActive = this.audioEngine.isBypassActive();
+        }
+
+        this.applyProgram(result);
+
+        // Push initial metadata to visualization immediately
+        if (this.audioEngine) {
+            this.audioEngine.playBuffer(new Float32Array(0), new Float32Array(0), 0, 0, {
+                memories: this.memories,
+                symbols: this.symbols,
+                delaySize: this.simulator.getDelaySize(),
+                delayPtr: this.simulator.getDelayPointer(),
+                addrPtr: this.simulator.getRegisters()[24]
+            });
+            this.symbolsChanged = false;
+        }
+
+        // Register trace commands
+        this.registerTraceCommands();
+
+        // Watch the source for edits so the running program tracks them
+        this.setupLiveReload();
+    }
+
+    /**
+     * Install the assembled program into the simulator and rebuild everything
+     * derived from it (line maps, symbols, breakpoints). Shared by the initial
+     * launch and by live reload.
+     *
+     * `loadProgram` resets the simulator, so the live control state (pot
+     * positions) has to be pushed back in afterwards.
+     */
+    private applyProgram(result: FV1AssemblerResult) {
         this.simulator.loadProgram(new Uint32Array(result.machineCode));
         this.addressToLineMap = result.addressToLineMap;
         this.symbols = result.symbols;
@@ -483,33 +549,132 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             if (addr > this.maxMappedAddr) this.maxMappedAddr = addr;
         }
 
-        this.simulator.reset();
+        this.potValues.forEach((val, i) => this.simulator.setRegister(0x10 + i, val));
 
-        // Initialize from persistent state in audioEngine
-        if (this.audioEngine) {
-            this.potValues = this.audioEngine.getPotValues();
-            this.bypassActive = this.audioEngine.isBypassActive();
-            // Apply to simulator registers
-            this.potValues.forEach((val, i) => this.simulator.setRegister(0x10 + i, val));
-        }
-
-        // Re-verify breakpoints now that we have the line map
+        // Breakpoints are stored by line; the addresses they map to may have
+        // moved, so re-resolve them against the new line map.
         this.verifyBreakpoints();
+    }
 
-        // Push initial metadata to visualization immediately
-        if (this.audioEngine) {
-            this.audioEngine.playBuffer(new Float32Array(0), new Float32Array(0), 0, 0, {
-                memories: this.memories,
-                symbols: this.symbols,
-                delaySize: this.simulator.getDelaySize(),
-                delayPtr: this.simulator.getDelayPointer(),
-                addrPtr: this.simulator.getRegisters()[24]
-            });
-            this.symbolsChanged = false;
+    // ── Live reload ─────────────────────────────────────────────────────────
+
+    /**
+     * Subscribe to edits of the program under debug so the simulator picks
+     * them up without restarting the session — the same live-edit loop the
+     * pedal simulator offers.
+     *
+     * `.spn` edits come straight from the in-memory document (no save
+     * required); `.spndiagram` edits arrive via the block-diagram document
+     * manager once the graph has been recompiled, which is already debounced
+     * upstream.
+     */
+    private setupLiveReload() {
+        this.disposeLiveReload();
+
+        const enabled = vscode.workspace.getConfiguration('fv1.simulation')
+            .get<boolean>('liveReload') ?? true;
+        if (!enabled || !this.sourcePath) return;
+
+        let trackedKey: string;
+        try {
+            trackedKey = resolveToUri(this.sourcePath).toString();
+        } catch {
+            return;
         }
 
-        // Register trace commands
-        this.registerTraceCommands();
+        if (this.sourcePath.toLowerCase().endsWith('.spndiagram')) {
+            this.liveReloadDisposables.push(
+                this.blockDiagramDocMgr.onCompilationChange(uri => {
+                    if (uri.toString() !== trackedKey) return;
+                    void this.reloadProgram();
+                })
+            );
+        } else {
+            this.liveReloadDisposables.push(
+                vscode.workspace.onDidChangeTextDocument(e => {
+                    if (e.document.uri.toString() !== trackedKey) return;
+                    if (this.reloadTimer) clearTimeout(this.reloadTimer);
+                    this.reloadTimer = setTimeout(() => {
+                        this.reloadTimer = null;
+                        void this.reloadProgram();
+                    }, 200);
+                })
+            );
+        }
+    }
+
+    private disposeLiveReload() {
+        if (this.reloadTimer) {
+            clearTimeout(this.reloadTimer);
+            this.reloadTimer = null;
+        }
+        this.liveReloadDisposables.forEach(d => d.dispose());
+        this.liveReloadDisposables = [];
+    }
+
+    /**
+     * Recompile the source and swap the result into the running simulator.
+     *
+     * A failed compile is non-fatal: the previously-loaded program keeps
+     * running so a half-typed line doesn't drop the session (or the audio).
+     */
+    private async reloadProgram(): Promise<void> {
+        if (!this.sourcePath) return;
+
+        // Assembly is async, so edits can land while one is in flight. Collapse
+        // them into a single follow-up pass rather than interleaving swaps.
+        if (this.reloadInFlight) {
+            this.reloadQueued = true;
+            return;
+        }
+        this.reloadInFlight = true;
+
+        try {
+            const result = await this.assemblyService.assembleFile(this.sourcePath);
+
+            if (!result || result.problems.some(p => p.isfatal)) {
+                const err = result?.problems.find(p => p.isfatal)?.message
+                    ?? 'compilation produced no output';
+                this.sendEvent('output', {
+                    category: 'stderr',
+                    output: `[Live Reload] Keeping previous program — ${err}\n`
+                });
+                return;
+            }
+
+            const wasRunning = this.isRunning;
+
+            // Stop the run loop across the swap so we never replace the program
+            // part-way through an audio block.
+            this.isRunning = false;
+            if (this.timerHandle) {
+                clearTimeout(this.timerHandle);
+                this.timerHandle = null;
+            }
+
+            this.applyProgram(result);
+
+            this.sendEvent('output', {
+                category: 'console',
+                output: `[Live Reload] Reloaded ${result.machineCode.length} instructions\n`
+            });
+
+            if (wasRunning) {
+                this.isRunning = true;
+                this.lastFrameTime = 0; // resync the drift-free scheduler
+                this.runLoop(true);
+            } else {
+                // Paused (breakpoint / step). Re-announce the stop so the UI
+                // re-reads the stack frame and variables against the new code.
+                this.sendEvent('stopped', { reason: 'entry', threadId: 1 });
+            }
+        } finally {
+            this.reloadInFlight = false;
+            if (this.reloadQueued) {
+                this.reloadQueued = false;
+                void this.reloadProgram();
+            }
+        }
     }
 
     private resolveWavPath(wavPath: string, cwd?: string): string | null {
@@ -926,10 +1091,17 @@ export class FV1DebugSession implements vscode.DebugAdapter {
 
         const numSamplesPerTrace = Math.ceil(samplesToProcess / this.oscilloscopeRefreshRate);
 
-        // Allocate trace arrays for all 64 registers
-        const registerTraces: Float32Array[] = this.oscilloscopeEnabled
-            ? Array.from({ length: 64 }, () => new Float32Array(numSamplesPerTrace))
+        // Allocate trace arrays only for the registers the scope is plotting.
+        // Sampling all 64 and shipping them cost ~2 MB/s across the webview
+        // boundary, ~97% of which the webview dropped on arrival.
+        const regCount = this.simulator.getRegisters().length;
+        const traceRegs = this.oscilloscopeEnabled
+            ? this.selectedRegisters.filter(r => r >= 0 && r < regCount)
             : [];
+        const registerTraces: Record<number, Float32Array> = {};
+        for (const r of traceRegs) {
+            registerTraces[r] = new Float32Array(numSamplesPerTrace);
+        }
         let traceIdx = 0;
 
         for (let i = 0; i < samplesToProcess; i++) {
@@ -937,10 +1109,10 @@ export class FV1DebugSession implements vscode.DebugAdapter {
             const skip = isFirstStep && i === 0;
             const [oL, oR, breakpointHit] = this.simulator.step(inSample.l, inSample.r, pot0, pot1, pot2, skip);
 
-            // Sample all 64 registers at the configured refresh rate
-            if (this.oscilloscopeEnabled && i % this.oscilloscopeRefreshRate === 0 && traceIdx < numSamplesPerTrace) {
+            // Sample the plotted registers at the configured refresh rate
+            if (traceRegs.length > 0 && i % this.oscilloscopeRefreshRate === 0 && traceIdx < numSamplesPerTrace) {
                 const currentRegs = this.simulator.getRegisters();
-                for (let r = 0; r < 64; r++) {
+                for (const r of traceRegs) {
                     registerTraces[r][traceIdx] = currentRegs[r];
                 }
                 traceIdx++;
@@ -979,7 +1151,7 @@ export class FV1DebugSession implements vscode.DebugAdapter {
 
             // Only send expensive metadata if visualizations are enabled
             if (this.oscilloscopeEnabled) {
-                metadata.registerTraces = registerTraces; // all 64, simple dense array
+                metadata.registerTraces = registerTraces; // sparse, keyed by register index
                 metadata.numTracePoints = numSamplesPerTrace;
                 metadata.delayPtr = snapshotDelayPtr;
                 metadata.delaySize = this.simulator.getDelaySize();
@@ -1039,6 +1211,11 @@ export class FV1DebugSession implements vscode.DebugAdapter {
         // Dispose trace commands
         this.traceCommandDisposables.forEach(d => d.dispose());
         this.traceCommandDisposables = [];
+        this.disposeLiveReload();
+        // Detach from the shared audio engine and the workspace config, or this
+        // session (and its simulator) stays reachable for the life of the window.
+        this.sessionDisposables.forEach(d => d.dispose());
+        this.sessionDisposables = [];
     }
 
     private async handleStimulusChange(m: any) {

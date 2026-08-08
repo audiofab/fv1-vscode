@@ -80,7 +80,9 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.debug.registerDebugAdapterDescriptorFactory('fv1-debug', {
             createDebugAdapterDescriptor(_session) {
                 console.log('Creating FV1 Debug Adapter Session');
-                return new vscode.DebugAdapterInlineImplementation(new FV1DebugSession(context, assemblyService, fv1AudioEngine));
+                return new vscode.DebugAdapterInlineImplementation(
+                    new FV1DebugSession(context, assemblyService, blockDiagramDocumentManager, fv1AudioEngine)
+                );
             }
         })
     );

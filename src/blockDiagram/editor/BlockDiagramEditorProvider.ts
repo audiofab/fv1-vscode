@@ -12,6 +12,7 @@ import {
     blockRegistry,
 } from '@audiofab-io/fv1-core/blockDiagram';
 import { BlockDiagramDocumentManager } from '../BlockDiagramDocumentManager.js';
+import { FV1_REG_COUNT, FV1_DELAY_SIZE } from '../../core/hardwareLimits.js';
 
 export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvider {
     public static readonly viewType = 'fv1.blockDiagramEditor';
@@ -85,8 +86,8 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                     statistics: {
                         ...result.statistics,
                         progSize: config.get<number>('hardware.progSize') ?? 128,
-                        regCount: config.get<number>('hardware.regCount') ?? 32,
-                        delaySize: config.get<number>('hardware.delaySize') ?? 32768
+                        regCount: FV1_REG_COUNT,
+                        delaySize: FV1_DELAY_SIZE
                     }
                 });
             } else {
@@ -100,8 +101,8 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                         memoryUsed: 0,
                         blocksProcessed: 0,
                         progSize: config.get<number>('hardware.progSize') ?? 128,
-                        regCount: config.get<number>('hardware.regCount') ?? 32,
-                        delaySize: config.get<number>('hardware.delaySize') ?? 32768
+                        regCount: FV1_REG_COUNT,
+                        delaySize: FV1_DELAY_SIZE
                     }
                 });
             }
@@ -749,9 +750,9 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
         const compiler = new GraphCompiler(blockRegistry);
         const config = vscode.workspace.getConfiguration('fv1');
         const hardwareOptions = {
-            regCount: config.get<number>('hardware.regCount') ?? 32,
+            regCount: FV1_REG_COUNT,
             progSize: config.get<number>('hardware.progSize') ?? 128,
-            delaySize: config.get<number>('hardware.delaySize') ?? 32768
+            delaySize: FV1_DELAY_SIZE
         };
         const result = compiler.compile(graph, hardwareOptions);
 
@@ -766,8 +767,8 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             const stats = result.statistics!;
             const config = vscode.workspace.getConfiguration('fv1');
             const progSize = config.get<number>('hardware.progSize') ?? 128;
-            const regCount = config.get<number>('hardware.regCount') ?? 32;
-            const delaySize = config.get<number>('hardware.delaySize') ?? 32768;
+            const regCount = FV1_REG_COUNT;
+            const delaySize = FV1_DELAY_SIZE;
 
             vscode.window.showInformationMessage(
                 `✅ Compiled successfully! ` +

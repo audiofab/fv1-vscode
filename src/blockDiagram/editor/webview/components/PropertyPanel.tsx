@@ -5,6 +5,23 @@
 import React, { useEffect, useState } from 'react';
 import type { Block, BlockMetadata } from '@audiofab-io/fv1-core/blockDiagram';
 
+/**
+ * How many decimals a step size actually needs (0.001 -> 3, 0.5 -> 1, 1 -> 0).
+ *
+ * Rounding the display to fewer decimals than the step collapses the slider
+ * onto a coarser grid than the parameter declares: a step of 0.001 over a
+ * 0.001..0.02 range formatted to 2 decimals leaves just three reachable
+ * positions.
+ */
+function decimalsForStep(step: unknown): number {
+    if (typeof step !== 'number' || !isFinite(step) || step <= 0) return 2;
+    const s = String(step);
+    const exp = s.match(/e-(\d+)$/i);
+    if (exp) return Math.min(10, parseInt(exp[1], 10));
+    const dot = s.indexOf('.');
+    return dot < 0 ? 0 : Math.min(10, s.length - dot - 1);
+}
+
 interface PropertyPanelProps {
     block: Block;
     metadata?: BlockMetadata;
@@ -81,6 +98,43 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
         });
     };
 
+    /**
+     * Restore a parameter to the default declared by its block.
+     *
+     * `param.default` is a *code* value, same as everything in
+     * `block.parameters`, so it can be written straight back. The local display
+     * and raw-text overrides are dropped first so the conversion effect
+     * re-derives the shown value instead of leaving a stale one on screen.
+     */
+    const handleResetToDefault = (paramId: string) => {
+        const param = metadata.parameters.find(p => p.id === paramId);
+        if (!param || param.default === undefined) return;
+
+        setRawInputValues(prev => {
+            const next = { ...prev };
+            delete next[paramId];
+            return next;
+        });
+        setDisplayValues(prev => {
+            const next = { ...prev };
+            delete next[paramId];
+            return next;
+        });
+        handleParameterChange(paramId, param.default);
+    };
+
+    /** True when the parameter has been moved off its declared default. */
+    const isModified = (param: any): boolean => {
+        if (param.default === undefined) return false;
+        const current = block.parameters[param.id];
+        if (current === undefined) return false;
+        if (typeof current === 'number' && typeof param.default === 'number') {
+            // Tolerance covers round-tripped values that land a hair off.
+            return Math.abs(current - param.default) > 1e-9;
+        }
+        return current !== param.default;
+    };
+
     const handleDisplayValueChange = (paramId: string, newDisplayValue: number) => {
         const param = metadata.parameters.find(p => p.id === paramId);
         if (!param) return;
@@ -134,7 +188,9 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                         const minValue = param.displayMin ?? param.min;
                         const maxValue = param.displayMax ?? param.max;
                         const stepValue = param.displayStep ?? param.step;
-                        const decimals = param.displayDecimals ?? 2;
+                        // Never round coarser than the declared step, or the slider
+                        // snaps to a grid the parameter never asked for.
+                        const decimals = param.displayDecimals ?? Math.max(2, decimalsForStep(stepValue));
 
                         // Format display value
                         const displayValue = typeof rawDisplayValue === 'number'
@@ -170,6 +226,31 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                                         <span style={{ fontSize: '10px', fontWeight: 'normal', marginLeft: '4px' }}>
                                             ({param.displayUnit})
                                         </span>
+                                    )}
+                                    {isModified(param) && (
+                                        <button
+                                            type="button"
+                                            title={`Reset to default (${param.default})`}
+                                            aria-label={`Reset ${param.name} to default`}
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                handleResetToDefault(param.id);
+                                            }}
+                                            style={{
+                                                marginLeft: '6px',
+                                                padding: '0 4px',
+                                                fontSize: '11px',
+                                                lineHeight: '14px',
+                                                verticalAlign: 'middle',
+                                                background: 'transparent',
+                                                color: 'var(--vscode-textLink-foreground)',
+                                                border: '1px solid var(--vscode-contrastBorder, transparent)',
+                                                borderRadius: '3px',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            ↺
+                                        </button>
                                     )}
                                     {param.description && (
                                         <span style={{ display: 'block', fontSize: '10px', fontWeight: 'normal' }}>

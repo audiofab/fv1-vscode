@@ -10,6 +10,7 @@ import { NodeHIDStreamSource } from '../lib/node-hid-stream.js';
 import { FV1Assembler, type FV1AssemblerResult, IntelHexParser } from '@audiofab-io/fv1-core';
 import { OutputService } from './OutputService.js';
 import { AssemblyService } from './AssemblyService.js';
+import { FV1_REG_COUNT, FV1_DELAY_SIZE } from '../core/hardwareLimits.js';
 
 const FV1_EEPROM_SLOT_SIZE_BYTES = 512;
 
@@ -21,9 +22,9 @@ export class ProgrammerService {
 
     private validateHardwareLimits(): boolean {
         const config = vscode.workspace.getConfiguration('fv1');
-        const regCount = config.get<number>('hardware.regCount') ?? 32;
+        const regCount = FV1_REG_COUNT;
         const progSize = config.get<number>('hardware.progSize') ?? 128;
-        const delaySize = config.get<number>('hardware.delaySize') ?? 32768;
+        const delaySize = FV1_DELAY_SIZE;
 
         if (regCount !== 32 || progSize !== 128 || delaySize !== 32768) {
             const msg = `Hardware programming is only allowed with standard FV-1 limits (32 REGs, 128 instructions, 32k RAM). Current settings: ${regCount} REGs, ${progSize} instructions, ${delaySize} RAM.`;
