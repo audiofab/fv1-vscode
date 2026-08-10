@@ -214,7 +214,10 @@
       "Bash(node -e \"for \\(const p of ['react','react-dom','react-konva','konva','uuid','esbuild']\\) { try { console.log\\(p, require\\(p+'/package.json'\\).version\\); } catch\\(e\\){ console.log\\(p, 'ERR', e.message\\);} }\")",
       "Bash(npm ls *)",
       "Bash(npm install *)",
-      "Bash(node -e \"for \\(const p of ['react','react-dom']\\) console.log\\(p, require\\(p+'/package.json'\\).version\\)\")"
+      "Bash(node -e \"for \\(const p of ['react','react-dom']\\) console.log\\(p, require\\(p+'/package.json'\\).version\\)\")",
+      "Bash(timeout 300 node ramp-freq-probe.mjs)",
+      "Bash(python -)",
+      "Bash(timeout 400 node ramp-verify.mjs)"
     ],
     "additionalDirectories": [
       "d:\\Audiofab\\programming\\_git\\easy-spin-lv2\\bin\\EasySpin.lv2\\modgui",

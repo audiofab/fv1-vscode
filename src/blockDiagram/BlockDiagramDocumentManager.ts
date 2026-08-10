@@ -71,9 +71,7 @@ export class BlockDiagramDocumentManager {
             const graph: BlockGraph = JSON.parse(content);
             const config = vscode.workspace.getConfiguration('fv1');
             const hardwareOptions = {
-                regCount: FV1_REG_COUNT,
                 progSize: config.get<number>('hardware.progSize') ?? 128,
-                delaySize: FV1_DELAY_SIZE,
                 fv1AsmMemBug: config.get<boolean>('spinAsmMemBug') ?? true,
                 clampReals: config.get<boolean>('clampReals') ?? true,
                 optimizationLevel: config.get<number>('optimizationLevel') ?? 2

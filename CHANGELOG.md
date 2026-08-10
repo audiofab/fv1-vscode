@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.7.1]
+
+- Pick up latest fv1-core (0.6.15) with a few more minor fixes (in particular the ramp_lfo block)
+
 ## [1.7.0]
 
 - Pick up latest fv1-core (0.6.14) with a major block audit

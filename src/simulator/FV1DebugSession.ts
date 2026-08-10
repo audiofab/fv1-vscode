@@ -7,7 +7,6 @@ import { FV1AudioEngine } from './FV1AudioEngine.js';
 import { AssemblyService } from '../services/AssemblyService.js';
 import { resolveToUri, isUri } from '../core/editor-utils.js';
 import type { BlockDiagramDocumentManager } from '../blockDiagram/BlockDiagramDocumentManager.js';
-import { FV1_REG_COUNT, FV1_DELAY_SIZE } from '../core/hardwareLimits.js';
 
 export class FV1DebugSession implements vscode.DebugAdapter {
     private simulator: FV1Simulator;
@@ -444,10 +443,8 @@ export class FV1DebugSession implements vscode.DebugAdapter {
 
         // Apply hardware limits to simulator
         const config = vscode.workspace.getConfiguration('fv1');
-        const regCount = FV1_REG_COUNT;
         const progSize = config.get<number>('hardware.progSize') ?? 128;
-        const delaySize = FV1_DELAY_SIZE;
-        this.simulator.setCapabilities(delaySize, regCount, progSize);
+        this.simulator.setProgSize(progSize);
 
         // Load Input WAV if specified
         let wavToLoad = args.inputWavFile;

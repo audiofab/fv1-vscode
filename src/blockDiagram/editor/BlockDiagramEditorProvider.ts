@@ -86,8 +86,6 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                     statistics: {
                         ...result.statistics,
                         progSize: config.get<number>('hardware.progSize') ?? 128,
-                        regCount: FV1_REG_COUNT,
-                        delaySize: FV1_DELAY_SIZE
                     }
                 });
             } else {
@@ -101,8 +99,6 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                         memoryUsed: 0,
                         blocksProcessed: 0,
                         progSize: config.get<number>('hardware.progSize') ?? 128,
-                        regCount: FV1_REG_COUNT,
-                        delaySize: FV1_DELAY_SIZE
                     }
                 });
             }
@@ -750,9 +746,7 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
         const compiler = new GraphCompiler(blockRegistry);
         const config = vscode.workspace.getConfiguration('fv1');
         const hardwareOptions = {
-            regCount: FV1_REG_COUNT,
             progSize: config.get<number>('hardware.progSize') ?? 128,
-            delaySize: FV1_DELAY_SIZE
         };
         const result = compiler.compile(graph, hardwareOptions);
 

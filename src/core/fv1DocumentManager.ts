@@ -26,9 +26,7 @@ export class FV1DocumentManager {
         this.assembler = new FV1Assembler({
             fv1AsmMemBug: config.get<boolean>('spinAsmMemBug') ?? true,
             clampReals: config.get<boolean>('clampReals') ?? true,
-            regCount: FV1_REG_COUNT,
             progSize: config.get<number>('hardware.progSize'),
-            delaySize: FV1_DELAY_SIZE,
         });
         this.diagnosticCollection = diagnosticCollection;
     }
@@ -157,9 +155,7 @@ export class FV1DocumentManager {
         this.assembler = new FV1Assembler({
             fv1AsmMemBug: config.get<boolean>('spinAsmMemBug') ?? true,
             clampReals: config.get<boolean>('clampReals') ?? true,
-            regCount: FV1_REG_COUNT,
             progSize: config.get<number>('hardware.progSize'),
-            delaySize: FV1_DELAY_SIZE,
         });
 
         // Clear cache

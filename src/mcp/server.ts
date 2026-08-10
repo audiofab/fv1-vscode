@@ -29,6 +29,7 @@ import {
     type BlockMetadata,
 } from '@audiofab-io/fv1-core/blockDiagram';
 import { loadBlocksFromDirectory } from '@audiofab-io/fv1-core/blockDiagram/node';
+import { FV1_REG_COUNT, FV1_DELAY_SIZE, FV1_PROG_SIZE } from '@audiofab-io/fv1-core';
 
 // The stdio transport owns stdout for JSON-RPC framing. Any stray write to stdout
 // (from us or a dependency) corrupts the protocol stream, so funnel every diagnostic
@@ -37,7 +38,14 @@ console.log = (...args: unknown[]) => console.error(...args);
 
 // FV-1 hardware ceilings. Kept in sync with the extension's fv1.hardware.* defaults;
 // the whole compiled *graph* shares these budgets.
-const HARDWARE = { regCount: 32, progSize: 128, delaySize: 32768 } as const;
+// Budgets reported to the agent. Register count and delay size come from
+// fv1-core, which enforces them — they are fixed by the instruction encoding
+// and are not compiler options.
+const HARDWARE = {
+    regCount: FV1_REG_COUNT,
+    progSize: FV1_PROG_SIZE,
+    delaySize: FV1_DELAY_SIZE,
+} as const;
 
 interface ServerArgs {
     /** Directories to load blocks from (--custom-block-path, repeatable). */
@@ -307,9 +315,7 @@ server.registerTool(
         }
 
         const result = compiler.compile(graph, {
-            regCount: HARDWARE.regCount,
             progSize: HARDWARE.progSize,
-            delaySize: HARDWARE.delaySize,
             fv1AsmMemBug: true,
             clampReals: true,
             optimizationLevel: optimizationLevel ?? 2,
@@ -481,9 +487,7 @@ server.registerTool(
 
         // Probe compile — best effort; the real check is validate_diagram on an actual patch.
         const probe = compiler.compile(buildProbeGraph(meta), {
-            regCount: HARDWARE.regCount,
             progSize: HARDWARE.progSize,
-            delaySize: HARDWARE.delaySize,
             fv1AsmMemBug: true,
             clampReals: true,
             optimizationLevel: 2,

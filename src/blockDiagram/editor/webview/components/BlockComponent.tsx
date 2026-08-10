@@ -312,12 +312,22 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
                             strokeWidth={2}
                             listening={false}
                         />
+                        {/* Right-align via Konva rather than positioning by a
+                            guessed text width. The old x was
+                            `width - portRadius - 3 - name.length * 6`, which
+                            assumes every glyph is 6px wide; in a proportional
+                            font that error grows with the label, so "Triangle
+                            Out" sat noticeably left of "Ramp Out" instead of
+                            sharing a right edge. */}
                         <Text
                             text={output.name}
-                            x={width - portRadius - 3 - output.name.length * 6}
+                            x={0}
                             y={y - 6}
+                            width={width - portRadius - 3}
+                            align="right"
                             fontSize={10}
                             fill={textColor}
+                            listening={false}
                         />
                     </Group>
                 );

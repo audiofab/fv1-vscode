@@ -78,9 +78,7 @@ export class AssemblyService {
             const assembler = new FV1Assembler({
                 fv1AsmMemBug: config.get<boolean>('spinAsmMemBug') ?? true,
                 clampReals: config.get<boolean>('clampReals') ?? true,
-                regCount: FV1_REG_COUNT,
                 progSize: config.get<number>('hardware.progSize') ?? 128,
-                delaySize: FV1_DELAY_SIZE,
             });
             const result = assembler.assemble(assembly);
             if (this.logAssemblyResult(result, path.basename(filePath), verbose)) {
@@ -153,9 +151,7 @@ export class AssemblyService {
                 const assembler = new FV1Assembler({
                     fv1AsmMemBug: config.get<boolean>('spinAsmMemBug') ?? true,
                     clampReals: config.get<boolean>('clampReals') ?? true,
-                    regCount: FV1_REG_COUNT,
                     progSize: config.get<number>('hardware.progSize') ?? 128,
-                    delaySize: FV1_DELAY_SIZE,
                 });
                 return assembler.assemble(assembly);
             } else {
