@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.7.2]
+
+- Pick up latest fv1-core (0.6.16) with a fix to simple chorus and flanger blocks
+- Remove redundant and broken resource usage pills from block diagram editor
+
 ## [1.7.1]
 
 - Pick up latest fv1-core (0.6.15) with a few more minor fixes (in particular the ramp_lfo block)
