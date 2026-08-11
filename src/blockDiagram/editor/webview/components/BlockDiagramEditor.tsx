@@ -60,18 +60,8 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
     );
     const [connectionPreview, setConnectionPreview] = useState<{ x: number; y: number } | null>(null);
 
-    // Resource statistics state
-    const [resourceStats, setResourceStats] = useState({
-        instructionsUsed: 0,
-        registersUsed: 0,
-        memoryUsed: 0,
-        lfosUsed: 0,
-        usedLFOs: [] as string[],
-        blocksProcessed: 0,
-        progSize: 128,
-        regCount: 32,
-        delaySize: 32768
-    });
+    // Resource usage (instructions / registers / delay memory / LFOs) is reported
+    // by the VS Code status bar (services/StatusBarService.ts), not by this footer.
 
     const stageRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -98,11 +88,6 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
                 case 'blockMetadata':
                     console.log('[Editor] Received block metadata:', message.metadata.length, 'blocks');
                     setBlockMetadata(message.metadata);
-                    break;
-
-                case 'resourceStats':
-                    console.log('[Editor] Received resource stats:', message.statistics);
-                    setResourceStats(message.statistics);
                     break;
             }
         };
@@ -826,35 +811,6 @@ export const BlockDiagramEditor: React.FC<BlockDiagramEditorProps> = ({ vscode }
             <div className="footer">
                 <div className="footer-section">
                     Blocks: {graph.blocks.length} | Connections: {graph.connections.length} | Selected: {selectedBlockIds.length}
-                </div>
-                <div className="footer-section resource-stats">
-                    {(() => {
-                        const getUsageClass = (used: number, limit: number) => {
-                            if (used > limit) return 'over-limit';
-                            if (used > limit * 0.8) return 'warning';
-                            return '';
-                        };
-
-                        return (
-                            <>
-                                <span className={getUsageClass(resourceStats.instructionsUsed, resourceStats.progSize)} title="Instruction Usage">
-                                    Instr: {resourceStats.instructionsUsed}/{resourceStats.progSize}
-                                </span>
-                                <span className={getUsageClass(resourceStats.registersUsed, resourceStats.regCount)} title="Register Usage">
-                                    Reg: {resourceStats.registersUsed}/{resourceStats.regCount}
-                                </span>
-                                <span className={getUsageClass(resourceStats.memoryUsed, resourceStats.delaySize)} title="Delay Memory Usage">
-                                    Mem: {resourceStats.memoryUsed}/{resourceStats.delaySize}
-                                </span>
-                                <span
-                                    className={getUsageClass(resourceStats.lfosUsed, 4)}
-                                    title={`LFO Usage${resourceStats.usedLFOs?.length ? ': ' + resourceStats.usedLFOs.join(', ') : ''}`}
-                                >
-                                    〰 {resourceStats.lfosUsed}/4
-                                </span>
-                            </>
-                        );
-                    })()}
                 </div>
                 <div className="footer-section">
                     Zoom: {Math.round(zoom * 100)}%

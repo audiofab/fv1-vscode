@@ -76,41 +76,6 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             });
         };
 
-        // Send resource statistics to webview
-        const updateResourceStats = () => {
-            const result = this.documentManager.getCompilationResult(document);
-            if (result.success && result.statistics) {
-                const config = vscode.workspace.getConfiguration('fv1');
-                webviewPanel.webview.postMessage({
-                    type: 'resourceStats',
-                    statistics: {
-                        ...result.statistics,
-                        progSize: config.get<number>('hardware.progSize') ?? 128,
-                    }
-                });
-            } else {
-                // Send zeros if compilation failed
-                const config = vscode.workspace.getConfiguration('fv1');
-                webviewPanel.webview.postMessage({
-                    type: 'resourceStats',
-                    statistics: {
-                        instructionsUsed: 0,
-                        registersUsed: 0,
-                        memoryUsed: 0,
-                        blocksProcessed: 0,
-                        progSize: config.get<number>('hardware.progSize') ?? 128,
-                    }
-                });
-            }
-        };
-
-        // Subscribe to compilation changes
-        const compilationListener = this.documentManager.onCompilationChange((uri) => {
-            if (uri.toString() === document.uri.toString()) {
-                updateResourceStats();
-            }
-        });
-
         // Hook up event handlers
         const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(e => {
             if (e.document.uri.toString() === document.uri.toString()) {
@@ -144,8 +109,11 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
                         type: 'paletteState',
                         expandedCategories: savedState
                     });
-                    // Send initial resource stats
-                    updateResourceStats();
+                    // Compile once on open. Resource usage is reported by the VS Code
+                    // status bar (StatusBarService), which is driven by
+                    // onCompilationChange — without this the pills stay empty until
+                    // the first edit. This also populates diagnostics.
+                    this.documentManager.getCompilationResult(document);
                     return;
 
                 case 'update':
@@ -293,7 +261,6 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             if (compileTimeout) {
                 clearTimeout(compileTimeout);
             }
-            compilationListener.dispose();
             changeDocumentSubscription.dispose();
             registrySubscription.dispose();
         });
@@ -405,28 +372,6 @@ export class BlockDiagramEditorProvider implements vscode.CustomTextEditorProvid
             display: flex;
             align-items: center;
             gap: 12px;
-        }
-        
-        .resource-stats {
-            font-weight: 500;
-        }
-        
-        .resource-stats span {
-            display: inline-block;
-            padding: 2px 8px;
-            background-color: var(--vscode-statusBarItem-prominentBackground);
-            color: var(--vscode-statusBarItem-prominentForeground);
-            border-radius: 3px;
-        }
-        
-        .resource-stats .warning {
-            background-color: var(--vscode-statusBarItem-warningBackground);
-            color: var(--vscode-statusBarItem-warningForeground);
-        }
-        
-        .resource-stats .over-limit {
-            background-color: var(--vscode-statusBarItem-errorBackground);
-            color: var(--vscode-statusBarItem-errorForeground);
         }
         
         /* View toolbar styles */
