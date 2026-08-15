@@ -49,7 +49,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Services encapsulate business logic and use the singletons above
     const assemblyService = new AssemblyService(outputService, fv1DocumentManager, blockDiagramDocumentManager);
     const programmerService = new ProgrammerService(outputService, assemblyService);
-    const intelHexService = new IntelHexService(outputService, programmerService, assemblyService);
+    const intelHexService = new IntelHexService(outputService, programmerService);
     const effectExportService = new EffectExportService(outputService, assemblyService);
     const statusBarService = new StatusBarService(fv1DocumentManager, blockDiagramDocumentManager);
     context.subscriptions.push(statusBarService);
@@ -62,7 +62,9 @@ export function activate(context: vscode.ExtensionContext) {
     // Pedal-shaped real-time simulator, mounted in the Audiofab Easy Spin
     // activity-bar container. retainContextWhenHidden keeps the AudioContext
     // alive so playback survives collapsing the view.
-    const pedalSimulator = new PedalSimulatorView(context, blockDiagramDocumentManager, programmerService);
+    const pedalSimulator = new PedalSimulatorView(
+        context, blockDiagramDocumentManager, programmerService, intelHexService, outputService,
+    );
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
             PedalSimulatorView.viewType,

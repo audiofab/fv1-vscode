@@ -38,6 +38,7 @@ interface BankState {
     selectedSlotIndex: number | null
     dirty: boolean
     pedalWriting: boolean
+    pedalReading: boolean
     programmingSlot: number | null
 }
 
@@ -249,6 +250,14 @@ export function SimulatorRoot({ workletUrl, pedalImageUrl }: SimulatorRootProps)
         vscodeApi.postMessage({ type: 'requestOpenBankFile' })
     }, [])
 
+    const handleExportBankHex = useCallback(() => {
+        vscodeApi.postMessage({ type: 'requestExportBankHex' })
+    }, [])
+
+    const handleReadPedal = useCallback(() => {
+        vscodeApi.postMessage({ type: 'requestReadPedal' })
+    }, [])
+
     // ── Pedal hardware programming ───────────────────────────────────────
 
     const handleProgramBank = useCallback(() => {
@@ -297,6 +306,7 @@ export function SimulatorRoot({ workletUrl, pedalImageUrl }: SimulatorRootProps)
                 onSaveAs={handleSaveBankAs}
                 onClose={handleCloseBank}
                 onOpenBankFile={handleOpenBankFile}
+                onExportHex={handleExportBankHex}
             />
             <ProgramHeader
                 program={program}
@@ -327,14 +337,17 @@ export function SimulatorRoot({ workletUrl, pedalImageUrl }: SimulatorRootProps)
                     onAssignTrackedToSlot={handleAssignTrackedToSlot}
                     onUnassignSlot={handleUnassignSlot}
                     onOpenSlotSource={handleOpenSlotSource}
-                    /* Pedal-write button beside the programming jack writes
-                       the whole bank. The per-slot "download" icons next to
-                       each assigned slot write that one slot. We don't expose
-                       a Read button (bank is the source of truth here) and
-                       there's no Connect handshake — pedalConnected is
-                       always true; if the pedal isn't plugged in, the host's
-                       ProgrammerService surfaces the error. */
-                    pedalConnected={bank !== null}
+                    /* The read/write pair beside the programming jack, same
+                       arrangement as the web tool. Read is always available —
+                       it is how you get a bank when you have none — so
+                       pedalConnected is hard true; write only appears once a
+                       bank exists. There's no Connect handshake here; if the
+                       pedal isn't plugged in, the host's ProgrammerService
+                       surfaces the error. The per-slot "download" icons next
+                       to each assigned slot write that one slot. */
+                    pedalConnected
+                    onReadPedal={handleReadPedal}
+                    pedalReading={bank?.pedalReading ?? false}
                     onWritePedal={bank !== null ? handleProgramBank : undefined}
                     pedalWriting={bank?.pedalWriting ?? false}
                     onProgramSlot={bank !== null ? handleProgramSlot : undefined}
@@ -364,10 +377,11 @@ interface BankToolbarProps {
     onSaveAs: () => void
     onClose: () => void
     onOpenBankFile: () => void
+    onExportHex: () => void
 }
 
 function BankToolbar({
-    bank, onLoad, onSave, onSaveAs, onClose, onOpenBankFile,
+    bank, onLoad, onSave, onSaveAs, onClose, onOpenBankFile, onExportHex,
 }: BankToolbarProps) {
     const loaded = bank !== null
     const hasFile = bank?.bankPath != null
@@ -412,6 +426,14 @@ function BankToolbar({
                 {loaded && hasFile && (
                     <ToolbarButton onClick={onSaveAs} title="Save the current bank to a new file">
                         <SaveAsIcon /> Save As…
+                    </ToolbarButton>
+                )}
+                {loaded && (
+                    <ToolbarButton
+                        onClick={onExportHex}
+                        title="Export the whole bank as a multi-segment Intel HEX file. Unassigned slots are left out, so flashing it won't disturb them."
+                    >
+                        <ExportIcon /> Export .hex…
                     </ToolbarButton>
                 )}
                 {loaded && (
@@ -527,6 +549,16 @@ function SaveAsIcon() {
             <polyline points="17 21 17 13 7 13 7 21" />
             <line x1="12" y1="3" x2="12" y2="8" />
             <line x1="9.5" y1="5.5" x2="14.5" y2="5.5" />
+        </svg>
+    )
+}
+
+function ExportIcon() {
+    return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
         </svg>
     )
 }

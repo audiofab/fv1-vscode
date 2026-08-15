@@ -41,6 +41,10 @@ export class CommandRegistry {
             await this.programmerService.backupPedal();
         });
 
+        this.register('fv1.readDeviceConfiguration', async () => {
+            await this.programmerService.readDeviceConfiguration();
+        });
+
         this.register('fv1.assembleToHex', async () => {
             const result = await this.assemblyService.assembleActiveDocument();
             if (result && result.machineCode.length > 0) {

@@ -3,10 +3,17 @@ import * as fs from 'fs';
 import * as path from 'path';
 import HID from 'node-hid';
 import { MCP2221 } from '@johntalton/mcp2221';
-import { I2CBusMCP2221 } from '@johntalton/i2c-bus-mcp2221';
-import { I2CAddressedBus } from '@johntalton/and-other-delights';
-import { EEPROM, DEFAULT_EEPROM_ADDRESS, DEFAULT_WRITE_PAGE_SIZE } from '@johntalton/eeprom';
 import { NodeHIDStreamSource } from '../lib/node-hid-stream.js';
+import {
+    readMcp2221Configuration,
+    describeMcp2221Configuration,
+    identifyPedal,
+    identifyPedalFromProductName,
+    unknownPedalIdentity,
+    PedalClient,
+    type Mcp2221Configuration,
+    type PedalIdentity
+} from '@audiofab-io/fv1-core/pedal';
 import { FV1Assembler, type FV1AssemblerResult, IntelHexParser } from '@audiofab-io/fv1-core';
 import { OutputService } from './OutputService.js';
 import { AssemblyService } from './AssemblyService.js';
@@ -78,11 +85,29 @@ export class ProgrammerService {
         }
     }
 
-    private async getEepromConnection(): Promise<EEPROM | undefined> {
-        const config = vscode.workspace.getConfiguration('fv1');
-        const eepromAddress = config.get<number>('i2cAddress') ?? DEFAULT_EEPROM_ADDRESS;
-        const pageSize = config.get<number>('writePageSize') ?? DEFAULT_WRITE_PAGE_SIZE;
+    /**
+     * Which pedal the last connection identified, or undefined if we have not
+     * connected yet. Programming paths that need to branch on stereo vs.
+     * standard hardware should read this rather than re-detecting.
+     */
+    private lastIdentity: PedalIdentity | undefined;
 
+    public get pedalIdentity(): PedalIdentity | undefined {
+        return this.lastIdentity;
+    }
+
+    /**
+     * Open the selected MCP2221 over HID, bring its I²C bus up at 400 kHz, and
+     * work out which pedal it is. `close` releases the HID handle; callers that
+     * hand the device off to a longer-lived EEPROM wrapper leave it open, as
+     * they always have.
+     */
+    private async openDevice(): Promise<{
+        device: MCP2221,
+        identity: PedalIdentity,
+        configuration: Mcp2221Configuration | undefined,
+        close: () => Promise<void>
+    } | undefined> {
         const selectedDevice = await this.detectMCP2221();
         if (!selectedDevice) return undefined;
 
@@ -90,12 +115,44 @@ export class ProgrammerService {
             const hidDevice = await HID.HIDAsync.open(selectedDevice.path!);
             const source = new NodeHIDStreamSource(hidDevice);
             const device = new MCP2221(source);
-            const bus = new I2CBusMCP2221(device);
 
             await device.common.status({ opaque: 'Speed-Setup-400', i2cClock: 400 });
 
-            const abus = new I2CAddressedBus(bus, eepromAddress);
-            return new EEPROM(abus, { writePageSize: pageSize });
+            // Identify over the wire; fall back to the descriptor node-hid
+            // already gave us, and finally to "unknown" — never fatal, because
+            // an unidentified pedal is still programmable the standard way.
+            // The configuration is kept because the bus lock is derived from it.
+            let identity: PedalIdentity;
+            let configuration: Mcp2221Configuration | undefined;
+            try {
+                configuration = await readMcp2221Configuration(device);
+                identity = identifyPedal(configuration);
+            } catch {
+                identity = selectedDevice.product
+                    ? identifyPedalFromProductName(selectedDevice.product)
+                    : unknownPedalIdentity();
+            }
+            // Announce the pedal only when it changes. Bank programming opens a
+            // connection per slot, so logging every time was eight identical
+            // lines per run.
+            if (this.lastIdentity?.label !== identity.label
+                || this.lastIdentity?.serialNumber !== identity.serialNumber) {
+                this.outputService.log(`[INFO] 🔌 Connected to ${identity.label}`);
+            }
+            this.lastIdentity = identity;
+
+            return {
+                device,
+                identity,
+                configuration,
+                close: async () => {
+                    try {
+                        await hidDevice.close();
+                    } catch {
+                        // Closing is best-effort; a already-gone handle is not an error.
+                    }
+                }
+            };
         } catch (error) {
             this.outputService.log(`[ERROR] ❌ Error connecting to pedal: ${error}`);
             vscode.window.showErrorMessage(`Error connecting to pedal: ${error}`);
@@ -103,61 +160,153 @@ export class ProgrammerService {
         }
     }
 
-    public async programEeprom(machineCode: number[], forcedSlot?: number): Promise<void> {
-        if (!this.validateHardwareLimits()) return;
+    /**
+     * Read the attached MCP2221's own configuration — flash (power-up) chip and
+     * GP settings, the live SRAM GP settings, and the USB descriptor strings —
+     * and report it to the output channel. Read-only: nothing is written to the
+     * device.
+     */
+    public async readDeviceConfiguration(): Promise<Mcp2221Configuration | undefined> {
+        const connection = await this.openDevice();
+        if (!connection) return undefined;
+
+        try {
+            this.outputService.log(`[INFO] 🔎 Reading MCP2221 configuration...`);
+            const configuration = await readMcp2221Configuration(connection.device);
+            this.outputService.log(describeMcp2221Configuration(configuration));
+            this.outputService.log(`[SUCCESS] ✅ MCP2221 configuration read (device unchanged)`);
+            return configuration;
+        } catch (error) {
+            this.outputService.log(`[ERROR] ❌ Error reading MCP2221 configuration: ${error}`);
+            vscode.window.showErrorMessage(`Error reading MCP2221 configuration: ${error}`);
+            return undefined;
+        } finally {
+            await connection.close();
+        }
+    }
+
+
+    /**
+     * Open a `PedalClient` for the attached pedal.
+     *
+     * Programming goes through this rather than the raw `EEPROM` wrapper because
+     * `PedalClient` drives the I2C writes itself instead of using
+     * `i2c-bus-mcp2221`'s `checkWrite`, which polls MCP2221 status the instant a
+     * write returns and throws "Not Idle-like" whenever it catches the engine
+     * mid-transfer. That race is far more likely on the stereo pedal, where the
+     * on-board MCU contends for the bus.
+     */
+    private async openPedalClient(): Promise<{ client: PedalClient, close: () => Promise<void> } | undefined> {
+        const selectedDevice = await this.detectMCP2221();
+        if (!selectedDevice) return undefined;
+
+        let hidDevice: HID.HIDAsync | undefined;
+        try {
+            hidDevice = await HID.HIDAsync.open(selectedDevice.path!);
+            const client = await PedalClient.open(new NodeHIDStreamSource(hidDevice));
+
+            const identity = client.identity;
+            if (identity && (this.lastIdentity?.label !== identity.label
+                || this.lastIdentity?.serialNumber !== identity.serialNumber)) {
+                this.outputService.log(`[INFO] 🔌 Connected to ${identity.label}`);
+            }
+            if (identity) this.lastIdentity = identity;
+
+            const handle = hidDevice;
+            return {
+                client,
+                close: async () => {
+                    try {
+                        await handle.close();
+                    } catch {
+                        // Best-effort; an already-gone handle is not an error.
+                    }
+                },
+            };
+        } catch (error) {
+            try { await hidDevice?.close(); } catch { /* ignore */ }
+            this.outputService.log(`[ERROR] ❌ Error connecting to pedal: ${error}`);
+            vscode.window.showErrorMessage(`Error connecting to pedal: ${error}`);
+            return undefined;
+        }
+    }
+
+    /**
+     * Write a set of program slots in a single session.
+     *
+     * One connection and **one** bus-lock hold for the whole set. That matters
+     * on the stereo pedal: releasing GP0 makes its MCU immediately reload every
+     * program from the EEPROM, so cycling the lock per slot gave the MCU eight
+     * chances to collide with the next write. Assert once, write everything,
+     * release once - and the MCU reloads exactly when the EEPROM is final.
+     */
+    public async programSlots(
+        slots: Array<{ index: number, machineCode: number[], label?: string }>,
+    ): Promise<boolean> {
+        if (!this.validateHardwareLimits()) return false;
+        if (slots.length === 0) return true;
 
         const config = vscode.workspace.getConfiguration('fv1');
         const verifyWrites = config.get<boolean>('verifyWrites') ?? true;
 
-        const eeprom = await this.getEepromConnection();
-        if (!eeprom) return;
+        const connection = await this.openPedalClient();
+        if (!connection) return false;
 
         try {
-            let selectedSlot = forcedSlot;
-            if (selectedSlot === undefined) selectedSlot = await this.selectProgramSlot();
-            if (selectedSlot === undefined) {
-                vscode.window.showWarningMessage('No program slot was selected, aborting');
-                return;
-            }
+            return await connection.client.withBusLock(async () => {
+                for (const slot of slots) {
+                    const writeData = FV1Assembler.toUint8Array(slot.machineCode);
+                    if (writeData.length !== FV1_EEPROM_SLOT_SIZE_BYTES) {
+                        throw new Error(
+                            `Unexpected machine code size for slot ${slot.index + 1} (${writeData.length} bytes)`);
+                    }
 
-            const startAddress = selectedSlot * FV1_EEPROM_SLOT_SIZE_BYTES;
-            const writeData = FV1Assembler.toUint8Array(machineCode);
-
-            if (writeData.length !== FV1_EEPROM_SLOT_SIZE_BYTES) {
-                vscode.window.showErrorMessage(`Unexpected machine code size (${writeData.length} bytes)`);
-                return;
-            }
-
-            await eeprom.write(startAddress, writeData);
-
-            if (verifyWrites) {
-                const verifyBuffer = await eeprom.read(startAddress, FV1_EEPROM_SLOT_SIZE_BYTES);
-                const verifyArray = new Uint8Array(verifyBuffer as any);
-                for (let i = 0; i < writeData.length; i++) {
-                    if (writeData[i] !== verifyArray[i]) throw new Error(`Verification failed at byte ${i}`);
+                    const what = slot.label ? `: ${slot.label}` : '';
+                    this.outputService.log(`[INFO] 📡 Programming slot ${slot.index + 1}${what}...`);
+                    await connection.client.writeSlot(slot.index, writeData, { verify: verifyWrites });
+                    this.outputService.log(
+                        `[SUCCESS] ✅ Wrote${verifyWrites ? ' and verified' : ''} program slot ${slot.index + 1}`);
                 }
-                this.outputService.log(`[SUCCESS] ✅ Successfully wrote and verified program slot ${selectedSlot + 1}`);
-            } else {
-                this.outputService.log(`[SUCCESS] ✅ Successfully wrote to program slot ${selectedSlot + 1}`);
-            }
+                return true;
+            });
         } catch (error) {
             this.outputService.log(`[ERROR] ❌ Error programming EEPROM: ${error}`);
             vscode.window.showErrorMessage(`Error programming EEPROM: ${error}`);
+            return false;
+        } finally {
+            await connection.close();
         }
+    }
+
+    /** Write a single program slot, prompting for the slot when none is given. */
+    public async programEeprom(machineCode: number[], forcedSlot?: number): Promise<void> {
+        let selectedSlot = forcedSlot;
+        if (selectedSlot === undefined) selectedSlot = await this.selectProgramSlot();
+        if (selectedSlot === undefined) {
+            vscode.window.showWarningMessage('No program slot was selected, aborting');
+            return;
+        }
+        await this.programSlots([{ index: selectedSlot, machineCode }]);
     }
 
     public async backupPedal(): Promise<void> {
         try {
             this.outputService.log(`[INFO] 💾 Starting pedal backup...`);
 
-            const eeprom = await this.getEepromConnection();
-            if (!eeprom) return;
+            const connection = await this.openPedalClient();
+            if (!connection) return;
 
             const totalBytes = 8 * FV1_EEPROM_SLOT_SIZE_BYTES;
             this.outputService.log(`[INFO] 📖 Reading ${totalBytes} bytes from EEPROM...`);
 
-            const readBuffer = await eeprom.read(0, totalBytes);
-            const dataArray = new Uint8Array(readBuffer as any);
+            let dataArray: Uint8Array;
+            try {
+                const slots = await connection.client.readAllSlots();
+                dataArray = new Uint8Array(totalBytes);
+                slots.forEach((slot, i) => dataArray.set(slot, i * FV1_EEPROM_SLOT_SIZE_BYTES));
+            } finally {
+                await connection.close();
+            }
 
             this.outputService.log(`[SUCCESS] ✅ Successfully read ${dataArray.length} bytes`);
 
@@ -203,6 +352,58 @@ export class ProgrammerService {
         }
     }
 
+    /**
+     * Read all 8 program slots off the pedal.
+     *
+     * Uses fv1-core's `PedalClient` rather than the `EEPROM` wrapper the write
+     * paths use: its `readAllSlots` drives the I²C read directly, which is ~2.5x
+     * faster over a full 4 KB sweep and doesn't emit the library's spurious
+     * mid-transfer `checkRead` warnings. Identification comes along for free.
+     */
+    public async readAllSlotsFromPedal(): Promise<{ slots: Uint8Array[], identity: PedalIdentity | undefined } | undefined> {
+        const connection = await this.openPedalClient();
+        if (!connection) return undefined;
+
+        try {
+            this.outputService.log(`[INFO] 📖 Reading all 8 program slots from the pedal...`);
+            const slots = await connection.client.readAllSlots();
+            this.outputService.log(`[SUCCESS] ✅ Read ${slots.length} slots from the pedal`);
+            return { slots, identity: connection.client.identity };
+        } catch (error) {
+            this.outputService.log(`[ERROR] ❌ Error reading from pedal: ${error}`);
+            vscode.window.showErrorMessage(`Error reading from pedal: ${error}`);
+            return undefined;
+        } finally {
+            await connection.close();
+        }
+    }
+
+    private hex16(value: number): string {
+        return value.toString(16).toUpperCase().padStart(4, '0');
+    }
+
+    /**
+     * Work out which of the 8 program slots a set of HEX segments touches, so
+     * we can tell the user which slots on the pedal we're about to leave alone.
+     */
+    private describeCoveredSlots(segments: Array<{ address: number, data: Uint8Array }>): {
+        written: number[], untouched: number[]
+    } {
+        const written = new Set<number>();
+        for (const segment of segments) {
+            const first = Math.floor(segment.address / FV1_EEPROM_SLOT_SIZE_BYTES);
+            const last = Math.floor((segment.address + segment.data.length - 1) / FV1_EEPROM_SLOT_SIZE_BYTES);
+            for (let slot = first; slot <= last; slot++) {
+                if (slot >= 0 && slot < 8) written.add(slot + 1);
+            }
+        }
+        const all = Array.from({ length: 8 }, (_, i) => i + 1);
+        return {
+            written: all.filter(n => written.has(n)),
+            untouched: all.filter(n => !written.has(n)),
+        };
+    }
+
     public async loadHexToEeprom(): Promise<void> {
         if (!this.validateHardwareLimits()) return;
 
@@ -235,194 +436,64 @@ export class ProgrammerService {
             }
 
             this.outputService.log(`[INFO] 🔧 Parsing Intel HEX file...`);
-            const buffer = IntelHexParser.parse(hexContent);
-            this.outputService.log(`[SUCCESS] ✅ Parsed ${buffer.length} bytes from Intel HEX file`);
+            // Segment-aware on purpose: a bank .hex omits unassigned slots, and
+            // flattening it (IntelHexParser.parse) would fill those gaps with
+            // 0xFF and erase perfectly good programs already on the pedal. We
+            // write only the regions the file actually covers.
+            const segments = IntelHexParser.parseSegments(hexContent);
+            if (segments.length === 0) {
+                this.outputService.log(`[WARNING] ⚠ Intel HEX file contains no data records — nothing to program.`);
+                vscode.window.showWarningMessage('That .hex file contains no data.');
+                return;
+            }
+
+            const totalBytes = segments.reduce((sum, s) => sum + s.data.length, 0);
+            this.outputService.log(
+                `[SUCCESS] ✅ Parsed ${totalBytes} bytes in ${segments.length} segment(s) from Intel HEX file`,
+            );
+
+            const covered = this.describeCoveredSlots(segments);
+            if (covered.untouched.length > 0) {
+                this.outputService.log(
+                    `[INFO] 📄 The file covers program slot(s) ${covered.written.join(', ') || 'none'}; ` +
+                    `slot(s) ${covered.untouched.join(', ')} are not in the file and will be left untouched on the pedal.`,
+                );
+            }
 
             const config = vscode.workspace.getConfiguration('fv1');
             const verifyWrites = config.get<boolean>('verifyWrites') ?? true;
 
-            const eeprom = await this.getEepromConnection();
-            if (!eeprom) return;
+            const connection = await this.openPedalClient();
+            if (!connection) return;
+            this.outputService.log(`[INFO] 📡 Programming EEPROM with ${totalBytes} bytes...`);
 
-            this.outputService.log(`[INFO] 📡 Programming EEPROM with ${buffer.length} bytes...`);
-            const writeData = new Uint8Array(buffer);
-            await eeprom.write(0, writeData);
-
-            if (verifyWrites) {
-                this.outputService.log(`[INFO] 🔍 Verifying EEPROM contents...`);
-                const verifyBuffer = await eeprom.read(0, buffer.length);
-                const verifyArray = new Uint8Array(verifyBuffer as any);
-
-                let verificationFailed = false;
-                for (let i = 0; i < writeData.length; i++) {
-                    if (writeData[i] !== verifyArray[i]) {
-                        this.outputService.log(`[ERROR] ❌ Verification failed at address 0x${i.toString(16).toUpperCase().padStart(4, '0')}: expected 0x${writeData[i].toString(16).toUpperCase().padStart(2, '0')}, got 0x${verifyArray[i].toString(16).toUpperCase().padStart(2, '0')}`);
-                        verificationFailed = true;
-                        break;
+            // One lock for the whole file, and PedalClient's direct-drive writes
+            // rather than eeprom.write — the same "Not Idle-like" race applies
+            // here as it does to slot programming.
+            try {
+                await connection.client.withBusLock(async () => {
+                    for (const segment of segments) {
+                        const end = segment.address + segment.data.length - 1;
+                        this.outputService.log(
+                            `[INFO] 📡 Writing 0x${this.hex16(segment.address)}–0x${this.hex16(end)} (${segment.data.length} bytes)...`,
+                        );
+                        await connection.client.writeRange(
+                            segment.address, segment.data, { verify: verifyWrites },
+                            `loadHex::0x${this.hex16(segment.address)}`,
+                        );
                     }
-                }
-
-                if (verificationFailed) {
-                    vscode.window.showErrorMessage('EEPROM verification failed. Check Output panel for details.');
-                    return;
-                }
-
-                this.outputService.log(`[SUCCESS] ✅ Successfully wrote and verified ${buffer.length} bytes to EEPROM`);
-                vscode.window.showInformationMessage(`Successfully programmed ${buffer.length} bytes to EEPROM`);
-            } else {
-                this.outputService.log(`[SUCCESS] ✅ Successfully wrote ${buffer.length} bytes to EEPROM`);
-                vscode.window.showInformationMessage(`Successfully programmed ${buffer.length} bytes to EEPROM`);
+                });
+            } finally {
+                await connection.close();
             }
+
+            const verifiedSuffix = verifyWrites ? ' and verified' : '';
+            this.outputService.log(`[SUCCESS] ✅ Successfully wrote${verifiedSuffix} ${totalBytes} bytes to EEPROM`);
+            vscode.window.showInformationMessage(`Successfully programmed ${totalBytes} bytes to EEPROM`);
 
         } catch (error) {
             this.outputService.log(`[ERROR] ❌ Error loading HEX file to EEPROM: ${error}`);
             vscode.window.showErrorMessage(`Error loading HEX file to EEPROM: ${error}`);
-        }
-    }
-
-    public async programBank(item?: any): Promise<void> {
-        if (!this.validateHardwareLimits()) return;
-
-        try {
-            const files = item && item.resourceUri ? [item.resourceUri] : await vscode.workspace.findFiles('**/*.spnbank', '**/node_modules/**');
-            if (!files || files.length === 0) {
-                vscode.window.showErrorMessage('No .spnbank files found');
-                return;
-            }
-
-            // Save all dirty .spn and .spndiagram files before assembling
-            const dirtyDocs = vscode.workspace.textDocuments.filter(doc =>
-                doc.isDirty && (doc.fileName.endsWith('.spn') || doc.fileName.endsWith('.spndiagram'))
-            );
-            if (dirtyDocs.length > 0) {
-                this.outputService.log(`[INFO] 💾 Saving ${dirtyDocs.length} unsaved file(s)...`);
-                for (const doc of dirtyDocs) {
-                    const saved = await doc.save();
-                    if (!saved) {
-                        vscode.window.showErrorMessage(`Failed to save ${path.basename(doc.fileName)}. Programming aborted.`);
-                        return;
-                    }
-                }
-            }
-
-            const programsToDownload: Array<{ machineCode: number[], slotIndex: number, filePath: string }> = [];
-            let hasAssemblyErrors = false;
-
-            this.outputService.log(`Starting assembly phase for ${files.length} bank file(s)...`);
-
-            for (const file of files) {
-                const doc = await vscode.workspace.openTextDocument(file);
-                const json = doc.getText() ? JSON.parse(doc.getText()) : {};
-                const slots = Array.isArray(json.slots) ? json.slots : [];
-
-                for (const s of slots) {
-                    if (!s || !s.path) continue;
-                    const bankDir = path.dirname(file.fsPath);
-                    const fsPath = path.isAbsolute(s.path) ? s.path : path.resolve(bankDir, s.path);
-
-                    if (!fs.existsSync(fsPath)) {
-                        this.outputService.log(`[ERROR] ❌ Skipping slot ${s.slot}: file not found ${path.basename(fsPath)}`);
-                        hasAssemblyErrors = true;
-                        continue;
-                    }
-
-                    this.outputService.log(`[INFO] 🔧 Assembling slot ${s.slot}: ${path.basename(fsPath)}...`);
-                    const result = await this.assemblyService.assembleFile(fsPath);
-
-                    if (!result) {
-                        hasAssemblyErrors = true;
-                        continue;
-                    }
-
-                    if (result.problems.some((p: any) => p.isfatal)) {
-                        this.outputService.log(`[ERROR] ❌ Slot ${s.slot} failed to assemble due to errors - ${path.basename(fsPath)}`);
-                        result.problems.forEach((p: any) => {
-                            if (p.isfatal) this.outputService.log(`[ERROR] ❌ ${p.message}`);
-                        });
-                        hasAssemblyErrors = true;
-                    } else if (result.machineCode && result.machineCode.length > 0) {
-                        programsToDownload.push({
-                            machineCode: result.machineCode,
-                            slotIndex: s.slot - 1,
-                            filePath: fsPath
-                        });
-                        this.outputService.log(`[SUCCESS] ✅ Slot ${s.slot} assembled successfully - ${path.basename(fsPath)}`);
-                    } else {
-                        this.outputService.log(`[ERROR] ❌ Slot ${s.slot} produced no machine code - ${path.basename(fsPath)}`);
-                    }
-                }
-            }
-
-            if (hasAssemblyErrors) {
-                vscode.window.showErrorMessage('Programming aborted: One or more programs failed to assemble. Check the Output panel for details.');
-                this.outputService.log(`[ERROR] ❌ Assembly phase completed with errors. Programming aborted.`);
-                return;
-            }
-
-            if (programsToDownload.length === 0) {
-                vscode.window.showWarningMessage('No programs to download: All assigned slots are empty or failed to assemble.');
-                this.outputService.log(`[WARNING] ⚠ No programs available for download.`);
-                return;
-            }
-
-            this.outputService.log(`[SUCCESS] ✅ Assembly phase completed successfully. Programming ${programsToDownload.length} program(s)...`);
-
-            // Verify a programmer is connected before attempting to write any slots,
-            // so we fail once with a clear error instead of looping through every slot.
-            const detectedDevice = await this.detectMCP2221();
-            if (!detectedDevice) {
-                this.outputService.log(`[ERROR] ❌ Programming aborted: no MCP2221 programmer detected.`);
-                return;
-            }
-
-            for (const program of programsToDownload) {
-                try {
-                    this.outputService.log(`[INFO] 📡 Programming slot ${program.slotIndex + 1}: ${path.basename(program.filePath)}...`);
-                    await this.programEeprom(program.machineCode, program.slotIndex);
-                } catch (e) {
-                    // programEeprom handles logging errors
-                }
-            }
-
-            this.outputService.log(`[SUCCESS] ✅ Programming phase completed.`);
-
-        } catch (error) {
-            this.outputService.log(`[ERROR] ❌ Error programming bank: ${error}`);
-            vscode.window.showErrorMessage(`Error programming bank: ${error}`);
-        }
-    }
-
-    public async programSlotFromBank(item?: any): Promise<void> {
-        if (!this.validateHardwareLimits()) return;
-
-        try {
-            let bankUri: vscode.Uri | undefined;
-            let slotNum: number | undefined;
-            if (item && item.bankUri) { bankUri = item.bankUri as vscode.Uri; slotNum = item.slot as number; }
-            if (!bankUri || !slotNum) { vscode.window.showErrorMessage('No slot selected to program'); return; }
-
-            const doc = await vscode.workspace.openTextDocument(bankUri!);
-            const json = doc.getText() ? JSON.parse(doc.getText()) : {};
-            const entry = json.slots && json.slots[slotNum - 1];
-            if (!entry || !entry.path) {
-                vscode.window.showErrorMessage(`Slot ${slotNum} is unassigned`);
-                return;
-            }
-
-            const bankDir = path.dirname(bankUri!.fsPath);
-            const fsPath = path.isAbsolute(entry.path) ? entry.path : path.resolve(bankDir, entry.path);
-
-            this.outputService.log(`[INFO] 🔧 Assembling ${path.basename(fsPath)} for slot ${slotNum}...`);
-            const result = await this.assemblyService.assembleFile(fsPath);
-
-            if (result && result.machineCode && result.machineCode.length > 0 && !result.problems.some(p => p.isfatal)) {
-                await this.programEeprom(result.machineCode, slotNum - 1);
-            } else {
-                vscode.window.showErrorMessage(`Assembly failed for slot ${slotNum}. Check Output panel.`);
-            }
-        } catch (error) {
-            this.outputService.log(`[ERROR] ❌ Failed to program slot: ${error}`);
-            vscode.window.showErrorMessage(`Failed to program slot: ${error}`);
         }
     }
 }

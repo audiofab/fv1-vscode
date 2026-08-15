@@ -3,7 +3,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { OutputService } from './OutputService.js';
 import { ProgrammerService } from './ProgrammerService.js';
-import { AssemblyService } from './AssemblyService.js';
 import { IntelHexParser, FV1Assembler } from '@audiofab-io/fv1-core';
 import { getActiveDocumentUri } from '../core/editor-utils.js';
 
@@ -13,7 +12,6 @@ export class IntelHexService {
     constructor(
         private outputService: OutputService,
         private programmerService: ProgrammerService,
-        private assemblyService: AssemblyService
     ) { }
 
     /**
@@ -99,132 +97,57 @@ export class IntelHexService {
         }
     }
 
-    public async exportBankToHex(item?: any): Promise<void> {
+    /**
+     * Write a set of already-assembled bank slots out as one multi-segment
+     * Intel HEX file.
+     *
+     * **Sparse by design**: only the slots passed in become segments, so an
+     * unassigned slot leaves whatever is already in that region of the pedal's
+     * EEPROM untouched when the file is flashed. Deciding which slots are
+     * assigned (and refusing to export a bank that does not assemble cleanly)
+     * is the caller's job; this serialises exactly what it is given.
+     */
+    public async exportSlotsToHex(
+        slots: Array<{ index: number; machineCode: number[] }>,
+        defaultFileName: string,
+        defaultDirectory?: string,
+    ): Promise<void> {
+        if (slots.length === 0) {
+            vscode.window.showWarningMessage('No programs to export: the bank has no assigned slots.');
+            this.outputService.log(`[WARNING] ⚠ No programs available for export.`);
+            return;
+        }
+
         try {
-            const files = item && item.resourceUri ? [item.resourceUri] : await vscode.workspace.findFiles('**/*.spnbank', '**/node_modules/**');
-            if (!files || files.length === 0) {
-                vscode.window.showErrorMessage('No .spnbank files found');
+            const segments = slots.map(slot => ({
+                data: Buffer.from(FV1Assembler.toUint8Array(slot.machineCode)),
+                address: slot.index * FV1_EEPROM_SLOT_SIZE_BYTES,
+            }));
+
+            const directory = defaultDirectory
+                ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+                ?? '.';
+            const saveUri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(path.join(directory, defaultFileName)),
+                filters: { 'Intel HEX files': ['hex'], 'All files': ['*'] },
+                saveLabel: 'Export Bank',
+            });
+
+            if (!saveUri) {
+                this.outputService.log(`[WARNING] ⚠ Bank export cancelled by user`);
                 return;
             }
-
-            let bankUri: vscode.Uri;
-            if (files.length === 1) {
-                bankUri = files[0];
-            } else {
-                const pick = await vscode.window.showQuickPick(
-                    files.map(f => ({ label: vscode.workspace.asRelativePath(f), uri: f })),
-                    { placeHolder: 'Select .spnbank file to export' }
-                );
-                if (!pick) return;
-                bankUri = pick.uri;
-            }
-
-            // Save all dirty .spn and .spndiagram files before assembling
-            const dirtyDocs = vscode.workspace.textDocuments.filter(doc =>
-                doc.isDirty && (doc.fileName.endsWith('.spn') || doc.fileName.endsWith('.spndiagram'))
-            );
-            if (dirtyDocs.length > 0) {
-                this.outputService.log(`[INFO] 💾 Saving ${dirtyDocs.length} unsaved file(s)...`);
-                for (const doc of dirtyDocs) {
-                    const saved = await doc.save();
-                    if (!saved) {
-                        vscode.window.showErrorMessage(`Failed to save ${path.basename(doc.fileName)}. Export aborted.`);
-                        return;
-                    }
-                }
-            }
-
-            const doc = await vscode.workspace.openTextDocument(bankUri);
-            const json = doc.getText() ? JSON.parse(doc.getText()) : {};
-            const slots = Array.isArray(json.slots) ? json.slots : [];
-
-            const segments: Array<{ data: Buffer, address: number }> = [];
-            const bankDir = path.dirname(bankUri.fsPath);
-            let processedSlots = 0;
-
-            this.outputService.log(`[INFO] 📄 Starting bank export to Intel HEX format...`);
-
-            for (const slot of slots) {
-                if (!slot || !slot.path) continue;
-
-                const fsPath = path.isAbsolute(slot.path) ? slot.path : path.resolve(bankDir, slot.path);
-
-                if (!fs.existsSync(fsPath)) {
-                    this.outputService.log(`[WARNING] ⚠ Skipping slot ${slot.slot}: file not found ${path.basename(fsPath)}`);
-                    continue;
-                }
-
-                let content: string;
-                const isBlockDiagram = fsPath.toLowerCase().endsWith('.spndiagram');
-
-                if (isBlockDiagram) {
-                    const assembly = await this.assemblyService.compileBlockDiagram(fsPath);
-                    if (!assembly) {
-                        this.outputService.log(`[ERROR] ❌ Skipping slot ${slot.slot}: failed to compile block diagram ${path.basename(fsPath)}`);
-                        continue;
-                    }
-                    content = assembly;
-                } else {
-                    content = fs.readFileSync(fsPath, 'utf8');
-                }
-
-                const assembler = new FV1Assembler({
-                    fv1AsmMemBug: vscode.workspace.getConfiguration('fv1').get<boolean>('spinAsmMemBug') ?? true,
-                    clampReals: vscode.workspace.getConfiguration('fv1').get<boolean>('clampReals') ?? true,
-                });
-
-                this.outputService.log(`[INFO] 🔧 Assembling slot ${slot.slot}: ${path.basename(fsPath)}...`);
-                const result = assembler.assemble(content);
-
-                if (result.problems.some((p: any) => p.isfatal)) {
-                    this.outputService.log(`[ERROR] ❌ Slot ${slot.slot} failed to assemble - skipping: ${path.basename(fsPath)}`);
-                    result.problems.forEach((p: any) => {
-                        if (p.isfatal) {
-                            this.outputService.log(`[ERROR] ❌ ${p.message}`);
-                        }
-                    });
-                    continue;
-                }
-
-                if (!result.machineCode || result.machineCode.length === 0) {
-                    this.outputService.log(`[WARNING] ⚠ Slot ${slot.slot} produced no machine code - skipping: ${path.basename(fsPath)}`);
-                    continue;
-                }
-
-                const machineCodeBuffer = Buffer.from(FV1Assembler.toUint8Array(result.machineCode));
-                const slotAddress = (slot.slot - 1) * FV1_EEPROM_SLOT_SIZE_BYTES;
-                segments.push({
-                    data: machineCodeBuffer,
-                    address: slotAddress
-                });
-
-                this.outputService.log(`[SUCCESS] ✅ Slot ${slot.slot} assembled successfully: ${path.basename(fsPath)}`);
-                processedSlots++;
-            }
-
-            if (segments.length === 0) {
-                vscode.window.showWarningMessage('No programs to export: All assigned slots are empty or failed to assemble.');
-                this.outputService.log(`[WARNING] ⚠ No programs available for export.`);
-                return;
-            }
-
-            const bankName = path.basename(bankUri.fsPath, '.spnbank');
-            const outputFile = path.join(path.dirname(bankUri.fsPath), `${bankName}.hex`);
 
             this.outputService.log(`[INFO] 📄 Generating multi-segment Intel HEX file with ${segments.length} program(s)...`);
             const hexFileString = IntelHexParser.generateMultiSegment(segments, 16);
+            fs.writeFileSync(saveUri.fsPath, hexFileString, 'utf8');
 
-            fs.writeFileSync(outputFile, hexFileString, 'utf8');
-
-            if (fs.existsSync(outputFile)) {
-                this.outputService.log(`[SUCCESS] ✅ Bank exported to Intel HEX: ${path.basename(outputFile)}`);
-                this.outputService.log(`[INFO] 📄 Export summary: ${segments.length} program(s) exported from ${processedSlots} assigned slot(s)`);
-                vscode.window.showInformationMessage(`Bank exported successfully to ${path.basename(outputFile)}`);
-            } else {
-                this.outputService.log(`[ERROR] ❌ Failed to save HEX file: ${path.basename(outputFile)}`);
-                vscode.window.showErrorMessage('Failed to save HEX file');
+            if (!fs.existsSync(saveUri.fsPath)) {
+                throw new Error('the file was not written');
             }
 
+            this.outputService.log(`[SUCCESS] ✅ Bank exported to Intel HEX: ${path.basename(saveUri.fsPath)} (${segments.length} program(s))`);
+            vscode.window.showInformationMessage(`Bank exported to ${path.basename(saveUri.fsPath)} (${segments.length} program(s)).`);
         } catch (error) {
             this.outputService.log(`[ERROR] ❌ Error exporting bank to HEX: ${error}`);
             vscode.window.showErrorMessage(`Error exporting bank to HEX: ${error}`);

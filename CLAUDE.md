@@ -105,6 +105,75 @@ Two delivery paths, one bundle ([src/mcp/mcpIntegration.ts](src/mcp/mcpIntegrati
   machine-specific, so `.mcp.json` is local-only (don't commit); an existing entry is silently
   refreshed on activation so extension updates don't leave a stale command.
 
+## Bank programming & HEX export (one assemble step, two consumers)
+
+`PedalSimulatorView.assembleBank()` assembles every assigned slot of the **in-memory** bank and is
+the single source for both "Program bank to pedal" and the toolbar's "Export .hex…". They used to
+be separate implementations that disagreed — programming aborted on an assembly error while the
+old export silently skipped the slot — so keep them on the shared helper. Unassigned slots are
+simply absent from the result (that is the sparse contract); a slot that *should* have produced
+code but didn't comes back in `broken`, and both consumers abort on that.
+
+**Export is sparse by design** (verified: zero HEX data records inside an omitted slot's address
+range, so flashing leaves that region of EEPROM untouched). ⚠️ **`IntelHexParser.parse()` flattens
+gaps to 0xFF**, so the `fv1.loadHexToEeprom` path — which parses then writes the flat buffer from
+address 0 — will *erase* omitted slots on the way back in. Sparseness survives the file and any
+flasher that honours record addresses; it does not survive our own load command.
+
+Export works on an unsaved, in-memory bank; programming still calls `ensureBankSaved()` first,
+which is deliberate (programming the hardware is a commit point, so the .spnbank should match).
+
+## GP0 bus lock — every EEPROM access
+
+On the stereo Easy Spin the on-board MCU is a second I²C master and only releases the bus while
+GP0 is high. `getEepromConnection()` therefore returns `{ eeprom, busLock }`, and **every**
+`eeprom.read` / `eeprom.write` in this service must sit inside `busLock.run(...)` — reads too, not
+just writes. Grep for `eeprom.read|eeprom.write` after touching this file; anything outside a
+`run()` is a bug. `readAllSlotsFromPedal` goes through `PedalClient`, which locks internally.
+
+Each logical operation takes **one** lock: write + verify together, and the whole multi-segment
+HEX load in a single hold, so the MCU is never let back on the bus mid-operation. On hardware
+without the line the lock is inert. Verified on a real stereo pedal: GP0 high for the full 1.6 s
+read, low afterwards, and released on the throw path too.
+
+## Read from pedal
+
+The toolbar's **Read Pedal** button (always visible — it is how you get a bank when you have
+none) rebuilds the bank from the hardware: `ProgrammerService.readAllSlotsFromPedal()` reads all
+8 slots via fv1-core's `PedalClient` (direct-drive read, ~2.5x faster than the `EEPROM` wrapper
+and no spurious `checkRead` warnings), then `PedalSimulatorView.readPedalIntoBank()` disassembles
+each non-blank slot to `<bank>-from-pedal/slot-N.spn` and assigns it.
+
+Because the output is real `.spn`, **no new bank-model concepts were needed** — slots stay paths,
+and simulate / edit / re-assemble / re-program all work unchanged. Verified against hardware: all
+8 slots of a programmed pedal disassembled and re-assembled byte-identically, including a
+127-instruction program.
+
+- **Blank slots (all 0xFF) are left unassigned**, not stubbed — the same sparse treatment as HEX
+  export.
+- A dirty bank prompts before being replaced; the read reassigns every slot.
+- The target directory is resolved *before* the read, so we never read the pedal and then discover
+  there is nowhere to put the files. Saved bank → a sibling `-from-pedal/` folder; unsaved bank →
+  a folder picker.
+- Generated files carry a header noting they came off the pedal and that comments, symbol names
+  and block-diagram structure are not recoverable — they are not in the machine code.
+
+## Pedal connection & identification
+
+`ProgrammerService.openDevice()` is the single place a HID connection is made. It opens the
+MCP2221, sets the I²C clock, then **identifies the pedal** (`identifyPedal` over the wire, falling
+back to node-hid's `product` descriptor, finally `unknown`) and logs `Connected to <label>`.
+Identification is never fatal — an unidentified device is still programmable the standard way.
+The result rides on the returned connection (`connection.identity`) and is cached on
+`programmerService.pedalIdentity` for programming paths that need to branch on stereo vs.
+standard hardware. Branch on `identity.variant` / `identity.isStereo`, never on the USB
+product string directly.
+
+**Provisioning does not ship.** Writing MCP2221 flash (GP0 + Audiofab descriptors) is a
+production step, not a user feature: it lives in `scripts/provision-stereo-pedal.mjs`, and
+`scripts/` is in `.vscodeignore` so it never enters the `.vsix`. The write API itself is in
+fv1-core (`provisionMcp2221`) — don't add a command that calls it.
+
 ## Custom blocks
 
 `fv1.customBlockPaths` setting + "FV-1: Refresh Custom Blocks" lets users load external `.atl`

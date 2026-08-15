@@ -196,6 +196,11 @@
         "category": "FV-1"
       },
       {
+        "command": "fv1.readDeviceConfiguration",
+        "title": "Read programmer configuration",
+        "category": "FV-1"
+      },
+      {
         "command": "fv1.openSimulator",
         "title": "Open Pedal Simulator",
         "category": "FV-1"
@@ -519,7 +524,7 @@
   },
   "dependencies": {
     "@audiofab-io/easy-spin-ui": "^0.3.8",
-    "@audiofab-io/fv1-core": "^0.6.16",
+    "@audiofab-io/fv1-core": "^0.10.0",
     "@johntalton/eeprom": "^1.1.1",
     "@johntalton/i2c-bus-mcp2221": "^4.2.1",
     "@johntalton/mcp2221": "^4.0.4",

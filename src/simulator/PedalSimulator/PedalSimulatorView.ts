@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { compileEffect, FV1Assembler, formatFromFilename } from '@audiofab-io/fv1-core';
+import { compileEffect, FV1Assembler, FV1Disassembler, formatFromFilename } from '@audiofab-io/fv1-core';
+import { isBlankSlot } from '@audiofab-io/fv1-core/pedal';
 import {
     parseSpnBankJson,
     serializeSpnBankJson,
@@ -69,6 +70,8 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
      *  requestProgramSlot so the webview can show a busy spinner on the
      *  appropriate button. */
     private pedalWriting: boolean = false;
+    /** True while the pedal is being read back into the bank. */
+    private pedalReading: boolean = false;
     private programmingSlot: number | null = null;
 
     /** Watches the loaded bank's file on disk so external edits (e.g. the
@@ -83,6 +86,8 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
         private readonly context: vscode.ExtensionContext,
         private readonly blockDiagramDocMgr: BlockDiagramDocumentManager,
         private readonly programmerService: import('../../services/ProgrammerService.js').ProgrammerService,
+        private readonly intelHexService: import('../../services/IntelHexService.js').IntelHexService,
+        private readonly outputService: import('../../services/OutputService.js').OutputService,
     ) {
         this.clipDir = path.join(context.extensionPath, 'dist', 'simulator', 'wav');
         this.activeEditorUri = activeFv1TabUri();
@@ -198,6 +203,8 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
             case 'assignTrackedToSlot':   await this.assignTrackedToSlot(msg.slotIndex); return;
             case 'unassignSlot':          await this.unassignSlot(msg.slotIndex); return;
             case 'requestProgramBank':    await this.programBankToPedal(); return;
+            case 'requestExportBankHex':  await this.exportBankHex(); return;
+            case 'requestReadPedal':      await this.readPedalIntoBank(); return;
             case 'requestProgramSlot':    await this.programSlotToPedal(msg.slotIndex); return;
         }
     }
@@ -504,22 +511,272 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
         return true;
     }
 
+    /**
+     * Assemble every assigned slot of the *in-memory* bank.
+     *
+     * Shared by "program bank to pedal" and "export bank to .hex" so the two
+     * can never disagree about what the bank contains. Unassigned slots are
+     * simply absent from `slots` — callers treat that as sparse. Anything that
+     * should have produced code but didn't (missing file, failed compile) is
+     * reported separately, because that is an error rather than an empty slot.
+     */
+    private async assembleBank(): Promise<{
+        slots: Array<{ index: number; uri: vscode.Uri; machineCode: number[] }>;
+        broken: Array<{ index: number; reason: string }>;
+    } | undefined> {
+        if (!this.bank) {
+            vscode.window.showWarningMessage('No bank loaded.');
+            return undefined;
+        }
+
+        // Assemble from what's on disk, so save any dirty sources first.
+        const dirtyDocs = vscode.workspace.textDocuments.filter(doc =>
+            doc.isDirty && (doc.fileName.endsWith('.spn') || doc.fileName.endsWith('.spndiagram'))
+        );
+        for (const doc of dirtyDocs) {
+            if (!await doc.save()) {
+                vscode.window.showErrorMessage(`Failed to save ${path.basename(doc.fileName)}. Aborted.`);
+                return undefined;
+            }
+        }
+
+        const slots: Array<{ index: number; uri: vscode.Uri; machineCode: number[] }> = [];
+        const broken: Array<{ index: number; reason: string }> = [];
+
+        for (let index = 0; index < PROGRAM_SLOT_COUNT; index++) {
+            const slot = this.bank.slots[index];
+            if (!slot?.path) continue; // unassigned — sparse, not an error
+
+            const uri = this.resolveSlotUri(slot);
+            if (!uri) {
+                broken.push({ index, reason: `path could not be resolved (${slot.path})` });
+                continue;
+            }
+
+            const machineCode = await this.assembleForProgramming(uri);
+            if (!machineCode || machineCode.length === 0) {
+                broken.push({ index, reason: `${path.basename(uri.fsPath)} failed to compile` });
+                continue;
+            }
+
+            slots.push({ index, uri, machineCode });
+        }
+
+        return { slots, broken };
+    }
+
+    /**
+     * Report slots that failed to assemble. Both the program and export paths
+     * abort on these rather than quietly emitting a partial bank.
+     */
+    private reportBrokenSlots(broken: Array<{ index: number; reason: string }>, action: string): void {
+        for (const { index, reason } of broken) {
+            this.outputService.log(`[ERROR] ❌ Slot ${index + 1}: ${reason}`);
+        }
+        const list = broken.map(b => b.index + 1).join(', ');
+        vscode.window.showErrorMessage(
+            `${action} aborted: slot${broken.length > 1 ? 's' : ''} ${list} failed to assemble. See Output for details.`,
+        );
+    }
+
     private async programBankToPedal(): Promise<void> {
         if (this.pedalWriting || this.programmingSlot !== null) return;
         if (!await this.ensureBankSaved()) return;
-        if (!this.bankUri) return;
+
+        const assembled = await this.assembleBank();
+        if (!assembled) return;
+        if (assembled.broken.length > 0) {
+            this.reportBrokenSlots(assembled.broken, 'Programming');
+            return;
+        }
+        if (assembled.slots.length === 0) {
+            vscode.window.showWarningMessage('No programs to write: the bank has no assigned slots.');
+            return;
+        }
 
         this.pedalWriting = true;
         await this.sendBankState();
         try {
-            // ProgrammerService.programBank reads the .spnbank by URI and
-            // assembles + writes every assigned slot. Errors are surfaced
-            // through its own showErrorMessage.
-            await this.programmerService.programBank({ resourceUri: this.bankUri });
+            // One call, so the whole bank is written under a single connection
+            // and a single bus-lock hold. Programming slot-by-slot released the
+            // stereo pedal's lockout between slots, which made its MCU reload
+            // from EEPROM and contend with the very next write.
+            const ok = await this.programmerService.programSlots(
+                assembled.slots.map(slot => ({
+                    index: slot.index,
+                    machineCode: slot.machineCode,
+                    label: path.basename(slot.uri.fsPath),
+                })),
+            );
+            if (ok) this.outputService.log(`[SUCCESS] ✅ Programming phase completed.`);
         } finally {
             this.pedalWriting = false;
             await this.sendBankState();
         }
+    }
+
+    /**
+     * Read the pedal's EEPROM and rebuild the bank from what's on it.
+     *
+     * Each non-blank slot is disassembled to a `.spn` beside the bank and
+     * assigned to that slot, so everything downstream — simulate, edit,
+     * re-assemble, re-program — works exactly as it does for hand-written
+     * programs. Blank slots (all 0xFF) are left unassigned rather than filled
+     * with a stub, matching the sparse treatment used for HEX export.
+     *
+     * What comes back is functional, not the original source: comments, symbol
+     * names and block-diagram structure are not in the machine code and cannot
+     * be recovered.
+     */
+    private async readPedalIntoBank(): Promise<void> {
+        if (this.pedalWriting || this.programmingSlot !== null || this.pedalReading) return;
+
+        if (this.bank && this.bankDirty) {
+            const choice = await vscode.window.showWarningMessage(
+                'Replace the current bank with what is on the pedal?',
+                {
+                    modal: true,
+                    detail: 'The bank has unsaved changes. Reading the pedal reassigns every slot, '
+                        + 'and those changes will be lost.'
+                },
+                'Read Pedal',
+            );
+            if (choice !== 'Read Pedal') {
+                this.outputService.log(`[WARNING] ⚠ Pedal read cancelled by user`);
+                return;
+            }
+        }
+
+        // Work out where the generated .spn files go before touching hardware,
+        // so we don't read the pedal and then discover we have nowhere to put it.
+        const targetDir = await this.resolveReadTargetDir();
+        if (!targetDir) return;
+
+        this.pedalReading = true;
+        await this.sendBankState();
+        try {
+            const result = await this.programmerService.readAllSlotsFromPedal();
+            if (!result) return;
+
+            if (!this.bank) this.bank = createEmptyBank();
+
+            const written: number[] = [];
+            const blank: number[] = [];
+            const undecodable: number[] = [];
+
+            for (let index = 0; index < PROGRAM_SLOT_COUNT; index++) {
+                const binary = result.slots[index];
+                const slot = this.bank.slots[index];
+
+                if (!binary || isBlankSlot(binary)) {
+                    blank.push(index + 1);
+                    slot.path = '';
+                    delete slot.name;
+                    delete slot.description;
+                    delete slot.controls;
+                    continue;
+                }
+
+                const disassembly = FV1Disassembler.fromBinary(binary);
+                if (!disassembly.complete) undecodable.push(index + 1);
+
+                const fileName = `slot-${index + 1}.spn`;
+                const fileUri = vscode.Uri.file(path.join(targetDir, fileName));
+                const header =
+                    `; Read from ${result.identity?.label ?? 'pedal'} slot ${index + 1} on ${new Date().toISOString().split('T')[0]}.\n` +
+                    `; Disassembled from EEPROM — comments, symbol names and block-diagram\n` +
+                    `; structure are not stored on the pedal and cannot be recovered.\n` +
+                    (disassembly.complete ? '' : `; WARNING: some words did not decode to known instructions.\n`) +
+                    `\n`;
+
+                await vscode.workspace.fs.writeFile(fileUri, Buffer.from(header + disassembly.source, 'utf8'));
+
+                slot.path = this.storableSlotPath(fileUri);
+                slot.name = `Slot ${index + 1} (from pedal)`;
+                delete slot.description;
+                delete slot.controls;
+                written.push(index + 1);
+            }
+
+            this.bankDirty = true;
+            await this.sendBankState();
+
+            this.outputService.log(
+                `[SUCCESS] ✅ Rebuilt the bank from the pedal: ` +
+                `${written.length} program(s) written to ${targetDir}` +
+                (blank.length > 0 ? `, slot(s) ${blank.join(', ')} were blank and left unassigned` : ''),
+            );
+            if (undecodable.length > 0) {
+                this.outputService.log(
+                    `[WARNING] ⚠ Slot(s) ${undecodable.join(', ')} contain words that are not valid FV-1 ` +
+                    `instructions; those lines are commented out in the generated .spn.`,
+                );
+            }
+            vscode.window.showInformationMessage(
+                `Read ${written.length} program(s) from the pedal.` +
+                (blank.length > 0 ? ` ${blank.length} slot(s) were blank.` : ''),
+            );
+        } catch (error) {
+            this.outputService.log(`[ERROR] ❌ Error reading the pedal into the bank: ${error}`);
+            vscode.window.showErrorMessage(`Error reading the pedal: ${error}`);
+        } finally {
+            this.pedalReading = false;
+            await this.sendBankState();
+        }
+    }
+
+    /**
+     * Where disassembled programs get written. Beside a saved bank, otherwise
+     * ask — a read has to put eight files somewhere, and silently choosing a
+     * directory for the user is worse than one dialog.
+     */
+    private async resolveReadTargetDir(): Promise<string | undefined> {
+        if (this.bankUri) {
+            const dir = path.join(path.dirname(this.bankUri.fsPath), `${path.basename(this.bankUri.fsPath, '.spnbank')}-from-pedal`);
+            await vscode.workspace.fs.createDirectory(vscode.Uri.file(dir));
+            return dir;
+        }
+
+        const picked = await vscode.window.showOpenDialog({
+            canSelectFolders: true,
+            canSelectFiles: false,
+            canSelectMany: false,
+            defaultUri: vscode.workspace.workspaceFolders?.[0]?.uri,
+            openLabel: 'Save programs here',
+            title: 'Where should the programs read from the pedal be saved?',
+        });
+        return picked?.[0]?.fsPath;
+    }
+
+    /**
+     * Export the bank being edited as a multi-segment Intel HEX file. Works on
+     * an unsaved, in-memory bank — unlike programming, nothing here needs the
+     * .spnbank to exist on disk.
+     */
+    private async exportBankHex(): Promise<void> {
+        const assembled = await this.assembleBank();
+        if (!assembled) return;
+        if (assembled.broken.length > 0) {
+            this.reportBrokenSlots(assembled.broken, 'Export');
+            return;
+        }
+
+        const assigned = assembled.slots.map(s => s.index + 1);
+        const skipped = Array.from({ length: PROGRAM_SLOT_COUNT }, (_, i) => i + 1)
+            .filter(n => !assigned.includes(n));
+        if (skipped.length > 0) {
+            this.outputService.log(
+                `[INFO] 📄 Slots ${skipped.join(', ')} are unassigned and will be left out of the .hex ` +
+                `(flashing it will leave those slots on the pedal untouched).`,
+            );
+        }
+
+        const bankName = this.bankUri
+            ? path.basename(this.bankUri.fsPath, '.spnbank')
+            : (this.bank?.name || 'bank');
+        const directory = this.bankUri ? path.dirname(this.bankUri.fsPath) : undefined;
+
+        await this.intelHexService.exportSlotsToHex(assembled.slots, `${bankName}.hex`, directory);
     }
 
     private async programSlotToPedal(index: number): Promise<void> {
@@ -686,6 +943,7 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
             selectedSlotIndex: this.matchingSlotIndex(),
             dirty: this.bankDirty,
             pedalWriting: this.pedalWriting,
+            pedalReading: this.pedalReading,
             programmingSlot: this.programmingSlot,
         };
     }
@@ -911,6 +1169,8 @@ interface WebviewBankState {
     dirty: boolean
     /** True while the whole bank is being written to the pedal. */
     pedalWriting: boolean
+    /** True while the pedal is being read back into the bank. */
+    pedalReading: boolean
     /** 0-based index of the slot currently being written, or null. */
     programmingSlot: number | null
 }
@@ -929,6 +1189,8 @@ type WebviewMessage =
     | { type: 'assignTrackedToSlot'; slotIndex: number }
     | { type: 'unassignSlot'; slotIndex: number }
     | { type: 'requestProgramBank' }
+    | { type: 'requestExportBankHex' }
+    | { type: 'requestReadPedal' }
     | { type: 'requestProgramSlot'; slotIndex: number };
 
 function activeFv1TabUri(): vscode.Uri | undefined {
