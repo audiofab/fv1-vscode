@@ -125,16 +125,16 @@ which is deliberate (programming the hardware is a commit point, so the .spnbank
 
 ## GP0 bus lock — every EEPROM access
 
-On the stereo Easy Spin the on-board MCU is a second I²C master and only releases the bus while
-GP0 is high. `getEepromConnection()` therefore returns `{ eeprom, busLock }`, and **every**
+Some pedal hardware carries an on-board MCU that shares the EEPROM's I²C bus and only releases it
+while the programmer's GP0 line is asserted. `getEepromConnection()` therefore returns `{ eeprom, busLock }`, and **every**
 `eeprom.read` / `eeprom.write` in this service must sit inside `busLock.run(...)` — reads too, not
 just writes. Grep for `eeprom.read|eeprom.write` after touching this file; anything outside a
 `run()` is a bug. `readAllSlotsFromPedal` goes through `PedalClient`, which locks internally.
 
 Each logical operation takes **one** lock: write + verify together, and the whole multi-segment
 HEX load in a single hold, so the MCU is never let back on the bus mid-operation. On hardware
-without the line the lock is inert. Verified on a real stereo pedal: GP0 high for the full 1.6 s
-read, low afterwards, and released on the throw path too.
+without the line the lock is inert. Verified on hardware: GP0 high for the full 1.6 s read, low
+afterwards, and released on the throw path too.
 
 ## Read from pedal
 
@@ -165,14 +165,13 @@ MCP2221, sets the I²C clock, then **identifies the pedal** (`identifyPedal` ove
 back to node-hid's `product` descriptor, finally `unknown`) and logs `Connected to <label>`.
 Identification is never fatal — an unidentified device is still programmable the standard way.
 The result rides on the returned connection (`connection.identity`) and is cached on
-`programmerService.pedalIdentity` for programming paths that need to branch on stereo vs.
-standard hardware. Branch on `identity.variant` / `identity.isStereo`, never on the USB
-product string directly.
+`programmerService.pedalIdentity` for programming paths that need to branch on hardware variant.
+Branch on `identity.variant`, never on the USB product string directly.
 
-**Provisioning does not ship.** Writing MCP2221 flash (GP0 + Audiofab descriptors) is a
-production step, not a user feature: it lives in `scripts/provision-stereo-pedal.mjs`, and
-`scripts/` is in `.vscodeignore` so it never enters the `.vsix`. The write API itself is in
-fv1-core (`provisionMcp2221`) — don't add a command that calls it.
+**Provisioning does not ship.** Writing MCP2221 flash (GP0 + Audiofab USB descriptors) is a
+production step, not a user feature: it lives under `scripts/`, which is in `.vscodeignore` so it
+never enters the `.vsix`. The write API itself is in fv1-core (`provisionMcp2221`) — don't add a
+command that calls it.
 
 ## Custom blocks
 

@@ -6,6 +6,9 @@
 - Add an export bank to HEX feature
 - Dynamic POT labels in the simulator
 - Read from pedal in the simulator
+- Loading a .hex now writes only the regions the file covers, so program slots the
+  file leaves out are no longer erased
+- Programming a bank now runs in a single connection instead of reconnecting per slot
 
 ## [1.7.2]
 

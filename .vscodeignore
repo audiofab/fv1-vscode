@@ -7,6 +7,8 @@ out/
 src/
 scripts/
 test/
+CLAUDE.md
+docs/build/
 tsconfig.json
 webpack.config.js
 esbuild.cjs

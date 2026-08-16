@@ -81,8 +81,17 @@ The integrated Pedal Simulator provides a highly interactive, 3D pedal UI for te
 ⚙️ **Batch Programming**
    Program individual slots or the entire bank at once to your Easy Spin hardware.
 
+📥 **Read from Pedal**
+   Pull the programs already on your pedal back into a bank. Each one is disassembled
+   to a ``.spn`` file you can edit and re-program; empty slots are left unassigned.
+
+🏷️ **Live Pot Labels**
+   The knob labels on the pedal graphic follow the selected slot, naming what each pot
+   actually controls in a block diagram and updating as you re-wire it.
+
 💾 **Export to HEX**
-   Save your bank as Intel HEX for archival or use with other programmers.
+   Save your bank as Intel HEX for archival or use with other programmers. Unassigned
+   slots are left out of the file, so flashing it won't disturb those slots on the pedal.
 
 Low-Level Debugging
 -------------------
@@ -113,8 +122,10 @@ Quick Actions Sidebar
 Convenient access to common tasks:
 
 ✨ Create new block diagram
-✨ Create new program bank
 ✨ Backup entire pedal to HEX
+
+(Banks are created in the Pedal Simulator — drop a file onto a slot, or use the
+``+`` button on an empty one.)
 
 .. image:: _static/images/quick_actions.png
    :alt: Quick Actions Sidebar

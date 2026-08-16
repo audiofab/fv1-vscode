@@ -9,6 +9,11 @@ Assembly File Commands (.spn)
 **FV-1: Open Pedal Simulator**
    Open the interactive Pedal Simulator and visual bank editor. From here you can test your code using the interactive 3D pedal UI, as well as manage all 8 program slots on your Easy Spin pedal.
 
+   The pedal graphic also carries read and write buttons beside the programming jack:
+   write the current bank to the pedal, or read the pedal's programs back into a bank
+   (each recovered program is disassembled to a ``.spn`` file). The bank toolbar adds
+   **Export .hex…**, which saves the whole bank as a multi-segment Intel HEX file.
+
 **FV-1: Launch Debugger**
    Compile your assembly and run it in the low-level debug view. Full source-level debugging, oscilloscope, and delay memory visualization are available.
 
@@ -27,9 +32,6 @@ Assembly File Commands (.spn)
    Export your compiled assembly to Intel HEX format for backup or use with other programmers.
    
    Keyboard shortcut: ``Ctrl+Alt+F5``
-
-**FV-1: Assemble current file to a raw FV-1 binary (.bin)**
-   Compile your assembly and export it directly to a raw binary file.
 
 Block Diagram Commands (.spndiagram)
 -------------------------------------
@@ -53,15 +55,17 @@ Block Diagram Commands (.spndiagram)
    
    Keyboard shortcut: ``Ctrl+Alt+F5``
 
-**FV-1: Assemble current file to a raw FV-1 binary (.bin)**
-   Compile and export your block diagram to a raw binary file.
-   
+**FV-1: Export Effect to JSON…**
+   Export the current program as an effect descriptor (``.json``) for the Easy Spin
+   effect library or the MOD Devices plugin. A short wizard collects the name, id,
+   category, description and pot labels.
+
    Keyboard shortcut: ``Ctrl+Alt+B``
 
 Intel HEX Commands (.hex)
 --------------------------
 
-**FV-1: Load HEX to EEPROM**
+**FV-1: Load .hex to EEPROM**
    Program an Intel HEX file directly to your Easy Spin pedal.
    
    Keyboard shortcut: ``Ctrl+Shift+F6``
@@ -76,6 +80,11 @@ Utility Commands
 
 **FV-1: Create new block diagram**
    Create a new visual block diagram file (`.spndiagram`).
+
+**FV-1: Read programmer configuration**
+   Report the configuration of the attached USB programmer — its USB identity,
+   power-up settings and GPIO pin assignments — to the Output panel. Read-only:
+   nothing on the device is changed.
 
 
 Block Diagram Editor Shortcuts
