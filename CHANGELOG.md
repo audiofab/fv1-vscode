@@ -1,5 +1,12 @@
 # Change Log
 
+## [1.8.0]
+
+- Pick up latest fv1-core (0.13.0) with a bunch of new features :)
+- Add an export bank to HEX feature
+- Dynamic POT labels in the simulator
+- Read from pedal in the simulator
+
 ## [1.7.2]
 
 - Pick up latest fv1-core (0.6.16) with a fix to simple chorus and flanger blocks

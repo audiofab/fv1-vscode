@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { compileEffect, FV1Assembler, FV1Disassembler, formatFromFilename } from '@audiofab-io/fv1-core';
-import { isBlankSlot } from '@audiofab-io/fv1-core/pedal';
+import { isBlankSlot, canStorePotLabels, type PatchLabels } from '@audiofab-io/fv1-core/pedal';
 import {
     parseSpnBankJson,
     serializeSpnBankJson,
@@ -10,6 +10,7 @@ import {
     type SpnBankFile,
     type SpnBankSlot,
 } from '@audiofab-io/fv1-core/spnbank';
+import { derivePotAssignments, blockRegistry } from '@audiofab-io/fv1-core/blockDiagram';
 import type { BlockDiagramDocumentManager } from '../../blockDiagram/BlockDiagramDocumentManager.js';
 
 /**
@@ -128,6 +129,8 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
             blockDiagramDocMgr.onCompilationChange(uri => {
                 if (this.trackedUri?.toString() !== uri.toString()) return;
                 void this.sendProgramUpdate();
+                // Re-wiring a POT changes its label, so refresh the graphic too.
+                void this.sendBankState();
             }),
         );
     }
@@ -566,6 +569,67 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
     }
 
     /**
+     * Work out the program / pot labels for a slot, for the stereo pedal's
+     * display. Precedence, best source first:
+     *
+     *  1. The bank's own `controls` for that slot — the only place that carries
+     *     real pot names, and editable by hand in the .spnbank JSON.
+     *  2. A `.spndiagram`'s graph, which tells us *which* pots the program uses
+     *     but not what to call them: unused pots become blank, used ones
+     *     "Unknown". The diagram's metadata name is used for the program name.
+     *  3. Anything else (.spn) — name only; the pots are unknowable.
+     *
+     * Returns the labels plus whether any pot name had to be guessed, so the
+     * caller can point the user at the bank JSON once rather than per slot.
+     */
+    private async labelsForSlot(
+        index: number,
+        uri: vscode.Uri,
+    ): Promise<{ labels: PatchLabels, potsUnknown: boolean }> {
+        const slot = this.bank?.slots[index];
+        const isDiagram = path.extname(uri.fsPath).toLowerCase() === '.spndiagram';
+
+        // Layer 1 (weakest): the file itself. A diagram's graph names what each
+        // pot drives — the same derivation behind the "Potentiometer
+        // Assignments" header in generated assembly — and a pot it never wires
+        // is known unused (null). A .spn tells us nothing (undefined).
+        let diagramName: string | undefined;
+        let pots: (string | null | undefined)[] = [undefined, undefined, undefined];
+
+        if (isDiagram) {
+            try {
+                // Prefer the open editor's text: a diagram being edited is
+                // usually dirty, and the point is to track it live.
+                const open = vscode.workspace.textDocuments.find(
+                    d => d.uri.toString() === uri.toString());
+                const text = open
+                    ? open.getText()
+                    : Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf-8');
+                const diagram = JSON.parse(text);
+                diagramName = diagram.metadata?.name || undefined;
+                const assignments = derivePotAssignments(diagram, blockRegistry);
+                pots = [0, 1, 2].map(pot => assignments.find(a => a.pot === pot)?.label ?? null);
+            } catch {
+                // Unreadable or malformed — fall back to knowing nothing.
+            }
+        }
+
+        // Layer 2 (strongest): explicit bank controls. Only *named* ones count.
+        // Saved banks now carry a full three-pot skeleton with empty names, and
+        // treating those as real would override the diagram with blanks.
+        for (const pot of [0, 1, 2] as const) {
+            const name = slot?.controls?.find(c => c.pot === pot)?.name?.trim();
+            if (name) pots[pot] = name;
+        }
+
+        const name = slot?.name?.trim()
+            || diagramName
+            || path.basename(uri.fsPath, path.extname(uri.fsPath));
+
+        return { labels: { name, pots }, potsUnknown: pots.some(p => p === undefined) };
+    }
+
+    /**
      * Report slots that failed to assemble. Both the program and export paths
      * abort on these rather than quietly emitting a partial bank.
      */
@@ -601,14 +665,30 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
             // and a single bus-lock hold. Programming slot-by-slot released the
             // stereo pedal's lockout between slots, which made its MCU reload
             // from EEPROM and contend with the very next write.
-            const ok = await this.programmerService.programSlots(
-                assembled.slots.map(slot => ({
+            const stereo = canStorePotLabels(this.programmerService.pedalIdentity);
+            const unlabelled: number[] = [];
+            const payload = [];
+            for (const slot of assembled.slots) {
+                const { labels, potsUnknown } = await this.labelsForSlot(slot.index, slot.uri);
+                if (potsUnknown) unlabelled.push(slot.index + 1);
+                payload.push({
                     index: slot.index,
                     machineCode: slot.machineCode,
                     label: path.basename(slot.uri.fsPath),
-                })),
-            );
+                    labels,
+                });
+            }
+
+            const ok = await this.programmerService.programSlots(payload);
             if (ok) this.outputService.log(`[SUCCESS] ✅ Programming phase completed.`);
+
+            // Only nag when the pedal can actually show labels, and only once
+            // per run rather than per slot.
+            if (ok && stereo && unlabelled.length > 0) {
+                this.outputService.log(
+                    `[INFO] 📝 Pot labels are unknown for slot(s) ${unlabelled.join(', ')} and were written as ` +
+                    `"Unknown". Add a "controls" array to those slots in the .spnbank file to set them.`);
+            }
         } finally {
             this.pedalWriting = false;
             await this.sendBankState();
@@ -663,10 +743,12 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
             const written: number[] = [];
             const blank: number[] = [];
             const undecodable: number[] = [];
+            const usedFileNames = new Set<string>();
 
             for (let index = 0; index < PROGRAM_SLOT_COUNT; index++) {
                 const binary = result.slots[index];
                 const slot = this.bank.slots[index];
+                const labels = result.labels?.[index];
 
                 if (!binary || isBlankSlot(binary)) {
                     blank.push(index + 1);
@@ -680,10 +762,22 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
                 const disassembly = FV1Disassembler.fromBinary(binary);
                 if (!disassembly.complete) undecodable.push(index + 1);
 
-                const fileName = `slot-${index + 1}.spn`;
-                const fileUri = vscode.Uri.file(path.join(targetDir, fileName));
+                // The pedal's own program name becomes the filename, so a read
+                // produces `lush-chorus.spn` rather than an anonymous slot-3.
+                const programName = meaningfulLabel(labels?.name);
+                const stem = uniqueFileName(
+                    toFileStem(programName) || `slot-${index + 1}`, usedFileNames);
+                const fileUri = vscode.Uri.file(path.join(targetDir, `${stem}.spn`));
+
+                const potNames = ([0, 1, 2] as const).map(pot => meaningfulLabel(labels?.pots?.[pot]));
+                const potComment = labels
+                    ? `; Pots: ${potNames.map((n, i) => `${i}=${n ?? '(unused)'}`).join('  ')}\n`
+                    : '';
+
                 const header =
+                    `; ${programName ?? `Slot ${index + 1}`}\n` +
                     `; Read from ${result.identity?.label ?? 'pedal'} slot ${index + 1} on ${new Date().toISOString().split('T')[0]}.\n` +
+                    potComment +
                     `; Disassembled from EEPROM — comments, symbol names and block-diagram\n` +
                     `; structure are not stored on the pedal and cannot be recovered.\n` +
                     (disassembly.complete ? '' : `; WARNING: some words did not decode to known instructions.\n`) +
@@ -692,14 +786,27 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
                 await vscode.workspace.fs.writeFile(fileUri, Buffer.from(header + disassembly.source, 'utf8'));
 
                 slot.path = this.storableSlotPath(fileUri);
-                slot.name = `Slot ${index + 1} (from pedal)`;
+                slot.name = programName ?? `Slot ${index + 1} (from pedal)`;
                 delete slot.description;
-                delete slot.controls;
+
+                // Pot labels go straight into the bank's own `controls` — where
+                // the graphic, the hand-editable JSON and the write-back all
+                // already look. No separate store, no dummy file.
+                slot.controls = ([0, 1, 2] as const).map(pot => ({ pot, name: potNames[pot] ?? '' }));
                 written.push(index + 1);
             }
 
             this.bankDirty = true;
             await this.sendBankState();
+
+            // Select the first slot we read. Pot labels are shown for the
+            // *selected* slot, and a fresh read leaves nothing selected — so
+            // without this the graphic sits on "Pot 0/1/2" until the user
+            // happens to click a slot. Selecting also starts the simulator on
+            // it, which is the natural place to be after pulling a pedal in.
+            if (written.length > 0) {
+                await this.selectSlot(written[0] - 1);
+            }
 
             this.outputService.log(
                 `[SUCCESS] ✅ Rebuilt the bank from the pedal: ` +
@@ -805,7 +912,13 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
                 );
                 return;
             }
-            await this.programmerService.programEeprom(machineCode, index);
+            const { labels } = await this.labelsForSlot(index, slotUri);
+            await this.programmerService.programSlots([{
+                index,
+                machineCode,
+                label: path.basename(slotUri.fsPath),
+                labels,
+            }]);
         } finally {
             this.programmingSlot = null;
             await this.sendBankState();
@@ -885,7 +998,7 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
             clips,
             defaultClipId: clips[0]?.id ?? null,
             program,
-            bank: this.serializeBankForWebview(),
+            bank: await this.serializeBankForWebview(),
         });
     }
 
@@ -893,8 +1006,37 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
         if (!this.view) return;
         this.view.webview.postMessage({
             type: 'bankState',
-            bank: this.serializeBankForWebview(),
+            bank: await this.serializeBankForWebview(),
         });
+    }
+
+    /**
+     * Pot labels for the slot the pedal graphic is currently showing, resolved
+     * the same way the ones written to hardware are — bank `controls` over the
+     * diagram's own wiring. Only the selected slot is resolved because that is
+     * all the graphic displays, which keeps this off the hot path when a bank
+     * has eight diagram slots.
+     */
+    private async selectedSlotPotLabels(): Promise<[string, string, string] | undefined> {
+        const index = this.matchingSlotIndex();
+        if (index === null || !this.bank) return undefined;
+        const slot = this.bank.slots[index];
+        if (!slot?.path) return undefined;
+        const uri = this.resolveSlotUri(slot);
+        if (!uri) return undefined;
+
+        try {
+            const { labels } = await this.labelsForSlot(index, uri);
+            // undefined = we don't know, so keep the generic placeholder;
+            // null = the pot is genuinely unused, so show nothing.
+            return ([0, 1, 2] as const).map(pot => {
+                const label = labels.pots?.[pot];
+                if (label === null) return '';
+                return label ?? `Pot ${pot}`;
+            }) as [string, string, string];
+        } catch {
+            return undefined;
+        }
     }
 
     private async sendProgramUpdate(): Promise<void> {
@@ -923,7 +1065,7 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
         }
     }
 
-    private serializeBankForWebview(): WebviewBankState | null {
+    private async serializeBankForWebview(): Promise<WebviewBankState | null> {
         if (!this.bank) return null;
         // Show the full filename including the .spnbank extension when
         // we have one. For in-memory banks we synthesise a placeholder
@@ -941,6 +1083,7 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
                 controls: s.controls,
             })),
             selectedSlotIndex: this.matchingSlotIndex(),
+            selectedSlotPotLabels: await this.selectedSlotPotLabels(),
             dirty: this.bankDirty,
             pedalWriting: this.pedalWriting,
             pedalReading: this.pedalReading,
@@ -1166,6 +1309,12 @@ interface WebviewBankState {
     }>
     /** Index of the slot currently playing (matches trackedUri), or null. */
     selectedSlotIndex: number | null
+    /**
+     * Pot labels for that slot, already resolved from the bank's `controls`
+     * and the diagram's own pot wiring. `''` means the pot is known to be
+     * unused; absent means no slot is selected.
+     */
+    selectedSlotPotLabels?: [string, string, string]
     dirty: boolean
     /** True while the whole bank is being written to the pedal. */
     pedalWriting: boolean
@@ -1212,4 +1361,42 @@ function randomNonce(): string {
         out += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return out;
+}
+
+/**
+ * A label the pedal actually knows, or undefined.
+ *
+ * The EEPROM stores "Unknown" for anything that was never set, and blank for a
+ * pot that is deliberately unused — neither is a name we want to propagate into
+ * a filename or a bank entry.
+ */
+function meaningfulLabel(text: string | null | undefined): string | undefined {
+    if (text === null || text === undefined) return undefined;
+    const trimmed = text.trim();
+    if (trimmed === '' || trimmed.toUpperCase() === 'UNKNOWN') return undefined;
+    return trimmed;
+}
+
+/**
+ * Turn a program name into a filename stem. Pedal labels are stored uppercase
+ * ("LUSH CHORUS"), which makes for shouty filenames, so this lowercases and
+ * hyphenates. Returns '' when nothing usable survives, letting the caller fall
+ * back to a slot number.
+ */
+function toFileStem(name: string | undefined): string {
+    if (!name) return '';
+    return name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 60);
+}
+
+/** Disambiguate repeated names — two slots may legitimately share one. */
+function uniqueFileName(stem: string, used: Set<string>): string {
+    let candidate = stem;
+    let suffix = 2;
+    while (used.has(candidate)) candidate = `${stem}-${suffix++}`;
+    used.add(candidate);
+    return candidate;
 }

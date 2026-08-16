@@ -11,6 +11,8 @@ import {
     identifyPedalFromProductName,
     unknownPedalIdentity,
     PedalClient,
+    canStorePotLabels,
+    type PatchLabels,
     type Mcp2221Configuration,
     type PedalIdentity
 } from '@audiofab-io/fv1-core/pedal';
@@ -241,7 +243,7 @@ export class ProgrammerService {
      * release once - and the MCU reloads exactly when the EEPROM is final.
      */
     public async programSlots(
-        slots: Array<{ index: number, machineCode: number[], label?: string }>,
+        slots: Array<{ index: number, machineCode: number[], label?: string, labels?: PatchLabels }>,
     ): Promise<boolean> {
         if (!this.validateHardwareLimits()) return false;
         if (slots.length === 0) return true;
@@ -267,6 +269,8 @@ export class ProgrammerService {
                     this.outputService.log(
                         `[SUCCESS] ✅ Wrote${verifyWrites ? ' and verified' : ''} program slot ${slot.index + 1}`);
                 }
+
+                await this.writeDisplayLabels(connection.client, slots);
                 return true;
             });
         } catch (error) {
@@ -360,7 +364,11 @@ export class ProgrammerService {
      * faster over a full 4 KB sweep and doesn't emit the library's spurious
      * mid-transfer `checkRead` warnings. Identification comes along for free.
      */
-    public async readAllSlotsFromPedal(): Promise<{ slots: Uint8Array[], identity: PedalIdentity | undefined } | undefined> {
+    public async readAllSlotsFromPedal(): Promise<{
+        slots: Uint8Array[],
+        identity: PedalIdentity | undefined,
+        labels?: PatchLabels[],
+    } | undefined> {
         const connection = await this.openPedalClient();
         if (!connection) return undefined;
 
@@ -368,13 +376,64 @@ export class ProgrammerService {
             this.outputService.log(`[INFO] 📖 Reading all 8 program slots from the pedal...`);
             const slots = await connection.client.readAllSlots();
             this.outputService.log(`[SUCCESS] ✅ Read ${slots.length} slots from the pedal`);
-            return { slots, identity: connection.client.identity };
+
+            // The stereo pedal also stores the display strings, so a read can
+            // recover the program and pot names the programs were shipped with.
+            let labels: PatchLabels[] | undefined;
+            if (canStorePotLabels(connection.client.identity)) {
+                try {
+                    labels = await connection.client.readPatchLabels();
+                    this.outputService.log(labels
+                        ? `[SUCCESS] ✅ Read display labels for 8 slots`
+                        : `[INFO] 📝 The pedal has no display labels stored yet`);
+                } catch (error) {
+                    this.outputService.log(`[WARNING] ⚠ Could not read display labels: ${error}`);
+                }
+            }
+
+            return { slots, identity: connection.client.identity, labels };
         } catch (error) {
             this.outputService.log(`[ERROR] ❌ Error reading from pedal: ${error}`);
             vscode.window.showErrorMessage(`Error reading from pedal: ${error}`);
             return undefined;
         } finally {
             await connection.close();
+        }
+    }
+
+    /**
+     * Push program / pot labels to the stereo pedal's display.
+     *
+     * Runs inside the caller's bus lock, right after the programs, so the whole
+     * update is one lockout hold. Never fatal: the programs are already written,
+     * so a label failure is a warning, not a failed program operation.
+     */
+    private async writeDisplayLabels(
+        client: PedalClient,
+        slots: Array<{ index: number, labels?: PatchLabels }>,
+    ): Promise<void> {
+        const withLabels = slots.filter(slot => slot.labels !== undefined);
+        if (withLabels.length === 0) return;
+        if (!canStorePotLabels(client.identity)) return;
+
+        try {
+            const sparse: (PatchLabels | undefined)[] = new Array(8);
+            for (const slot of withLabels) sparse[slot.index] = slot.labels;
+
+            const warnings = await client.writePatchLabels(sparse);
+            this.outputService.log(
+                `[SUCCESS] ✅ Updated display labels for ${withLabels.length} slot(s)`);
+
+            for (const warning of warnings) {
+                const detail = warning.reason === 'too-long'
+                    ? 'will clip on the pedal display'
+                    : 'contains characters the pedal display cannot draw';
+                this.outputService.log(
+                    `[WARNING] ⚠ Slot ${warning.patch + 1} ${warning.field}: "${warning.original}" ${detail}`);
+            }
+        } catch (error) {
+            this.outputService.log(
+                `[WARNING] ⚠ Programs were written, but the display labels were not: ${error}`);
         }
     }
 

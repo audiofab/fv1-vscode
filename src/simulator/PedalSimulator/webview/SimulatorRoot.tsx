@@ -36,6 +36,8 @@ interface BankState {
     bankName: string
     slots: BankSlotState[]
     selectedSlotIndex: number | null
+    /** Resolved by the host: '' = pot known unused, absent = no slot selected. */
+    selectedSlotPotLabels?: [string, string, string]
     dirty: boolean
     pedalWriting: boolean
     pedalReading: boolean
@@ -280,17 +282,11 @@ export function SimulatorRoot({ workletUrl, pedalImageUrl }: SimulatorRootProps)
     // Pick pot labels from the active slot's controls when a slot is selected;
     // fall back to defaults otherwise. Future enhancement: also read sibling
     // .json metadata files (the easy-spin-effects convention).
-    const potLabels: [string, string, string] = (() => {
-        if (bank && bank.selectedSlotIndex !== null) {
-            const slot = bank.slots[bank.selectedSlotIndex]
-            if (slot.controls && slot.controls.length > 0) {
-                const get = (pot: 0 | 1 | 2) =>
-                    slot.controls?.find(c => c.pot === pot)?.name ?? `Pot ${pot}`
-                return [get(0), get(1), get(2)]
-            }
-        }
-        return ['Pot 0', 'Pot 1', 'Pot 2']
-    })()
+    // The host resolves these — bank `controls` over the diagram's own pot
+    // wiring — so the graphic shows the same labels that get written to a
+    // stereo pedal's display, and updates as the diagram is edited.
+    const potLabels: [string, string, string] =
+        bank?.selectedSlotPotLabels ?? ['Pot 0', 'Pot 1', 'Pot 2']
 
     // Selected slot for PedalFace — falls back to 0 when nothing is selected
     // so the program-selector knob has somewhere to point. The actual audio
