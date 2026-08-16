@@ -196,11 +196,6 @@
         "category": "FV-1"
       },
       {
-        "command": "fv1.readDeviceConfiguration",
-        "title": "Read programmer configuration",
-        "category": "FV-1"
-      },
-      {
         "command": "fv1.openSimulator",
         "title": "Open Pedal Simulator",
         "category": "FV-1"

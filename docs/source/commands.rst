@@ -81,10 +81,6 @@ Utility Commands
 **FV-1: Create new block diagram**
    Create a new visual block diagram file (`.spndiagram`).
 
-**FV-1: Read programmer configuration**
-   Report the configuration of the attached USB programmer — its USB identity,
-   power-up settings and GPIO pin assignments — to the Output panel. Read-only:
-   nothing on the device is changed.
 
 
 Block Diagram Editor Shortcuts

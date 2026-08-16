@@ -41,6 +41,11 @@ export class CommandRegistry {
             await this.programmerService.backupPedal();
         });
 
+        // Deliberately NOT declared in package.json `contributes.commands`, so it
+        // stays out of the Command Palette and the marketplace contributions
+        // list. It remains a diagnostic we can invoke with
+        // `vscode.commands.executeCommand('fv1.readDeviceConfiguration')`.
+        // Don't "helpfully" add a contribution for it.
         this.register('fv1.readDeviceConfiguration', async () => {
             await this.programmerService.readDeviceConfiguration();
         });
