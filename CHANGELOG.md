@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.8.1]
+
+- Pick up latest fv1-core (0.13.1)
+
 ## [1.8.0]
 
 - Pick up latest fv1-core (0.13.0) with a bunch of new features :)
