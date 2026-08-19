@@ -593,7 +593,6 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
         // pot drives — the same derivation behind the "Potentiometer
         // Assignments" header in generated assembly — and a pot it never wires
         // is known unused (null). A .spn tells us nothing (undefined).
-        let diagramName: string | undefined;
         let pots: (string | null | undefined)[] = [undefined, undefined, undefined];
 
         if (isDiagram) {
@@ -606,7 +605,6 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
                     ? open.getText()
                     : Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf-8');
                 const diagram = JSON.parse(text);
-                diagramName = diagram.metadata?.name || undefined;
                 const assignments = derivePotAssignments(diagram, blockRegistry);
                 pots = [0, 1, 2].map(pot => assignments.find(a => a.pot === pot)?.label ?? null);
             } catch {
@@ -622,8 +620,15 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
             if (name) pots[pot] = name;
         }
 
+        // The filename beats the diagram's own `metadata.name`, deliberately.
+        // That field is stamped once when the diagram is created and never
+        // updated afterwards, so copying a diagram to start a new effect — the
+        // normal way people work — leaves it naming the file it came from. Seen
+        // in the wild: midiverb_flanger.spndiagram carrying "multi_tap", which
+        // is what the pedal then displayed. The filename is the name the user
+        // actually sees and controls, so it wins; an explicit bank slot name
+        // still overrides both.
         const name = slot?.name?.trim()
-            || diagramName
             || path.basename(uri.fsPath, path.extname(uri.fsPath));
 
         return { labels: { name, pots }, potsUnknown: pots.some(p => p === undefined) };

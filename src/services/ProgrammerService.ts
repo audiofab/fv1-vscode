@@ -374,21 +374,29 @@ export class ProgrammerService {
 
         try {
             this.outputService.log(`[INFO] 📖 Reading all 8 program slots from the pedal...`);
-            const slots = await connection.client.readAllSlots();
-            this.outputService.log(`[SUCCESS] ✅ Read ${slots.length} slots from the pedal`);
 
-            // The stereo pedal also stores the display strings, so a read can
-            // recover the program and pot names the programs were shipped with.
-            let labels: PatchLabels[] | undefined;
-            if (canStorePotLabels(connection.client.identity)) {
-                try {
-                    labels = await connection.client.readPatchLabels();
-                    this.outputService.log(labels
-                        ? `[SUCCESS] ✅ Read display labels for 8 slots`
-                        : `[INFO] 📝 The pedal has no display labels stored yet`);
-                } catch (error) {
-                    this.outputService.log(`[WARNING] ⚠ Could not read display labels: ${error}`);
+            // Programs and labels under a single bus lock. Splitting them would
+            // release the programming lockout in between, letting the pedal's
+            // MCU take the bus back and start a reload we'd then collide with.
+            const { slots, labels } = await connection.client.withBusLock(async () => {
+                const programs = await connection.client.readAllSlots();
+
+                let stored: PatchLabels[] | undefined;
+                if (canStorePotLabels(connection.client.identity)) {
+                    try {
+                        stored = await connection.client.readPatchLabels();
+                    } catch (error) {
+                        this.outputService.log(`[WARNING] ⚠ Could not read display labels: ${error}`);
+                    }
                 }
+                return { slots: programs, labels: stored };
+            });
+
+            this.outputService.log(`[SUCCESS] ✅ Read ${slots.length} slots from the pedal`);
+            if (canStorePotLabels(connection.client.identity)) {
+                this.outputService.log(labels
+                    ? `[SUCCESS] ✅ Read display labels for 8 slots`
+                    : `[INFO] 📝 The pedal has no display labels stored yet`);
             }
 
             return { slots, identity: connection.client.identity, labels };
