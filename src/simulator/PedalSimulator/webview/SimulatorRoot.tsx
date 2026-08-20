@@ -94,6 +94,7 @@ export function SimulatorRoot({ workletUrl, pedalImageUrl }: SimulatorRootProps)
     const [program, setProgram] = useState<ProgramPayload | null>(null)
     const [bank, setBank] = useState<BankState | null>(null)
     const [zoom, setZoom] = useState(0.75)
+    const [bankDragOver, setBankDragOver] = useState(false)
 
     const simulatorRef = useRef(simulator)
     simulatorRef.current = simulator
@@ -294,7 +295,28 @@ export function SimulatorRoot({ workletUrl, pedalImageUrl }: SimulatorRootProps)
     const selectedSlotForPedal = bank?.selectedSlotIndex ?? 0
 
     return (
-        <div className="flex flex-col items-center py-4 px-4 gap-3">
+        <div
+            className="flex flex-col items-center py-4 px-4 gap-3"
+            /* Dropping a .spnbank anywhere on the simulator opens it. Slot
+               drops bubble up here too, so this filters on the extension and
+               ignores everything else; a bank dropped on a slot is handled by
+               both paths, and openBank() is a no-op the second time. */
+            onDragOver={e => {
+                if (!dragPayloadLooksLikeBank(e.dataTransfer)) return
+                e.preventDefault()
+                e.dataTransfer.dropEffect = pickDropEffect(e.dataTransfer.effectAllowed)
+                if (!bankDragOver) setBankDragOver(true)
+            }}
+            onDragLeave={() => setBankDragOver(false)}
+            onDrop={e => {
+                setBankDragOver(false)
+                const uri = readDroppedUri(e.dataTransfer)
+                if (!uri || !uri.toLowerCase().endsWith('.spnbank')) return
+                e.preventDefault()
+                vscodeApi.postMessage({ type: 'requestOpenBank', uri })
+            }}
+            style={bankDragOver ? { outline: '2px dashed var(--vscode-focusBorder)', outlineOffset: '-6px' } : undefined}
+        >
             <BankToolbar
                 bank={bank}
                 onLoad={handleLoadBank}
@@ -569,6 +591,61 @@ function CloseIcon() {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Pick a dropEffect the drag source actually permits.
+ *
+ * Hardcoding one the source did not allow (VS Code's Explorer offers
+ * 'copyMove', never 'link') makes the browser reject the drop outright: the
+ * no-drop cursor shows and the drop event never fires, and no modifier key can
+ * rescue it because dragover overwrites the effect every time. Mirrors the
+ * helper of the same name in easy-spin-ui's PedalFace, deliberately duplicated
+ * so this fix does not require a package bump.
+ */
+function pickDropEffect(allowed: DataTransfer['effectAllowed']): 'copy' | 'move' | 'link' | 'none' {
+    switch (allowed) {
+        case 'copy':
+        case 'copyLink':
+        case 'copyMove':
+        case 'all':
+        case 'uninitialized':
+            return 'copy'
+        case 'move':
+        case 'linkMove':
+            return 'move'
+        case 'link':
+            return 'link'
+        case 'none':
+        default:
+            return 'none'
+    }
+}
+
+/** First URI out of a drag payload, if there is one. */
+function readDroppedUri(dt: DataTransfer): string | null {
+    const uriList = dt.getData('text/uri-list')
+    if (uriList) {
+        const first = uriList.split('\n').map(s => s.trim()).find(s => s && !s.startsWith('#'))
+        if (first) return first
+    }
+    const plain = dt.getData('text/plain')
+    return plain ? plain.trim() : null
+}
+
+/**
+ * During dragover the payload is usually unreadable for privacy, so fall back to
+ * accepting any file drag and let the drop handler do the real filtering.
+ */
+function dragPayloadLooksLikeBank(dt: DataTransfer): boolean {
+    const uri = readDroppedUri(dt)
+    if (uri) return uri.toLowerCase().endsWith('.spnbank')
+    // The Explorer and the OS name a file drag differently, so match loosely
+    // rather than trying to enumerate every type string.
+    return Array.from(dt.types).some(t => {
+        const type = t.toLowerCase()
+        return type.includes('uri-list') || type.includes('files') || type.includes('resource')
+    })
+}
 
 function clamp(v: number, lo: number, hi: number): number {
     return Math.min(hi, Math.max(lo, v))

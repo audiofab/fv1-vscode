@@ -12,6 +12,7 @@ import {
     unknownPedalIdentity,
     PedalClient,
     canStorePotLabels,
+    STRING_BASE_ADDRESS,
     type PatchLabels,
     type Mcp2221Configuration,
     type PedalIdentity
@@ -304,10 +305,32 @@ export class ProgrammerService {
             this.outputService.log(`[INFO] 📖 Reading ${totalBytes} bytes from EEPROM...`);
 
             let dataArray: Uint8Array;
+            let labelImage: Uint8Array | undefined;
             try {
-                const slots = await connection.client.readAllSlots();
+                // Programs and labels under a single bus lock, so the pedal's MCU
+                // is held off the bus once rather than twice.
+                const captured = await connection.client.withBusLock(async () => {
+                    const slots = await connection.client.readAllSlots();
+
+                    // Pedals with the larger EEPROM also store the display
+                    // strings above the program area. Without these a backup is
+                    // incomplete: restoring it onto another pedal would bring
+                    // back eight nameless programs.
+                    let labels: Uint8Array | undefined;
+                    if (canStorePotLabels(connection.client.identity)) {
+                        try {
+                            labels = await connection.client.readStringImage();
+                        } catch (error) {
+                            this.outputService.log(
+                                `[WARNING] ⚠ Could not read the display labels; backing up programs only: ${error}`);
+                        }
+                    }
+                    return { slots, labels };
+                });
+
                 dataArray = new Uint8Array(totalBytes);
-                slots.forEach((slot, i) => dataArray.set(slot, i * FV1_EEPROM_SLOT_SIZE_BYTES));
+                captured.slots.forEach((slot, i) => dataArray.set(slot, i * FV1_EEPROM_SLOT_SIZE_BYTES));
+                labelImage = captured.labels;
             } finally {
                 await connection.close();
             }
@@ -319,6 +342,13 @@ export class ProgrammerService {
                 const startOffset = slot * FV1_EEPROM_SLOT_SIZE_BYTES;
                 const slotData = dataArray.slice(startOffset, startOffset + FV1_EEPROM_SLOT_SIZE_BYTES);
                 segments.push({ data: Buffer.from(slotData), address: startOffset });
+            }
+
+            if (labelImage) {
+                segments.push({ data: Buffer.from(labelImage), address: STRING_BASE_ADDRESS });
+                this.outputService.log(
+                    `[SUCCESS] ✅ Included ${labelImage.length} bytes of display labels at ` +
+                    `0x${STRING_BASE_ADDRESS.toString(16).toUpperCase()}`);
             }
 
             const defaultFileName = `pedal-backup-${new Date().toISOString().replace(/:/g, '-').split('.')[0]}.hex`;

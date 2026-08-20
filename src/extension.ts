@@ -118,7 +118,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(BlockDiagramEditorProvider.register(context, blockDiagramDocumentManager));
 
     // 5. Register Commands
-    const commandRegistry = new CommandRegistry(context, outputService, assemblyService, programmerService, intelHexService, effectExportService, blockDiagramDocumentManager);
+    const commandRegistry = new CommandRegistry(context, outputService, assemblyService, programmerService, intelHexService, effectExportService, blockDiagramDocumentManager, pedalSimulator);
     commandRegistry.registerCommands();
 
     // 6. Handle Configuration Changes

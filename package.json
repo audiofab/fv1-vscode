@@ -2,7 +2,7 @@
   "name": "fv1-vscode",
   "displayName": "Audiofab FV-1 Programming",
   "description": "An extension providing development support for Spin Semiconductor's FV-1 chip and programming support for the Audiofab Easy Spin guitar pedal.",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "publisher": "ms-audiofab",
   "publisherDisplayName": "Audiofab Inc.",
   "icon": "resources/logo_600x493.png",
@@ -173,7 +173,7 @@
       },
       {
         "command": "fv1.exportEffectJson",
-        "title": "Export Effect to JSON…",
+        "title": "Export Effect to JSON\u2026",
         "category": "FV-1"
       },
       {
@@ -193,6 +193,11 @@
       {
         "command": "fv1.backupPedal",
         "title": "Backup pedal",
+        "category": "FV-1"
+      },
+      {
+        "command": "fv1.openBankInSimulator",
+        "title": "Open Bank in Pedal Simulator",
         "category": "FV-1"
       },
       {
@@ -305,6 +310,10 @@
         {
           "command": "fv1.traceSave",
           "when": "false"
+        },
+        {
+          "command": "fv1.openBankInSimulator",
+          "when": "resourceExtname == .spnbank"
         }
       ],
       "editor/context": [
@@ -324,7 +333,20 @@
           "group": "fv1@1"
         }
       ],
-      "explorer/context": []
+      "explorer/context": [
+        {
+          "command": "fv1.openBankInSimulator",
+          "when": "resourceExtname == .spnbank",
+          "group": "navigation"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "fv1.openBankInSimulator",
+          "when": "resourceExtname == .spnbank",
+          "group": "navigation"
+        }
+      ]
     },
     "debuggers": [
       {
@@ -452,7 +474,7 @@
           ],
           "enumDescriptions": [
             "Every sample (max resolution, highest CPU)",
-            "Every 4 samples (default — good balance)",
+            "Every 4 samples (default \u2014 good balance)",
             "Every 8 samples (low CPU)",
             "Every 16 samples (very low CPU)"
           ],
@@ -518,8 +540,8 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "@audiofab-io/easy-spin-ui": "^0.3.8",
-    "@audiofab-io/fv1-core": "^0.13.1",
+    "@audiofab-io/easy-spin-ui": "^0.3.9",
+    "@audiofab-io/fv1-core": "^0.13.2",
     "@johntalton/eeprom": "^1.1.1",
     "@johntalton/i2c-bus-mcp2221": "^4.2.1",
     "@johntalton/mcp2221": "^4.0.4",

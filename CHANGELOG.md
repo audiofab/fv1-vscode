@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.8.2]
+
+- Bump dependencies
+- Open .spnbank files in the simulator/bank editor
+
 ## [1.8.1]
 
 - Pick up latest fv1-core (0.13.1)

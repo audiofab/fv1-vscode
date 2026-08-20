@@ -18,7 +18,8 @@ export class CommandRegistry {
         private programmerService: ProgrammerService,
         private intelHexService: IntelHexService,
         private effectExportService: EffectExportService,
-        private blockDiagramDocMgr: BlockDiagramDocumentManager
+        private blockDiagramDocMgr: BlockDiagramDocumentManager,
+        private pedalSimulator: PedalSimulatorView,
     ) { }
 
     public registerCommands() {
@@ -35,6 +36,20 @@ export class CommandRegistry {
                     await this.programmerService.programEeprom(result.machineCode);
                 }
             }
+        });
+
+        // Opening a bank straight into the simulator, from the explorer context
+        // menu or the palette — saves a Load… round trip through a file dialog.
+        this.register('fv1.openBankInSimulator', async (uriOrString?: vscode.Uri | string) => {
+            let bankUri = typeof uriOrString === 'string' ? resolveToUri(uriOrString) : uriOrString;
+            if (!bankUri) bankUri = getActiveDocumentUri();
+            if (!bankUri || !bankUri.fsPath.toLowerCase().endsWith('.spnbank')) {
+                vscode.window.showErrorMessage('Select a .spnbank file to open in the Pedal Simulator.');
+                return;
+            }
+            await this.pedalSimulator.openBank(bankUri);
+            // Reveal the view so the loaded bank is actually visible.
+            await vscode.commands.executeCommand('fv1.pedalSimulator.focus');
         });
 
         this.register('fv1.backupPedal', async () => {

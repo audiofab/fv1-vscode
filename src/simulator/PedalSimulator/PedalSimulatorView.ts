@@ -98,6 +98,11 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
         // Bank slot selection is purely visual (computed from trackedUri at
         // serialize-for-webview time).
         const onTabChange = () => {
+            // Opening a .spnbank in any editor also loads it here, so the user
+            // never has to Load… and browse for a file they just opened.
+            const bankUri = activeBankTabUri();
+            if (bankUri) void this.openBank(bankUri);
+
             const uri = activeFv1TabUri();
             if (!uri) return;
             if (this.activeEditorUri?.toString() === uri.toString()) return;
@@ -196,6 +201,7 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
             case 'ready':                 await this.sendInit(); return;
             case 'requestClip':           await this.sendClipBytes(msg.id); return;
             case 'requestLoadBank':       await this.loadBankFromDialog(); return;
+            case 'requestOpenBank':       await this.openDroppedBank(msg.uri); return;
             case 'requestSaveBank':       await this.saveBank(); return;
             case 'requestSaveAsBank':     await this.saveBankAs(); return;
             case 'requestCloseBank':      await this.closeBank(); return;
@@ -222,6 +228,17 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
             'Discard',
         );
         return choice === 'Discard';
+    }
+
+    /**
+     * Open a .spnbank without going through the Load dialog — used by the
+     * explorer command, by opening the file in an editor, and by dropping one
+     * onto the simulator. Guards unsaved changes exactly as Load… does.
+     */
+    public async openBank(uri: vscode.Uri): Promise<void> {
+        if (this.bankUri?.toString() === uri.toString()) return;   // already open
+        if (!await this.confirmDiscardIfDirty()) return;
+        await this.loadBank(uri);
     }
 
     private async loadBankFromDialog(): Promise<void> {
@@ -437,8 +454,24 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
         await this.sendProgramUpdate();
     }
 
+    /** Resolve a dropped URI/path and open it as a bank. */
+    private async openDroppedBank(payload: string): Promise<void> {
+        const uri = resolveDroppedUri(payload);
+        if (!uri) return;
+        await this.openBank(uri);
+    }
+
     private async assignSlot(index: number, payload: string): Promise<void> {
         if (index < 0 || index >= PROGRAM_SLOT_COUNT) return;
+
+        // A .spnbank dropped onto a slot means "open this bank", not "assign a
+        // bank file as a program" — which would produce a slot that cannot
+        // compile.
+        const dropped = resolveDroppedUri(payload);
+        if (dropped && path.extname(dropped.fsPath).toLowerCase() === '.spnbank') {
+            await this.openBank(dropped);
+            return;
+        }
 
         // Auto-create an in-memory bank if there isn't one yet so the user
         // can build a bank by dropping files / clicking + on slots without
@@ -1333,6 +1366,7 @@ type WebviewMessage =
     | { type: 'ready' }
     | { type: 'requestClip'; id: string }
     | { type: 'requestLoadBank' }
+    | { type: 'requestOpenBank'; uri: string }
     | { type: 'requestSaveBank' }
     | { type: 'requestSaveAsBank' }
     | { type: 'requestCloseBank' }
@@ -1346,6 +1380,33 @@ type WebviewMessage =
     | { type: 'requestExportBankHex' }
     | { type: 'requestReadPedal' }
     | { type: 'requestProgramSlot'; slotIndex: number };
+
+/** The active tab's URI when it is a .spnbank, else undefined. */
+function activeBankTabUri(): vscode.Uri | undefined {
+    const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+    const input = tab?.input;
+    let uri: vscode.Uri | undefined;
+    if (input instanceof vscode.TabInputText) uri = input.uri;
+    else if (input instanceof vscode.TabInputCustom) uri = input.uri;
+    if (!uri) return undefined;
+    return path.extname(uri.fsPath).toLowerCase() === '.spnbank' ? uri : undefined;
+}
+
+/**
+ * Turn a drag payload into a URI. VS Code drags supply `text/uri-list`
+ * (file:// URIs); some sources supply a bare path.
+ */
+function resolveDroppedUri(payload: string): vscode.Uri | undefined {
+    const text = payload.trim();
+    if (!text) return undefined;
+    try {
+        return text.startsWith('file:') || text.includes('://')
+            ? vscode.Uri.parse(text)
+            : vscode.Uri.file(text);
+    } catch {
+        return undefined;
+    }
+}
 
 function activeFv1TabUri(): vscode.Uri | undefined {
     const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
