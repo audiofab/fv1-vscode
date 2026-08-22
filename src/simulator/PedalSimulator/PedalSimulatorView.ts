@@ -1444,9 +1444,11 @@ function meaningfulLabel(text: string | null | undefined): string | undefined {
 }
 
 /**
- * Turn a program name into a filename stem. Pedal labels are stored uppercase
- * ("LUSH CHORUS"), which makes for shouty filenames, so this lowercases and
- * hyphenates. Returns '' when nothing usable survives, letting the caller fall
+ * Turn a program name into a filename stem: lowercased and hyphenated. Labels
+ * are stored as typed now that the pedal's font covers full printable ASCII,
+ * but pedals programmed by older tools still hold uppercase ("LUSH CHORUS"),
+ * which makes for shouty filenames — normalising both ways keeps the naming
+ * consistent. Returns '' when nothing usable survives, letting the caller fall
  * back to a slot number.
  */
 function toFileStem(name: string | undefined): string {

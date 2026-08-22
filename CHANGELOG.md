@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.8.3]
+
+- Bump fv1-core to pick up fix
+
 ## [1.8.2]
 
 - Bump dependencies
