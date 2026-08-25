@@ -5,6 +5,7 @@ node_modules
 *.vsix
 tsconfig.tsbuildinfo
 resources/blocks/spincad
+.fv1/
 
 # Documentation build artifacts
 docs/build/
