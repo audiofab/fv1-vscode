@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.8.5]
+
+- Bump fv1-core to pick up a simulator bugfix related to cho rda and COMPA, more efficient mixer blocks
+
 ## [1.8.4]
 
 - Bump fv1-core to pick up a simulator bugfix related to LFOs (ramp_lfo block is also fixed)
