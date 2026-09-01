@@ -531,8 +531,8 @@
   "devDependencies": {
     "@types/node": "26.x",
     "@types/node-hid": "^3.0.0",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
     "@types/uuid": "^11.0.0",
     "@types/vscode": "^1.101.0",
     "esbuild": "^0.28.1",
