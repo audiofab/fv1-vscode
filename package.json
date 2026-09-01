@@ -546,7 +546,7 @@
     "@johntalton/i2c-bus-mcp2221": "^4.2.1",
     "@johntalton/mcp2221": "^4.0.4",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "konva": "^10.3.0",
+    "konva": "^10.3.2",
     "node-hid": "^3.4.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
