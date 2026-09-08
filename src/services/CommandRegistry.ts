@@ -9,6 +9,7 @@ import { IntelHexService } from './IntelHexService.js';
 import { EffectExportService } from './EffectExportService.js';
 import { getActiveDocumentUri, resolveToUri } from '../core/editor-utils.js';
 import { PedalSimulatorView } from '../simulator/PedalSimulator/PedalSimulatorView.js';
+import { TemplateRepository, type DiagramTemplate } from './TemplateRepository.js';
 
 export class CommandRegistry {
     constructor(
@@ -20,7 +21,154 @@ export class CommandRegistry {
         private effectExportService: EffectExportService,
         private blockDiagramDocMgr: BlockDiagramDocumentManager,
         private pedalSimulator: PedalSimulatorView,
-    ) { }
+    ) {
+        this.templateRepository = new TemplateRepository();
+    }
+
+    private readonly templateRepository: TemplateRepository;
+
+
+    /**
+     * Choose a starting point for a new block diagram.
+     *
+     * Returns 'empty' for the blank diagram, a template to instantiate, or
+     * undefined if the user cancelled.
+     *
+     * TWO LEVELS: categories first, then the templates inside one. The catalog
+     * is expected to keep growing, and a single flat list of every effect is
+     * unusable long before that becomes obvious. Back is offered twice -- the
+     * titlebar arrow VS Code puts on a multi-step input, and a visible row at
+     * the top of the list, because the arrow alone is easy to miss.
+     *
+     * The picker is shown immediately with the blank option and filled in once
+     * the remote index arrives, so a slow or absent network never delays it.
+     *
+     * TRADEOFF: typing now filters whichever level you are on, so a template
+     * name only matches once you are inside its category.
+     */
+    private async pickDiagramTemplate(): Promise<DiagramTemplate | 'empty' | undefined> {
+        type Item = vscode.QuickPickItem & {
+            template?: DiagramTemplate;
+            category?: string;
+            back?: boolean;
+        };
+
+        const blank: Item = {
+            label: '$(file) Empty diagram',
+            detail: 'Start from scratch with just an input and an output.',
+            alwaysShow: true,
+        };
+        const backRow: Item = {
+            label: '$(arrow-left) All categories',
+            alwaysShow: true,
+            back: true,
+        };
+
+        const quickPick = vscode.window.createQuickPick<Item>();
+        quickPick.title = 'New Block Diagram';
+        quickPick.placeholder = 'Choose a starting point';
+        quickPick.matchOnDetail = true;
+        quickPick.items = [blank];
+        quickPick.busy = true;
+        quickPick.show();
+
+        /** Resolves on the next accept, Back button, or dismissal. */
+        const nextAction = () => new Promise<
+            { kind: 'accept'; item?: Item } | { kind: 'back' } | { kind: 'hide' }
+        >(resolve => {
+            const subs: vscode.Disposable[] = [];
+            const done = (v: { kind: 'accept'; item?: Item } | { kind: 'back' } | { kind: 'hide' }) => {
+                subs.forEach(d => d.dispose());
+                resolve(v);
+            };
+            subs.push(quickPick.onDidAccept(() =>
+                done({ kind: 'accept', item: quickPick.selectedItems[0] })));
+            subs.push(quickPick.onDidTriggerButton(btn => {
+                if (btn === vscode.QuickInputButtons.Back) done({ kind: 'back' });
+            }));
+            subs.push(quickPick.onDidHide(() => done({ kind: 'hide' })));
+        });
+
+        try {
+            const { templates, remoteError } = await this.templateRepository.list();
+            quickPick.busy = false;
+            if (remoteError) {
+                // Non-blocking: the blank diagram still works offline.
+                quickPick.title = 'New Block Diagram — online templates unavailable';
+                this.outputService.log(
+                    `[templates] remote index unavailable: ${remoteError}`);
+            } else if (templates.length === 0) {
+                quickPick.title = 'New Block Diagram — no templates published yet';
+            }
+
+            // Captured after the error/empty cases above have had their say, so
+            // returning from a category restores the right title instead of
+            // keeping the category name.
+            const baseTitle = quickPick.title;
+
+            const byCategory = new Map<string, DiagramTemplate[]>();
+            for (const t of templates) {
+                const list = byCategory.get(t.category);
+                if (list) list.push(t); else byCategory.set(t.category, [t]);
+            }
+            const categories = [...byCategory.keys()].sort((x, y) => x.localeCompare(y));
+
+            const showCategories = () => {
+                quickPick.buttons = [];
+                quickPick.title = baseTitle;
+                quickPick.placeholder = 'Choose a starting point';
+                quickPick.value = '';
+                const items: Item[] = [blank];
+                if (categories.length > 0) {
+                    items.push({ label: 'Templates', kind: vscode.QuickPickItemKind.Separator });
+                    for (const c of categories) {
+                        const n = byCategory.get(c)!.length;
+                        items.push({
+                            label: `$(folder) ${c}`,
+                            description: `${n} template${n === 1 ? '' : 's'}`,
+                            category: c,
+                        });
+                    }
+                }
+                quickPick.items = items;
+            };
+
+            const showCategory = (category: string) => {
+                quickPick.buttons = [vscode.QuickInputButtons.Back];
+                quickPick.title = `${baseTitle} — ${category}`;
+                quickPick.placeholder = `Choose a template in ${category}`;
+                quickPick.value = '';
+                quickPick.items = [
+                    backRow,
+                    { label: category, kind: vscode.QuickPickItemKind.Separator },
+                    ...byCategory.get(category)!.map(t => ({
+                        label: t.name,
+                        // Descriptions in these diagrams are long and genuinely
+                        // useful, so they go in `detail` where there is room.
+                        detail: t.description || undefined,
+                        description: t.author,
+                        template: t,
+                    })),
+                ];
+            };
+
+            showCategories();
+            for (;;) {
+                const action = await nextAction();
+                if (action.kind === 'hide') return undefined;
+                if (action.kind === 'back') { showCategories(); continue; }
+
+                const picked = action.item;
+                if (!picked) return undefined;
+                if (picked.back) { showCategories(); continue; }
+                if (picked.category) { showCategory(picked.category); continue; }
+                if (picked.template) return picked.template;
+                return 'empty';
+            }
+        } finally {
+            quickPick.dispose();
+        }
+    }
 
     public registerCommands() {
         this.register('fv1.assemble', async () => {
@@ -81,18 +229,39 @@ export class CommandRegistry {
         });
 
         this.register('fv1.createBlockDiagram', async () => {
+            // Pick the starting point BEFORE the save dialog: choosing a template
+            // and then cancelling the save is cheap, but naming a file and then
+            // discovering the template list is empty is not.
+            const chosen = await this.pickDiagramTemplate();
+            if (chosen === undefined) return;          // cancelled
+
+            const suggested = chosen === 'empty'
+                ? 'new.spndiagram'
+                : `${slugForFilename(chosen.name)}.spndiagram`;
+
             const saveUri = await vscode.window.showSaveDialog({
                 filters: { 'FV-1 Block Diagram': ['spndiagram'] },
-                defaultUri: vscode.Uri.file(path.join(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '.', 'new.spndiagram'))
+                defaultUri: vscode.Uri.file(path.join(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '.', suggested))
             });
 
             if (!saveUri) return;
 
             try {
-                const templatePath = path.join(this.context.extensionPath, 'resources', 'templates', 'default-diagram.json');
-                let templateContent = fs.readFileSync(templatePath, 'utf8');
+                let source: string;
+                if (chosen === 'empty') {
+                    source = fs.readFileSync(
+                        path.join(this.context.extensionPath, 'resources', 'templates', 'default-diagram.json'),
+                        'utf8');
+                } else {
+                    source = await vscode.window.withProgress(
+                        { location: vscode.ProgressLocation.Notification, title: `Fetching "${chosen.name}"...` },
+                        () => this.templateRepository.fetchSource(chosen));
+                }
 
-                const diagram = JSON.parse(templateContent);
+                const diagram = JSON.parse(source);
+                // The file name is the user's choice and wins over the template's
+                // own name, so two copies of one template are told apart.
+                diagram.metadata = diagram.metadata ?? {};
                 diagram.metadata.name = path.basename(saveUri.fsPath, '.spndiagram');
 
                 const content = JSON.stringify(diagram, null, 2);
@@ -177,4 +346,16 @@ export class CommandRegistry {
     private register(command: string, callback: (...args: any[]) => any) {
         this.context.subscriptions.push(vscode.commands.registerCommand(command, callback));
     }
+}
+
+/**
+ * A template name turned into a sensible default file name.
+ * "Multi Voice Chorus" -> "multi-voice-chorus"
+ */
+function slugForFilename(name: string): string {
+    return name
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'new';
 }

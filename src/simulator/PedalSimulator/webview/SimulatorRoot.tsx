@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import {
     PedalFace,
+    useAudioInputDevices,
     useSimulator,
     type ChannelMode,
     type ClipInfo,
+    type InputSource,
 } from '@audiofab-io/easy-spin-ui'
 import { vscodeApi } from './vscode-api'
 
@@ -49,7 +51,9 @@ interface InitMessage {
     clips: ClipInfo[]
     defaultClipId: string | null
     program: ProgramPayload | null
-    bank: BankState | null
+    bank: BankState | null
+    /** Pot labels for whatever is being simulated, bank or not. */
+    potLabels?: [string, string, string]
 }
 
 interface ProgramUpdateMessage {
@@ -60,6 +64,8 @@ interface ProgramUpdateMessage {
 interface BankStateMessage {
     type: 'bankState'
     bank: BankState | null
+    /** Pot labels for whatever is being simulated, bank or not. */
+    potLabels?: [string, string, string]
 }
 
 interface ClipBytesMessage {
@@ -93,6 +99,7 @@ export function SimulatorRoot({ workletUrl, pedalImageUrl }: SimulatorRootProps)
     const [selectedClipId, setSelectedClipId] = useState<string | null>(null)
     const [program, setProgram] = useState<ProgramPayload | null>(null)
     const [bank, setBank] = useState<BankState | null>(null)
+    const [potLabels, setPotLabels] = useState<[string, string, string] | undefined>()
     const [zoom, setZoom] = useState(0.75)
     const [bankDragOver, setBankDragOver] = useState(false)
 
@@ -124,6 +131,7 @@ export function SimulatorRoot({ workletUrl, pedalImageUrl }: SimulatorRootProps)
 
                     setClips(msg.clips)
                     setBank(msg.bank)
+                    setPotLabels(msg.potLabels)
                     applyProgram(msg.program)
                     if (msg.defaultClipId) {
                         setSelectedClipId(msg.defaultClipId)
@@ -138,6 +146,7 @@ export function SimulatorRoot({ workletUrl, pedalImageUrl }: SimulatorRootProps)
                 }
                 case 'bankState': {
                     setBank(msg.bank)
+                    setPotLabels(msg.potLabels)
                     return
                 }
                 case 'clipBytes': {
@@ -191,6 +200,16 @@ export function SimulatorRoot({ workletUrl, pedalImageUrl }: SimulatorRootProps)
         pendingClipIdRef.current = clipId
         vscodeApi.postMessage({ type: 'requestClip', id: clipId })
     }, [])
+
+    // Live sound-card input shares the clip dropdown. In a VS Code webview this
+    // list is empty: the webview iframe carries no allow="microphone" permission
+    // and there is no extension API to add one (microsoft/vscode#323602), so the
+    // dropdown silently stays clips-only rather than offering a broken choice.
+    const audioInputs = useAudioInputDevices()
+    const handleSelectInput = useCallback(async (source: InputSource) => {
+        const ok = await simulator.setInputSource(source)
+        if (ok && source.kind === 'live') audioInputs.refresh()
+    }, [simulator, audioInputs])
 
     const handlePlay = useCallback(() => {
         simulatorRef.current.play()
@@ -286,8 +305,11 @@ export function SimulatorRoot({ workletUrl, pedalImageUrl }: SimulatorRootProps)
     // The host resolves these — bank `controls` over the diagram's own pot
     // wiring — so the graphic shows the same labels that get written to a
     // stereo pedal's display, and updates as the diagram is edited.
-    const potLabels: [string, string, string] =
-        bank?.selectedSlotPotLabels ?? ['Pot 0', 'Pot 1', 'Pot 2']
+    // The host resolves these against the tracked file, whether or not it is in
+    // a bank, so `potLabels` is the general answer and the bank copy is only a
+    // fallback for an older host.
+    const resolvedPotLabels: [string, string, string] =
+        potLabels ?? bank?.selectedSlotPotLabels ?? ['Pot 0', 'Pot 1', 'Pot 2']
 
     // Selected slot for PedalFace — falls back to 0 when nothing is selected
     // so the program-selector knob has somewhere to point. The actual audio
@@ -331,6 +353,7 @@ export function SimulatorRoot({ workletUrl, pedalImageUrl }: SimulatorRootProps)
                 zoom={zoom}
                 sampleRate={simulator.sampleRate}
             />
+
             <div className="shift-drop-hint">
                 Hold <kbd>Shift</kbd> to drag &amp; drop files into slots
             </div>
@@ -343,7 +366,7 @@ export function SimulatorRoot({ workletUrl, pedalImageUrl }: SimulatorRootProps)
                     pedalImageUrl={pedalImageUrl}
                     pots={pots}
                     onPotChange={handlePotChange}
-                    potLabels={potLabels}
+                    potLabels={resolvedPotLabels}
                     selectedSlot={selectedSlotForPedal}
                     onSelectSlot={handleSelectSlot}
                     slotLabels={slotLabels}
@@ -373,6 +396,9 @@ export function SimulatorRoot({ workletUrl, pedalImageUrl }: SimulatorRootProps)
                     clips={clips}
                     selectedClipId={selectedClipId}
                     onSelectClip={handleSelectClip}
+                    inputDevices={audioInputs.devices}
+                    inputSource={simulator.inputSource}
+                    onSelectInput={handleSelectInput}
                     playing={simulator.playing}
                     onPlay={handlePlay}
                     onPause={handlePause}

@@ -1037,6 +1037,7 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
             defaultClipId: clips[0]?.id ?? null,
             program,
             bank: await this.serializeBankForWebview(),
+            potLabels: await this.selectedSlotPotLabels(),
         });
     }
 
@@ -1045,6 +1046,10 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
         this.view.webview.postMessage({
             type: 'bankState',
             bank: await this.serializeBankForWebview(),
+            // Top level, not inside `bank`: serializeBankForWebview returns null
+            // when no bank is loaded, which would drop the labels for exactly the
+            // standalone-diagram case they matter most in.
+            potLabels: await this.selectedSlotPotLabels(),
         });
     }
 
@@ -1056,15 +1061,22 @@ export class PedalSimulatorView implements vscode.WebviewViewProvider {
      * has eight diagram slots.
      */
     private async selectedSlotPotLabels(): Promise<[string, string, string] | undefined> {
+        // A bank slot is preferred, because its `controls` can override what the
+        // wiring implies. But a lone .spndiagram -- the normal case straight after
+        // creating one from a template -- belongs to no bank, and its graph still
+        // names every pot. Falling back to the tracked file is what makes the
+        // labels appear there at all; without it this returned undefined and the
+        // pedal graphic kept the generic Pot 0/1/2.
         const index = this.matchingSlotIndex();
-        if (index === null || !this.bank) return undefined;
-        const slot = this.bank.slots[index];
-        if (!slot?.path) return undefined;
-        const uri = this.resolveSlotUri(slot);
+        const uri = index !== null && this.bank
+            ? this.resolveSlotUri(this.bank.slots[index])
+            : this.trackedUri;
         if (!uri) return undefined;
 
         try {
-            const { labels } = await this.labelsForSlot(index, uri);
+            // -1 finds no slot, so the bank-controls layer is simply skipped and
+            // the diagram's own wiring is used.
+            const { labels } = await this.labelsForSlot(index ?? -1, uri);
             // undefined = we don't know, so keep the generic placeholder;
             // null = the pot is genuinely unused, so show nothing.
             return ([0, 1, 2] as const).map(pot => {

@@ -2,7 +2,7 @@
   "name": "fv1-vscode",
   "displayName": "Audiofab FV-1 Programming",
   "description": "An extension providing development support for Spin Semiconductor's FV-1 chip and programming support for the Audiofab Easy Spin guitar pedal.",
-  "version": "1.8.5",
+  "version": "1.8.6",
   "publisher": "ms-audiofab",
   "publisherDisplayName": "Audiofab Inc.",
   "icon": "resources/logo_600x493.png",
@@ -178,7 +178,7 @@
       },
       {
         "command": "fv1.createBlockDiagram",
-        "title": "Create new block diagram program (.spndiagram)",
+        "title": "New block diagram program (.spndiagram) from template\u2026",
         "category": "FV-1",
         "icon": {
           "light": "./resources/light/spndiagram-file.svg",
@@ -512,6 +512,11 @@
             "Level 2: Aggressive optimization (Dead store elimination, register elision)."
           ],
           "description": "Sets the optimization level for the block diagram compiler. Default is Level 2 (Aggressive)."
+        },
+        "fv1.effectsRepositoryUrl": {
+          "type": "string",
+          "default": "https://raw.githubusercontent.com/audiofab/easy-spin-effects/main",
+          "markdownDescription": "Base URL of the effects repository used to populate **New Block Diagram** templates. Templates are the effects in that repository that publish a `.spndiagram` source. Point this at a fork or an internal mirror to offer your own template library; the URL must serve `effects/index.json` and the diagram files beneath it. Leave blank to use the public Audiofab repository."
         }
       }
     }
@@ -541,7 +546,7 @@
   },
   "dependencies": {
     "@audiofab-io/easy-spin-ui": "^0.3.12",
-    "@audiofab-io/fv1-core": "^0.13.5",
+    "@audiofab-io/fv1-core": "^0.13.8",
     "@johntalton/eeprom": "^1.1.1",
     "@johntalton/i2c-bus-mcp2221": "^4.2.1",
     "@johntalton/mcp2221": "^4.0.4",
