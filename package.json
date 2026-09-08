@@ -536,11 +536,11 @@
   "devDependencies": {
     "@types/node": "26.x",
     "@types/node-hid": "^3.0.0",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
     "@types/uuid": "^11.0.0",
     "@types/vscode": "^1.101.0",
-    "esbuild": "^0.28.1",
+    "esbuild": "^0.28.2",
     "npm-run-all": "^4.1.5",
     "typescript": "^7.0.2"
   },
@@ -551,12 +551,12 @@
     "@johntalton/i2c-bus-mcp2221": "^4.2.1",
     "@johntalton/mcp2221": "^4.0.4",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "konva": "^10.3.0",
+    "konva": "^10.3.2",
     "node-hid": "^3.4.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-konva": "^19.2.5",
     "uuid": "^14.0.1",
-    "zod": "^4.4.3"
+    "zod": "^4.5.2"
   }
 }
