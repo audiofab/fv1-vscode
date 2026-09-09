@@ -24,7 +24,15 @@ Editor Features
    - Press ``Ctrl+Shift+Z`` or ``Ctrl+Y`` to redo
 
 **Connection Validation**
-   The editor prevents invalid connections ande xplains why the connection is invalid
+   The editor prevents invalid connections and explains why the connection is invalid
+
+Starting a Diagram
+------------------
+
+**FV-1: Create new block diagram** asks what to start from: an empty diagram, or one of the
+published effects as a template, browsed by category. Starting from a template that already
+does something close to what you want is usually faster than wiring it up from scratch — and
+it is a good way to see how an effect is put together.
 
 Creating Blocks and Connections
 --------------------------------

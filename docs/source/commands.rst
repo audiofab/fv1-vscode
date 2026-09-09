@@ -79,7 +79,12 @@ Utility Commands
    This creates a complete backup of all your programs on the hardware.
 
 **FV-1: Create new block diagram**
-   Create a new visual block diagram file (`.spndiagram`).
+   Create a new visual block diagram file (``.spndiagram``). You are offered a starting
+   point first: an empty diagram, or a published effect used as a template. Templates are
+   grouped by category — pick a category to see what is in it, and use the back arrow (or
+   the *All categories* row) to look at a different one. They are fetched from the Audiofab
+   effects repository, so the list grows without an extension update; offline, the empty
+   diagram is still available.
 
 
 

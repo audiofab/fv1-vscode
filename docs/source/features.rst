@@ -53,6 +53,11 @@ Create FV-1 programs visually without writing assembly code:
 🎯 **Direct Programming**
    Program your diagram directly to a pedal slot with one keystroke
 
+📁 **Start from a Template**
+   Begin a new diagram from a published effect instead of a blank canvas. Templates are
+   browsed by category and fetched from the Audiofab effects repository, so the list grows
+   without needing an extension update.
+
 
 Pedal Simulator and Bank Management
 -----------------------------------
@@ -86,8 +91,11 @@ The integrated Pedal Simulator provides a highly interactive, 3D pedal UI for te
    to a ``.spn`` file you can edit and re-program; empty slots are left unassigned.
 
 🏷️ **Live Pot Labels**
-   The knob labels on the pedal graphic follow the selected slot, naming what each pot
-   actually controls in a block diagram and updating as you re-wire it.
+   The knob labels on the pedal graphic name what each pot actually controls in a block
+   diagram, and update as you re-wire it. This works for a ``.spndiagram`` on its own as
+   well as for a bank slot, and follows the signal through Smoothers and other control
+   shaping blocks — so a pot feeding a delay through a smoother reads *Delay Time*, not
+   the name of the smoother's input. A bank's own control names, if it has them, win.
 
 💾 **Export to HEX**
    Save your bank as Intel HEX for archival or use with other programmers. Unassigned
@@ -186,25 +194,33 @@ The extension includes a comprehensive library of effects and utilities:
    Hardware ADC and DAC routing
 
 **Control**
-   Envelope followers, Smoothers, Power curve shaping, Ramp and Sin/Cos LFOs, Tremolizers
+   Potentiometers, Constants, Envelope Follower, Smoother, Scale/Offset, Power curve
+   shaping, Invert, Ramp / Sin-Cos / Entropy LFOs, Tremolizer
 
 **Gain/Mixing**
-   2:1 and 3:1 Mixers, Multi-channel Crossfades, Volume controls
+   2:1, 3:1, 4:1 and Stereo 2:1 Mixers, three Crossfade laws, Volume, Gain Boost
 
 **Filter**
-   1-pole Low/High-Pass Filters, 2-pole State Variable Filters (SVF), Shelving Filters
+   1-pole Low/High-Pass, 2-pole State Variable (SVF), Shelving Low/High-Pass, Auto-Wah,
+   BBD Bucket Loss
 
 **Effects - Delay**
-   Simple Delay, Triple-Tap Delay
+   Simple Delay, Three-Tap Delay, Eight-Tap Delay, MN3011 Multitap BBD Delay
 
 **Effects - Modulation**
-   Chorus, Flanger, Phaser
+   Chorus, 4-Voice Chorus, Flanger, Phaser, Harmonic Tremolo, Organ Synth, Guitar Synth
 
-**Effects - Pitch** *(New in v1.4.3)*
-   Pitch shifter with adjustable range, fixed pitch offset, dual offset variant, octave up/down
+**Effects - Pitch**
+   Pitch Shift, Octave Up & Down, Sub-Octave Synth, Pitch Offset and Dual Pitch Offset
+   (Hilbert)
 
 **Effects - Reverb**
-   Plate, Spring, Room, and Minimal reverbs
+   Plate, Spring, Room, Simple, Shimmer and Ducking reverbs, Spectral Smear, plus the
+   raw building blocks: **Allpass** (cascaded diffusers) and **Chirp** (dispersive
+   all-pass chain for spring-style 'sproing')
+
+**Effects - Lo-Fi**
+   The Bit-Mangler, Chip Tune, Tape Degrader, Micro-Stutter
 
 **Other**
    Fixed and Adjustable Sine Tone Generators
