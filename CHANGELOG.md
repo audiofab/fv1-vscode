@@ -1,5 +1,29 @@
 # Change Log
 
+## [1.8.6]
+
+- Create a new block diagram from a template, browsed by category and pulled from the
+  easy-spin-effects GitHub repository
+- Pots in the simulator are now labelled automatically for a `.spndiagram`, from what each
+  pot is wired to — including through Smoother and other control-shaping blocks, so a pot
+  feeding a delay through a smoother reads "Delay Time" rather than "CV In"
+- Bump fv1-core and easy-spin-ui. Block changes worth knowing about:
+  - Two new blocks: **Allpass** (four cascaded diffusers, the building block of a reverb)
+    and **Chirp** (up to 30 identical all-passes for spring-style dispersion)
+  - **Fixed:** 4-Voice Chorus swept twice the LFO Width you set, which ran the modulated
+    taps off the end of its delay line at wider settings
+  - **Fixed:** Pitch Shift ignored its Semitones setting entirely — every value produced
+    the same shift, and negative values played backwards
+  - **Fixed:** the Flanger's second output is now the unmodulated centre tap it was meant
+    to be, instead of a fixed tap at the far end of the delay line
+  - New controls: Shimmer Reverb **Diffusion** and **Wet Level**, Octave Up & Down
+    **Buffer Size**, Harmonic Tremolo **Band Mode** and a **Frequency** CV input
+  - Mix controls on Simple Reverb and Shimmer Reverb no longer change loudness as you
+    sweep them
+  - Programs use less delay RAM: memory for a block stage that is switched off is no
+    longer reserved
+  - A DAC block with a gain no longer costs an extra instruction
+
 ## [1.8.5]
 
 - Bump fv1-core to pick up a simulator bugfix related to cho rda and COMPA, more efficient mixer blocks

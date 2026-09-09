@@ -5,7 +5,7 @@ The DSP core (assembler, simulator, block compiler, ATL block library) lives in
 `@audiofab-io/fv1-core` — for anything about ATL blocks or FV-1 codegen, see that package's
 `CLAUDE.md` and `blocks/ATL_DEVELOPER_REFERENCE.md`. This file is about the *extension*.
 
-## Build system (esbuild, three bundles)
+## Build system (esbuild, four bundles)
 
 `esbuild.cjs` builds **four** independent bundles — the extension host and the MCP server are
 Node/CJS, the webviews are browser/IIFE:
@@ -79,6 +79,8 @@ Tools:
   with no arg to list; adapt rather than start from scratch). Sources live in
   [src/mcp/examples/](src/mcp/examples/), copied to `dist/mcp-examples/` at build time. **Every
   example must compile** — if you add one, validate it against `GraphCompiler` first.
+  These are for the AI only. The human's "new from template" picker used to share them and
+  deliberately no longer does — see Templates below.
 
 **stdout is reserved for JSON-RPC** — the server reroutes `console.log`→stderr; never `console.log`
 to stdout from here or you corrupt the protocol.
@@ -172,6 +174,32 @@ Branch on `identity.variant`, never on the USB product string directly.
 production step, not a user feature: it lives under `scripts/`, which is in `.vscodeignore` so it
 never enters the `.vsix`. The write API itself is in fv1-core (`provisionMcp2221`) — don't add a
 command that calls it.
+
+## Templates ("New block diagram from template")
+
+[src/services/TemplateRepository.ts](src/services/TemplateRepository.ts) is **remote-only**: it
+fetches `effects/index.json` from the public easy-spin-effects repo over HTTPS, the same way
+easy-spin-web's `EffectsRepository` does. Publishing a template is committing a `.spndiagram` and
+regenerating the index — no extension release. It bundles no fallbacks on purpose, so the picker
+shows exactly what the repository publishes; offline, the user still gets the blank diagram.
+
+**Filter on `formats`, never `format`.** A ported effect keeps its original `.spn` beside the new
+`.spndiagram` under one basename. `format` is the PRIMARY source and resolves first-match-wins in
+the order spn, hex, spndiagram — so for a ported effect it always says `spn` and the diagram is
+invisible. `formats` lists every source present. An index generated before that field existed has
+no `formats` at all, which is why a stale `index.json` yields zero templates even with the diagrams
+committed.
+
+**easy-spin-web reads `format`, not `formats`**, so with both files present its simulator compiles
+the `.spn` while the picker hands you the `.spndiagram`. The two are separate sources with nothing
+checking they agree — worth a compile-and-compare in `build-index.ts` before leaning on it.
+`compileEffect({ format: 'spndiagram' })` already works, so a diagram-only effect needs no code
+change on the web side; its output then tracks whatever block-library version is bundled, unlike a
+`.spn`'s frozen bytes.
+
+The picker ([CommandRegistry.pickDiagramTemplate](src/services/CommandRegistry.ts)) is two-level:
+categories, then the templates inside one, with Back offered both as the titlebar arrow and a
+visible row. Filtering applies to whichever level you are on.
 
 ## Custom blocks
 
