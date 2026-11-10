@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.8.7]
+
+- Bump dependencies
+- Bump fv1-core to pick up a simulator fix for SKP 0,N
+
 ## [1.8.6]
 
 - Create a new block diagram from a template, browsed by category and pulled from the
